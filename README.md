@@ -34,8 +34,10 @@ Then open the URL it prints (usually http://localhost:8501).
 
 1. **Pick the model under test** (sidebar): offline **Mock**, the **Claude API**
    (paste a key), or **any HTTP endpoint** (URL + body template + response path).
-2. **Describe the feature** and pick an **AI type** (chatbot / rag / classifier /
-   summarizer / agent). Optionally raise the **coverage bar** for this feature.
+2. **Describe the feature** — a short phrase, or paste a **full user story with
+   acceptance criteria** — and pick an **AI type** (chatbot / rag / classifier /
+   summarizer / agent). With the Claude backend, each acceptance criterion
+   becomes a test. Optionally raise the **coverage bar** for this feature.
 3. **Generate** — see the cases (id, category, severity, validator) and a coverage
    check against the standard.
 4. **Run** — execute the suite and view the **report** inline, with the verdict

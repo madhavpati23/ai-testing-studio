@@ -74,10 +74,22 @@ if choice != "(custom)" and st.session_state.get("_applied_example") != choice:
 
 col1, col2 = st.columns([3, 1])
 with col1:
-    feature = st.text_input("Feature or requirement", key="feature_input",
-                            placeholder="e.g. password reset email assistant")
+    feature = st.text_area(
+        "Feature or user story",
+        key="feature_input",
+        height=140,
+        placeholder=(
+            "A short phrase — or paste a full user story with acceptance criteria, e.g.\n\n"
+            "As a user, I want to reset my password via email.\n"
+            "Acceptance criteria:\n"
+            "- A reset link is emailed and expires in 30 minutes\n"
+            "- The link works only once\n"
+            "- Unknown emails get a neutral 'if an account exists…' response"
+        ),
+    )
 with col2:
     ai_type = st.selectbox("AI type", AI_TYPES, key="aitype_input")
+    st.caption("Tip: with the Claude backend, a full user story yields a test per acceptance criterion.")
 
 with st.expander("Coverage overrides (optional) — raise the bar for this feature"):
     st.caption("Each category set here becomes REQUIRED at the given minimum.")
