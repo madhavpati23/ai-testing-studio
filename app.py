@@ -136,9 +136,12 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-tab_test, tab_prompt, tab_story, tab_help = st.tabs(
-    ["🧪 Test a feature", "✍️ Prompt & instructions", "🧭 Story analysis", "ℹ️ How it works"]
+tab_test, tab_prompt, tab_story, tab_audit, tab_help = st.tabs(
+    ["🧪 Test a feature", "✍️ Prompt & instructions", "🧭 Story analysis",
+     "📄 Example audit", "ℹ️ How it works"]
 )
+_AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "reports", "claude-audit-2026-06-18.md")
 
 # ============================================================================
 # TAB 1 — Test a feature (the main flow)
@@ -353,7 +356,19 @@ with tab_story:
     st.code(core.EXAMPLE_USER_STORY, language="text")
 
 # ============================================================================
-# TAB 4 — How it works
+# TAB 4 — Example audit (a real report produced with this methodology)
+# ============================================================================
+with tab_audit:
+    st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
+               "against a live model, judged with explicit pass criteria.")
+    try:
+        st.markdown(open(_AUDIT_PATH, encoding="utf-8").read())
+    except OSError:
+        st.info("Audit report file not found.")
+
+
+# ============================================================================
+# TAB 5 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
