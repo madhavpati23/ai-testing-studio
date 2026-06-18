@@ -70,7 +70,7 @@ def _checks(prompt: str) -> dict[str, bool]:
         "output format": bool(re.search(
             r"\b(json|yaml|table|markdown|bullet|numbered list|list|format|schema|csv|"
             r"step by step|steps|headings?)\b", low)),
-        "example": bool(re.search(r"(e\.?g\.?\b|for example|for instance|example\s*:|sample)", low)),
+        "example": bool(re.search(r"(e\.?g\.?\b|for example|for instance|\bexample\b|\bsample\b|such as)", low)),
     }
 
 
@@ -121,22 +121,20 @@ def _rewrite(prompt: str, present: dict[str, bool]) -> str:
     it further to the exact content.
     """
     low = prompt.lower()
-    parts: list[str] = []
+    lines: list[str] = []
     if not present["context/role"]:
-        parts.append(f"You are {_infer_role(low)}.")
-    parts.append(f"{_clean_task(prompt)}.")
-    extras: list[str] = []
+        lines.append(f"You are {_infer_role(low)}.")
+    lines.append(f"{_clean_task(prompt)}.")
     if not present["constraints"]:
-        extras.append("Be accurate and concise, define key terms, and avoid unnecessary jargon.")
+        lines.append("- Be accurate and concise, define key terms, and avoid unnecessary jargon.")
     if not present["output format"]:
-        extras.append("Organise the answer with clear sections or bullet points so it is easy to follow.")
+        lines.append("- Organise the answer with clear sections or bullet points so it is easy to follow.")
     if not present["example"]:
-        extras.append("Include a brief example where it helps.")
+        lines.append("- Include a brief example to illustrate.")
     if not present["specific"]:
-        extras.append("State any assumptions you make.")
-    extras.append("If anything is unclear or outside your knowledge, say so instead of guessing.")
-    parts.append(" ".join(extras))
-    return " ".join(parts)
+        lines.append("- State any assumptions you make.")
+    lines.append("- If anything is unclear or outside your knowledge, say so instead of guessing.")
+    return "\n".join(lines)
 
 
 def assess(prompt: str) -> PromptScore:
