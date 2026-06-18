@@ -189,8 +189,19 @@ with st.expander("🔎  Open the prompt quality check", expanded=False):
             for s in score.suggestions:
                 st.markdown(f"- {s}")
             if score.example:
-                st.markdown("**Example of how it could look:**")
-                st.code(score.example, language="text")
+                if is_instr:
+                    heading, blurb = "🧩 Suggested instructions template", \
+                        "Fill the slots and use this as the agent's instructions."
+                elif pq_llm:
+                    heading, blurb = "✍️ Rewritten prompt", \
+                        "A stronger version of your prompt — copy and use it."
+                else:
+                    heading, blurb = "✍️ Suggested rewrite", \
+                        "A stronger shape built around your ask — fill the <slots> and use it."
+                with st.container(border=True):
+                    st.markdown(f"#### {heading}")
+                    st.caption(blurb)
+                    st.code(score.example, language="text")
 
 # ---- step 1: describe + generate ------------------------------------------
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
