@@ -4,6 +4,8 @@ A browser UI that makes the whole AI-testing toolchain usable by anyone — no
 terminal required. Describe a feature → generate a risk-based test suite → run it
 against a model → get a report with a **ship / no-ship verdict**.
 
+▶️ **Live demo** (offline mock, no signup): https://ai-testing-studio-jsrj4bqyatgfc7jzz8qzgz.streamlit.app/
+
 It's a thin [Streamlit](https://streamlit.io) shell over two packages:
 
 - [**ai-test-case-generator**](https://github.com/madhavpati23/ai-test-case-generator) — designs the suite + enforces a coverage standard
@@ -32,20 +34,31 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-> There's also a **"Quick prompt quality check"** panel: paste any prompt and get
-> a score plus a couple of concise pointers (heuristic, or Claude with `--llm`).
+The UI is organised into four tabs:
 
-
+**🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): offline **Mock**, the **Claude API**
-   (paste a key), or **any HTTP endpoint** (URL + body template + response path).
-2. **Describe the feature** — a short phrase, or paste a **full user story with
-   acceptance criteria** — and pick an **AI type** (chatbot / rag / classifier /
-   summarizer / agent). With the Claude backend, each acceptance criterion
-   becomes a test. Optionally raise the **coverage bar** for this feature.
-3. **Generate** — see the cases (id, category, severity, validator) and a coverage
+   (paste a key), or **any HTTP endpoint**. The HTTP backend has one-click
+   **presets** (Rovo proxy, OpenAI-compatible).
+2. **Describe the feature** — a short phrase or a **full user story with
+   acceptance criteria** — pick an **AI type**, and optionally raise the
+   **coverage bar**.
+3. **Generate** — see the cases (id, category, severity, validator) + a coverage
    check against the standard.
-4. **Run** — execute the suite and view the **report** inline, with the verdict
+4. **Run** (with an optional **SLA in ms**) — view the **report** inline with
+   metric tiles (pass rate, verdict, avg latency) and the verdict
    (**SHIP / NEEDS SIGN-OFF / BLOCK**). Download the HTML/JSON report and the YAML suite.
+
+**✍️ Prompt & instructions** — paste a **prompt** or an **agent's instructions**
+and get a quality score, a few concise pointers, and a concrete **suggested
+rewrite** (task-type aware; Claude does a fully tailored rewrite when available).
+
+**🧭 Story analysis** — paste a user story and see **what can be tested on it**
+(testable requirements + suggested scenarios by category + a validation matrix),
+plus an **example of how to write a user story for AI testing**. One click sends
+it to the Test-a-feature tab.
+
+**ℹ️ How it works** — the flow, the risk categories, and the verdict legend.
 
 ## Architecture
 
