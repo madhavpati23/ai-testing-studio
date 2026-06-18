@@ -236,6 +236,38 @@ with st.expander("Coverage overrides (optional) — raise the bar for this featu
     overrides = {k: int(v) for k, v in
                  {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
 
+# ---- understand the story --------------------------------------------------
+def _load_example_story():
+    st.session_state["feature_input"] = core.EXAMPLE_USER_STORY
+    st.session_state["ex_choice"] = "(custom)"
+    st.session_state.pop("_applied_example", None)
+
+ac1, ac2, _ = st.columns([1.4, 1.4, 3])
+if ac1.button("🧭 What can we test on this?", disabled=not feature):
+    st.session_state["story_analysis"] = core.analyze_story(feature)
+ac2.button("📋 Load the example story", on_click=_load_example_story)
+
+a = st.session_state.get("story_analysis")
+if a:
+    with st.container(border=True):
+        st.markdown("#### 🧭 What we can test on this story")
+        st.markdown("**Testable requirements — functional**")
+        st.markdown("\n".join(f"- {x}" for x in a.functional))
+        st.markdown("**Non-functional:** " + ", ".join(a.non_functional))
+        st.markdown("**Suggested tests, by risk category**")
+        for cat, items in a.suggested.items():
+            st.markdown(f"- **`{cat}`** — " + "; ".join(items))
+        st.markdown("**Validation matrix**")
+        st.table({"Area": [m[0] for m in a.matrix], "What to verify": [m[1] for m in a.matrix]})
+        st.caption("Heuristic preview. Click **Generate** to turn this into a runnable suite "
+                   "(with the Claude backend it's tailored to your acceptance criteria).")
+
+with st.expander("📋 Example: how to write a user story for AI testing"):
+    st.caption("A clear AI-testing story: role, want, so-that, explicit acceptance criteria, "
+               "and testing notes (source of truth + abuse cases). Click 'Load the example story' to try it.")
+    st.code(core.EXAMPLE_USER_STORY, language="text")
+
+
 def _clear_feature():
     st.session_state["feature_input"] = ""
     st.session_state["aitype_input"] = "(none)"
@@ -243,7 +275,7 @@ def _clear_feature():
     st.session_state["ov_safety"] = 0
     st.session_state["ov_accuracy"] = 0
     st.session_state["ov_agent"] = 0
-    for k in ("_applied_example", "gen", "run"):
+    for k in ("_applied_example", "gen", "run", "story_analysis"):
         st.session_state.pop(k, None)
 
 
