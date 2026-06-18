@@ -330,20 +330,30 @@ if gen:
 
     # ---- step 2: run -------------------------------------------------------
     st.subheader("2 · Run the suite")
-    if st.button("▶️ Run against the selected model", type="primary"):
+    rcol1, rcol2 = st.columns([2, 1])
+    do_run = rcol1.button("▶️ Run against the selected model", type="primary")
+    sla_in = rcol2.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
+                                value=0, step=100,
+                                help="Flag cases whose response time exceeds this. 0 = off.")
+    if do_run:
         core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         with st.spinner("Running…"):
-            run = core.run_suite_dir(gen.out_dir)
+            run = core.run_suite_dir(gen.out_dir, sla_ms=sla_in or None)
         st.session_state["run"] = run
 
     run = st.session_state.get("run")
     if run:
         st.subheader("3 · Report")
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("Pass rate", f"{run.summary.pass_rate:.0f}%")
         m2.metric("Passed", f"{run.summary.passed}/{run.summary.total}")
         m3.metric("Failed", run.summary.failed)
         m4.metric("Verdict", run.verdict)
+        _perf = run.perf or {}
+        _breaches = _perf.get("breaches", [])
+        m5.metric("Avg latency", f"{_perf.get('avg_ms', 0)} ms",
+                  delta=(f"{len(_breaches)} over SLA" if _breaches else None),
+                  delta_color="inverse")
         verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
         getattr(st, verdict_style.get(run.verdict, "info"))(
             f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import glob
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,6 +34,7 @@ class Result:
     runs: int = 1
     passes: int = 1
     flaky: bool = False   # passed some runs but not all — unstable behaviour
+    latency_ms: float = 0.0   # mean response time across runs
 
 
 def load_cases(prompts_dir: str) -> list[Case]:
@@ -93,8 +95,11 @@ def run_suite(model: Model, cases: list[Case], repeat: int = 1,
     results: list[Result] = []
     for case in cases:
         outcomes = []  # (passed, answer, detail) per run
+        latencies = []
         for _ in range(repeat):
+            t0 = time.perf_counter()
             answer = answer_for(model, case)
+            latencies.append((time.perf_counter() - t0) * 1000.0)
             ok, detail = judge(answer, case.validator, case.args)
             outcomes.append((ok, answer, detail))
         passes = sum(1 for ok, _, _ in outcomes if ok)
@@ -103,7 +108,8 @@ def run_suite(model: Model, cases: list[Case], repeat: int = 1,
         # show a failing run if there is one (most informative), else the last
         rep = next((o for o in outcomes if not o[0]), outcomes[-1])
         results.append(Result(case=case, answer=rep[1], passed=passed, detail=rep[2],
-                              runs=repeat, passes=passes, flaky=flaky))
+                              runs=repeat, passes=passes, flaky=flaky,
+                              latency_ms=sum(latencies) / len(latencies)))
     return results
 
 

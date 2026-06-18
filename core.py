@@ -245,9 +245,10 @@ class RunResult:
     verdict: str
     html: str
     json: str
+    perf: dict = field(default_factory=dict)
 
 
-def run_suite_dir(prompts_dir: str) -> RunResult:
+def run_suite_dir(prompts_dir: str, sla_ms: float | None = None) -> RunResult:
     model = get_model()
     cases = load_cases(prompts_dir)
     results = run_suite(model, cases)
@@ -257,6 +258,7 @@ def run_suite_dir(prompts_dir: str) -> RunResult:
         summary=summary,
         results=results,
         verdict=decide(results).decision,
-        html=prr.render_html(summary, results),
-        json=prr.render_json(summary, results),
+        html=prr.render_html(summary, results, sla_ms),
+        json=prr.render_json(summary, results, sla_ms),
+        perf=prr.performance(results, sla_ms),
     )

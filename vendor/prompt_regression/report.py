@@ -19,12 +19,18 @@ _LINE = "=" * 64
 _THIN = "-" * 64
 
 
-def render_run(summary: Summary, results: list[Result]) -> str:
+def render_run(summary: Summary, results: list[Result], sla_ms: float | None = None) -> str:
     out = [_LINE, f"  PROMPT-REGRESSION REPORT  -  model: {summary.model}", _LINE]
     out.append(f"  Total tests : {summary.total}")
     out.append(f"  Passed      : {summary.passed}")
     out.append(f"  Failed      : {summary.failed}")
     out.append(f"  PASS RATE   : {summary.pass_rate:.1f}%")
+    perf = performance(results, sla_ms)
+    out.append(f"  LATENCY     : avg {perf['avg_ms']} ms, max {perf['max_ms']} ms"
+               + (f" (slowest: {perf['slowest_id']})" if perf['slowest_id'] else ""))
+    if sla_ms is not None:
+        n = len(perf["breaches"])
+        out.append(f"  SLA {sla_ms:.0f} ms : {'OK - all within SLA' if n == 0 else f'{n} breach(es): ' + ', '.join(perf['breaches'])}")
     out.append(_THIN)
     out.append("  PASS RATE BY CATEGORY:")
     for cat, (passed, total) in sorted(summary.by_category.items()):
@@ -102,7 +108,19 @@ def _result_dict(r: Result) -> dict:
     }
 
 
-def build_report(summary: Summary, results: list[Result]) -> dict:
+def performance(results: list[Result], sla_ms: float | None = None) -> dict:
+    """Latency summary + optional SLA breaches."""
+    if not results:
+        return {"avg_ms": 0.0, "max_ms": 0.0, "slowest_id": None, "sla_ms": sla_ms, "breaches": []}
+    lat = [(r.latency_ms, r.case.id) for r in results]
+    avg = sum(x for x, _ in lat) / len(lat)
+    mx, slowest = max(lat)
+    breaches = [cid for ms, cid in lat if sla_ms is not None and ms > sla_ms]
+    return {"avg_ms": round(avg, 1), "max_ms": round(mx, 1), "slowest_id": slowest,
+            "sla_ms": sla_ms, "breaches": breaches}
+
+
+def build_report(summary: Summary, results: list[Result], sla_ms: float | None = None) -> dict:
     """The single structured report object the JSON/HTML renderers share."""
     verdict = decide(results)
     runs = results[0].runs if results else 1
@@ -116,6 +134,7 @@ def build_report(summary: Summary, results: list[Result]) -> dict:
         "pass_rate": round(summary.pass_rate, 1),
         "runs_per_case": runs,
         "flaky": flaky,
+        "performance": performance(results, sla_ms),
         "verdict": verdict.decision,
         "severity_failed": verdict.severity_failed,
         "by_category": {
@@ -126,17 +145,26 @@ def build_report(summary: Summary, results: list[Result]) -> dict:
     }
 
 
-def render_json(summary: Summary, results: list[Result]) -> str:
-    return json.dumps(build_report(summary, results), indent=2)
+def render_json(summary: Summary, results: list[Result], sla_ms: float | None = None) -> str:
+    return json.dumps(build_report(summary, results, sla_ms), indent=2)
 
 
 _VERDICT_COLOR = {"SHIP": "#1a7f37", "NEEDS SIGN-OFF": "#9a6700", "BLOCK": "#cf222e"}
 
 
-def render_html(summary: Summary, results: list[Result]) -> str:
-    rpt = build_report(summary, results)
+def render_html(summary: Summary, results: list[Result], sla_ms: float | None = None) -> str:
+    rpt = build_report(summary, results, sla_ms)
     e = html.escape
     color = _VERDICT_COLOR.get(rpt["verdict"], "#57606a")
+    perf = rpt["performance"]
+    perf_card = f"<div class='card'><b>{perf['avg_ms']} ms</b>avg latency (max {perf['max_ms']})</div>"
+    sla_line = ""
+    if perf["sla_ms"] is not None:
+        n = len(perf["breaches"])
+        sla_line = (f"<p>SLA {perf['sla_ms']:.0f} ms: "
+                    + ("<b style='color:#1a7f37'>all within SLA</b>"
+                       if n == 0 else f"<b style='color:#cf222e'>{n} breach(es)</b> — "
+                       + e(', '.join(perf['breaches']))) + "</p>")
 
     cat_rows = "".join(
         f"<tr><td>{e(cat)}</td><td>{d['passed']}/{d['total']}</td>"
@@ -176,11 +204,13 @@ def render_html(summary: Summary, results: list[Result]) -> str:
 <h1>AI Test Report</h1>
 <p class="muted">Model under test: <b>{e(rpt['model'])}</b> &middot; generated {e(rpt['generated_at'])} UTC</p>
 <p>Release verdict: <span class="verdict">{e(rpt['verdict'])}</span></p>
+{sla_line}
 <div class="cards">
  <div class="card"><b>{rpt['pass_rate']}%</b>pass rate</div>
  <div class="card"><b>{rpt['passed']}/{rpt['total']}</b>passed</div>
  <div class="card"><b>{rpt['failed']}</b>failed</div>
  <div class="card"><b>{e(sev_txt)}</b>failures by severity</div>
+ {perf_card}
  {flaky_card}
 </div>
 <h2>Pass rate by category</h2>

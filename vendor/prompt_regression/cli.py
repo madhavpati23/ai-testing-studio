@@ -43,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
                        help="run each case N times (handles non-determinism)")
     p_run.add_argument("--pass-threshold", type=float, default=1.0,
                        help="fraction of runs that must pass for a case to pass (0-1; default 1.0)")
+    p_run.add_argument("--sla-ms", type=float, default=None,
+                       help="report cases whose response time exceeds this many milliseconds")
 
     p_up = sub.add_parser("update-baseline", help="save current run as a baseline")
     p_up.add_argument("path", help="where to write the baseline JSON")
@@ -61,16 +63,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Saved baseline for {model.name} ({summary.passed}/{summary.total} passing) -> {args.path}")
         return 0
 
-    print(render_run(summary, results))
+    sla_ms = getattr(args, "sla_ms", None)
+    print(render_run(summary, results, sla_ms))
     print(render_verdict_line(decide(results)))
 
     if getattr(args, "json_path", None):
         with open(args.json_path, "w", encoding="utf-8") as fh:
-            fh.write(render_json(summary, results))
+            fh.write(render_json(summary, results, sla_ms))
         print(f"  Wrote JSON report -> {args.json_path}")
     if getattr(args, "html_path", None):
         with open(args.html_path, "w", encoding="utf-8") as fh:
-            fh.write(render_html(summary, results))
+            fh.write(render_html(summary, results, sla_ms))
         print(f"  Wrote HTML report -> {args.html_path}")
 
     if args.command == "run" and args.baseline:
