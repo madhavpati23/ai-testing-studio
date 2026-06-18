@@ -8,6 +8,7 @@ from __future__ import annotations
 import glob
 import os
 
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -198,11 +199,11 @@ with tab_test:
         st.success(f"Generated {len(gen.cases)} case(s) with **{gen.generator_name}**.")
         if gen.errors:
             st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
-        st.dataframe(
+        _rows = pd.DataFrame(
             [{"id": c.id, "category": c.category, "severity": c.severity,
-              "validator": c.validator, "prompt": c.prompt} for c in gen.cases],
-            use_container_width=True, hide_index=True,
-        )
+              "validator": c.validator, "prompt": c.prompt} for c in gen.cases]
+        ).set_index("id")
+        st.table(_rows)   # st.table wraps long text (the prompt column) instead of truncating
         (st.error if gen.has_gaps else st.info)(
             ("⚠️ Below coverage standard\n\n" if gen.has_gaps else "✅ Coverage\n\n")
             + "```\n" + gen.coverage_text + "\n```"
