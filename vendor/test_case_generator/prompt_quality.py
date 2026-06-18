@@ -19,7 +19,7 @@ _DIMENSIONS = {
     "clear task": (25, "Lead with a clear action verb so the ask is unambiguous."),
     "context/role": (20, "Add a line of context or a role (e.g. 'You are a...') to frame it."),
     "specific": (20, "Replace vague references ('it', 'this') with the specific subject."),
-    "constraints": (15, "State any constraints — length, tone, or what to avoid."),
+    "constraints": (15, "State any constraints - length, tone, or what to avoid."),
     "output format": (12, "Say what the output should look like (e.g. JSON, a bulleted list)."),
     "example": (8, "A short example of a good answer can sharpen results."),
 }
@@ -33,6 +33,7 @@ class PromptScore:
     strengths: list[str] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     present: dict[str, bool] = field(default_factory=dict)
+    example: str = ""   # a concrete improved shape, built around the user's ask
 
 
 def _checks(prompt: str) -> dict[str, bool]:
@@ -70,6 +71,26 @@ def _level(score: int) -> tuple[str, str]:
     return "Needs work", "This prompt is likely to give inconsistent results."
 
 
+def _example_shape(prompt: str, present: dict[str, bool]) -> str:
+    """Build a concrete 'good' shape around the user's actual ask.
+
+    Fills only the parts that are missing, so it reads as a template to complete
+    — not a lecture. Angle-bracket slots are for the user to fill in.
+    """
+    task = prompt.strip().rstrip(".")
+    lines = []
+    if not present["context/role"]:
+        lines.append("You are an expert assistant for this task.")
+    lines.append(f"Task: {task}.")
+    if not present["constraints"]:
+        lines.append("Constraints: be accurate and concise; if unsure, say so.")
+    if not present["output format"]:
+        lines.append("Output: return a clear, structured response (e.g. short bullets or JSON).")
+    if not present["example"]:
+        lines.append("Example of a good answer: <add one short example>.")
+    return "\n".join(lines)
+
+
 def assess(prompt: str) -> PromptScore:
     if not prompt.strip():
         return PromptScore(0, "Empty", "No prompt provided.", suggestions=["Enter a prompt to score it."])
@@ -81,8 +102,9 @@ def assess(prompt: str) -> PromptScore:
     missing = sorted((d for d, ok in present.items() if not ok),
                      key=lambda d: _DIMENSIONS[d][0], reverse=True)
     suggestions = [] if score >= 85 else [_DIMENSIONS[d][1] for d in missing[:3]]
-    return PromptScore(score=score, level=level, summary=summary,
-                       strengths=strengths, suggestions=suggestions, present=present)
+    example = "" if score >= 85 else _example_shape(prompt, present)
+    return PromptScore(score=score, level=level, summary=summary, strengths=strengths,
+                       suggestions=suggestions, present=present, example=example)
 
 
 def assess_llm(prompt: str) -> PromptScore:
@@ -98,8 +120,10 @@ def assess_llm(prompt: str) -> PromptScore:
     system = (
         "You rate how well-written a prompt is. Be concise and encouraging, not "
         "preachy. Reply with ONLY JSON: {\"score\": 0-100, \"summary\": \"<one "
-        "sentence>\", \"suggestions\": [\"<at most 3, phrased as 'consider…'>\"]}. "
-        "If the prompt is already strong, return an empty suggestions list."
+        "sentence>\", \"suggestions\": [\"<at most 3, phrased as 'consider…'>\"], "
+        "\"improved\": \"<a rewritten version of THIS prompt that keeps the user's "
+        "intent but applies best practices>\"}. If the prompt is already strong, "
+        "return an empty suggestions list and set improved to an empty string."
     )
     resp = client.messages.create(
         model=os.environ.get("PRS_JUDGE_MODEL", "claude-opus-4-8"),
@@ -112,4 +136,5 @@ def assess_llm(prompt: str) -> PromptScore:
     score = int(data["score"])
     level, _ = _level(score)
     return PromptScore(score=score, level=level, summary=str(data.get("summary", "")),
-                       suggestions=list(data.get("suggestions", []))[:3])
+                       suggestions=list(data.get("suggestions", []))[:3],
+                       example=str(data.get("improved", "")))

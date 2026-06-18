@@ -101,14 +101,24 @@ with st.sidebar:
 _BACKEND_KIND = {"Mock (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
 
 # ---- optional: quick prompt quality check ---------------------------------
+st.session_state.setdefault("pq_text", "")
+
 with st.expander("🔎 Quick prompt quality check (optional)"):
-    st.caption("Paste a prompt to get a score and a couple of quick pointers — no lecturing.")
+    st.caption("Paste a prompt to get a score, a couple of quick pointers, and an "
+               "example of how it could look — no lecturing.")
     pq_text = st.text_area("Prompt to score", height=110, key="pq_text",
                            placeholder="Paste the prompt you wrote…")
     pq_llm = (not PUBLIC) and st.checkbox("Use Claude for the critique (needs the Claude backend + key)")
-    if st.button("Score this prompt", disabled=not pq_text.strip()):
+
+    bc1, bc2, _ = st.columns([1, 1, 4])
+    do_score = bc1.button("Score this prompt", type="primary", disabled=not pq_text.strip())
+    if bc2.button("Clear", disabled=not pq_text):
+        st.session_state["pq_text"] = ""
+        st.rerun()
+
+    if do_score:
         if pq_llm:
-            core.set_backend("claude", **({"api_key": backend_opts.get("api_key", "")}))
+            core.set_backend("claude", api_key=backend_opts.get("api_key", ""))
         try:
             score = core.assess_prompt(pq_text, use_llm=pq_llm)
         except Exception as exc:
@@ -120,6 +130,9 @@ with st.expander("🔎 Quick prompt quality check (optional)"):
                 st.caption("Strengths: " + ", ".join(score.strengths))
             for s in score.suggestions:
                 st.markdown(f"- {s}")
+            if score.example:
+                st.markdown("**Example of how it could look:**")
+                st.code(score.example, language="text")
 
 # ---- step 1: describe + generate ------------------------------------------
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
@@ -174,7 +187,8 @@ with st.expander("Coverage overrides (optional) — raise the bar for this featu
     overrides = {k: int(v) for k, v in
                  {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
 
-if st.button("⚙️ Generate test suite", type="primary", disabled=not feature):
+gc1, gc2, _ = st.columns([1, 1, 4])
+if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
     core.set_backend(_BACKEND_KIND[backend], **backend_opts)
     with st.spinner("Generating cases…"):
         gen = core.generate_suite(
@@ -183,6 +197,13 @@ if st.button("⚙️ Generate test suite", type="primary", disabled=not feature)
             overrides or None,
         )
     st.session_state["gen"] = gen
+if gc2.button("Clear", disabled=not feature, key="clear_feature"):
+    for k in ("feature_input", "aitype_input", "ov_safety", "ov_accuracy",
+              "ov_agent", "_applied_example"):
+        st.session_state.pop(k, None)
+    st.session_state.pop("gen", None)
+    st.session_state.pop("run", None)
+    st.rerun()
 
 # ---- step 1 results --------------------------------------------------------
 gen = st.session_state.get("gen")
