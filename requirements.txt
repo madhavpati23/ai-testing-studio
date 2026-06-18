@@ -1,0 +1,7 @@
+streamlit>=1.30
+PyYAML>=6.0
+anthropic>=0.40.0
+# The framework packages (installed from git for cloud deploy; locally they're
+# picked up from the sibling repos by _bootstrap.py).
+git+https://github.com/madhavpati23/prompt-regression-suite.git
+git+https://github.com/madhavpati23/ai-test-case-generator.git
