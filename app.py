@@ -80,7 +80,7 @@ def _clear_feature():
     st.session_state["ov_safety"] = 0
     st.session_state["ov_accuracy"] = 0
     st.session_state["ov_agent"] = 0
-    for k in ("_applied_example", "gen", "run", "story_analysis"):
+    for k in ("_applied_example", "gen", "run"):
         st.session_state.pop(k, None)
 
 
@@ -154,19 +154,18 @@ with tab_test:
     col1, col2 = st.columns([3, 1])
     with col1:
         feature = st.text_area(
-            "Feature or user story", key="feature_input", height=140,
+            "Feature or input to test", key="feature_input", height=140,
             placeholder=(
-                "A short phrase — or paste a full user story with acceptance criteria, e.g.\n\n"
-                "As a user, I want to reset my password via email.\n"
-                "Acceptance criteria:\n"
-                "- A reset link is emailed and expires in 30 minutes\n"
-                "- The link works only once"
+                "Describe what's under test — a short phrase, a feature, or any input.\n\n"
+                "e.g. \"password reset via email\"\n"
+                "or  \"banking agent that transfers funds between a user's accounts\"\n\n"
+                "If you have acceptance criteria, paste them too — they become the oracle."
             ),
         )
     with col2:
         ai_type = st.selectbox("AI type", AI_TYPES, key="aitype_input")
-        st.caption("Tip: a full user story yields a test per acceptance criterion "
-                   "with the Claude backend.")
+        st.caption("Tip: the more precisely you state what a correct answer is, the "
+                   "sharper the generated cases (especially with the Claude backend).")
 
     # Declare what the AI can do, so only fitting cases are generated (no need to
     # judge/prune irrelevant ones). Defaults are derived from the AI type.
