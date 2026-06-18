@@ -59,8 +59,9 @@ the pipeline is testable without a browser.
 ## Deploy (free)
 
 Push to GitHub and deploy on [Streamlit Community Cloud](https://share.streamlit.io):
-point it at `app.py`. `requirements.txt` installs the framework packages from
-GitHub, so the deployed app is self-contained.
+point it at `app.py`. The framework packages are **bundled in `vendor/`**, so the
+app is fully self-contained — **it deploys from a private repo with no external
+dependencies, and the live app URL is still public.**
 
 **For a public instance, set `PRS_STUDIO_PUBLIC=1`** (in the app's *Advanced
 settings → Secrets/env*). This is important: the app serves all sessions from
