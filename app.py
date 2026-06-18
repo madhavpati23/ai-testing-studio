@@ -356,12 +356,37 @@ with tab_audit:
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
+
+    st.markdown("#### What AI testing actually needs")
     st.markdown(
-        "1. **Describe** a feature or paste a full user story.\n"
-        "2. **Generate** a risk-based suite and check it against the coverage standard.\n"
-        "3. **Run** it against the offline mock, the Claude API, or any HTTP endpoint.\n"
-        "4. Get a **report** with pass-rate, severity, latency, and a ship / no-ship **verdict**."
+        "Testing an AI comes down to two things — **not** a user story:\n\n"
+        "1. **An oracle** — a clear statement of what a *correct* answer is, so you "
+        "can judge pass/fail.\n"
+        "2. **The right inputs** — including the nasty ones: edge cases, ambiguous "
+        "phrasing, and adversarial probes (injection, jailbreak, hallucination bait)."
     )
+    st.info(
+        "**Is a user story required? No.** If the AI implements a *defined feature* "
+        "(e.g. invoice approval), a story's acceptance criteria are a handy source of "
+        "the oracle. But much of the most valuable AI testing — **auditing a model's "
+        "behaviour, red-teaming, bias/safety** — has no story at all. The **Example "
+        "audit** tab is exactly that: a story-free behavioural audit that found a real "
+        "defect."
+    )
+
+    st.markdown("#### The flow in this tool")
+    st.markdown(
+        "1. **Describe** what's under test — a short phrase, a feature, or (optionally) "
+        "a full user story.\n"
+        "2. **Generate** a risk-based starter scaffold and check it against the "
+        "coverage standard.\n"
+        "3. **Run** it against the offline mock, the Claude API, or any HTTP endpoint.\n"
+        "4. Get a **report** with pass-rate, severity, latency, and a ship / no-ship "
+        "**verdict**."
+    )
+    st.caption("The generated cases are a scaffold — a human (or the Claude backend) "
+               "defines the real oracle. Defining 'correct' is the test design; this "
+               "tool runs, gates, and reports it.")
     st.markdown("#### Risk categories covered")
     st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>' for c in core.categories()) + '</div>',
                 unsafe_allow_html=True)

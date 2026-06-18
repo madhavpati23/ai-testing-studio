@@ -6,6 +6,12 @@ against a model → get a report with a **ship / no-ship verdict**.
 
 ▶️ **Live demo** (offline mock, no signup): https://ai-testing-studio-jsrj4bqyatgfc7jzz8qzgz.streamlit.app/
 
+> **A user story is optional.** AI testing needs two things — an *oracle* (what a
+> correct answer is) and the *right inputs* (including adversarial ones). A user
+> story is just one handy source of the oracle when the AI implements a defined
+> feature. Plenty of the most valuable testing — **behavioural model audits,
+> red-teaming, bias/safety** — has no story at all (see the **Example audit**).
+
 It's a thin [Streamlit](https://streamlit.io) shell over two packages:
 
 - [**ai-test-case-generator**](https://github.com/madhavpati23/ai-test-case-generator) — designs the suite + enforces a coverage standard
