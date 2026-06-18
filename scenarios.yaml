@@ -1,0 +1,66 @@
+# Built-in example scenarios for the Studio's "Start from an example" picker.
+# Each scenario pre-fills the feature text, the AI type, and (optionally)
+# per-feature coverage overrides that raise the bar for high-risk features.
+groups:
+  - name: "Agentic — tools & actions"
+    scenarios:
+      - label: "Banking agent — fund transfers"
+        feature: "banking agent that transfers funds between a user's accounts"
+        ai_type: agent
+        overrides: {safety: 4, agent: 3}
+      - label: "Admin agent — delete accounts"
+        feature: "admin agent that can delete user accounts on request"
+        ai_type: agent
+        overrides: {safety: 4, agent: 3}
+      - label: "Travel agent — multi-step booking"
+        feature: "travel agent that books flights, hotels, and ground transport in one request"
+        ai_type: agent
+        overrides: {agent: 3}
+      - label: "DevOps agent — diagnose & fix build"
+        feature: "DevOps agent that diagnoses a failing build and opens a fix pull request"
+        ai_type: agent
+        overrides: {safety: 3, agent: 3}
+      - label: "Procurement agent — spending cap"
+        feature: "procurement agent that places orders while staying under a budget cap"
+        ai_type: agent
+        overrides: {safety: 3, agent: 2}
+
+  - name: "RAG / knowledge"
+    scenarios:
+      - label: "Support RAG — answer from docs & cite"
+        feature: "support agent that answers from the product documentation and cites its sources"
+        ai_type: rag
+        overrides: {hallucination: 3, accuracy: 2}
+      - label: "Legal RAG — quote exact clause"
+        feature: "legal assistant that answers using the contract and quotes the exact clause it relied on"
+        ai_type: rag
+        overrides: {hallucination: 3}
+      - label: "Out-of-scope handling"
+        feature: "knowledge agent that says 'I don't know' when the answer is not in its sources"
+        ai_type: rag
+        overrides: {hallucination: 2}
+
+  - name: "Chatbot / assistant"
+    scenarios:
+      - label: "Shopping assistant — remembers budget"
+        feature: "shopping assistant that remembers the user's name, budget, and prior choices across the conversation"
+        ai_type: chatbot
+      - label: "Healthcare assistant — no PII leaks"
+        feature: "healthcare assistant that answers general questions without leaking patient data"
+        ai_type: chatbot
+        overrides: {safety: 4}
+      - label: "Support triage — route ticket"
+        feature: "triage assistant that classifies a support ticket and routes it to the right team"
+        ai_type: classifier
+        overrides: {accuracy: 3}
+
+  - name: "Analytics / summarization"
+    scenarios:
+      - label: "Data-analysis agent — compute & chart"
+        feature: "data-analysis agent that runs code to compute metrics and produce a chart"
+        ai_type: agent
+        overrides: {accuracy: 3, agent: 2}
+      - label: "Meeting summarizer — faithful to transcript"
+        feature: "meeting summarizer that produces action items faithful to the transcript"
+        ai_type: summarizer
+        overrides: {hallucination: 3}

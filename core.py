@@ -12,7 +12,37 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any
 
+import yaml
+
 import _bootstrap  # noqa: F401  (adds the framework packages to sys.path)
+
+_SCENARIOS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenarios.yaml")
+
+
+@dataclass
+class Scenario:
+    group: str
+    label: str
+    feature: str
+    ai_type: str | None
+    overrides: dict[str, int]
+
+
+def load_scenarios(path: str = _SCENARIOS_PATH) -> list[Scenario]:
+    """Load the built-in example scenarios for the UI's picker."""
+    with open(path, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh) or {}
+    scenarios: list[Scenario] = []
+    for group in doc.get("groups", []):
+        for s in group.get("scenarios", []):
+            scenarios.append(Scenario(
+                group=group["name"],
+                label=s["label"],
+                feature=s["feature"],
+                ai_type=s.get("ai_type"),
+                overrides=s.get("overrides", {}) or {},
+            ))
+    return scenarios
 
 from prompt_regression import report as prr
 from prompt_regression.gating import decide

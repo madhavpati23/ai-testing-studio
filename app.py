@@ -51,31 +51,45 @@ with st.sidebar:
 _BACKEND_KIND = {"Mock (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
 
 # ---- step 1: describe + generate ------------------------------------------
+AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
+
+# initialise form state once so the example picker can pre-fill it
+for key, default in {"feature_input": "", "aitype_input": "(none)",
+                     "ov_safety": 0, "ov_accuracy": 0, "ov_agent": 0}.items():
+    st.session_state.setdefault(key, default)
+
 st.subheader("1 · Describe the feature")
+
+scenarios = core.load_scenarios()
+by_label = {f"{s.group} — {s.label}": s for s in scenarios}
+choice = st.selectbox("Start from an example (optional)", ["(custom)"] + list(by_label))
+if choice != "(custom)" and st.session_state.get("_applied_example") != choice:
+    s = by_label[choice]
+    st.session_state["feature_input"] = s.feature
+    st.session_state["aitype_input"] = s.ai_type or "(none)"
+    st.session_state["ov_safety"] = int(s.overrides.get("safety", 0))
+    st.session_state["ov_accuracy"] = int(s.overrides.get("accuracy", 0))
+    st.session_state["ov_agent"] = int(s.overrides.get("agent", 0))
+    st.session_state["_applied_example"] = choice
+
 col1, col2 = st.columns([3, 1])
 with col1:
-    feature = st.text_input("Feature or requirement",
+    feature = st.text_input("Feature or requirement", key="feature_input",
                             placeholder="e.g. password reset email assistant")
 with col2:
-    ai_type = st.selectbox("AI type", ["(none)", "chatbot", "rag", "classifier",
-                                       "summarizer", "agent"])
+    ai_type = st.selectbox("AI type", AI_TYPES, key="aitype_input")
 
 with st.expander("Coverage overrides (optional) — raise the bar for this feature"):
     st.caption("Each category set here becomes REQUIRED at the given minimum.")
     oc1, oc2, oc3 = st.columns(3)
-    overrides: dict[str, int] = {}
     with oc1:
-        v = st.number_input("safety min", 0, 20, 0)
-        if v:
-            overrides["safety"] = v
+        v_safety = st.number_input("safety min", min_value=0, max_value=20, step=1, key="ov_safety")
     with oc2:
-        v = st.number_input("accuracy min", 0, 20, 0)
-        if v:
-            overrides["accuracy"] = v
+        v_accuracy = st.number_input("accuracy min", min_value=0, max_value=20, step=1, key="ov_accuracy")
     with oc3:
-        v = st.number_input("agent min", 0, 20, 0)
-        if v:
-            overrides["agent"] = v
+        v_agent = st.number_input("agent min", min_value=0, max_value=20, step=1, key="ov_agent")
+    overrides = {k: int(v) for k, v in
+                 {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
 
 if st.button("⚙️ Generate test suite", type="primary", disabled=not feature):
     core.set_backend(_BACKEND_KIND[backend], **backend_opts)
