@@ -202,11 +202,24 @@ with tab_test:
         st.success(f"Generated {len(gen.cases)} case(s) with **{gen.generator_name}**.")
         if gen.errors:
             st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
-        _rows = pd.DataFrame(
-            [{"id": c.id, "category": c.category, "severity": c.severity,
+        st.caption("Review the generated cases and **untick any that don't apply** to your AI, "
+                   "then run only the selected ones.")
+        _df = pd.DataFrame(
+            [{"keep": True, "id": c.id, "category": c.category, "severity": c.severity,
               "validator": c.validator, "prompt": c.prompt} for c in gen.cases]
-        ).set_index("id")
-        st.table(_rows)   # st.table wraps long text (the prompt column) instead of truncating
+        )
+        _edited = st.data_editor(
+            _df, hide_index=True, use_container_width=True,
+            disabled=["id", "category", "severity", "validator", "prompt"],
+            column_config={
+                "keep": st.column_config.CheckboxColumn("keep", help="Untick to exclude this case"),
+                "prompt": st.column_config.TextColumn("prompt", width="large"),
+            },
+            key="case_editor",
+        )
+        _kept_ids = set(_edited[_edited["keep"]]["id"])
+        kept_cases = [c for c in gen.cases if c.id in _kept_ids]
+        st.caption(f"**{len(kept_cases)} of {len(gen.cases)}** cases selected.")
         (st.error if gen.has_gaps else st.info)(
             ("⚠️ Below coverage standard\n\n" if gen.has_gaps else "✅ Coverage\n\n")
             + "```\n" + gen.coverage_text + "\n```"
@@ -214,14 +227,15 @@ with tab_test:
 
         st.subheader("2 · Run the suite")
         rcol1, rcol2 = st.columns([2, 1])
-        do_run = rcol1.button("▶️ Run against the selected model", type="primary")
+        do_run = rcol1.button(f"▶️ Run {len(kept_cases)} selected case(s)",
+                              type="primary", disabled=not kept_cases)
         sla_in = rcol2.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
                                     value=0, step=100,
                                     help="Flag cases whose response time exceeds this. 0 = off.")
         if do_run:
             core.set_backend(_BACKEND_KIND[backend], **backend_opts)
             with st.spinner("Running…"):
-                st.session_state["run"] = core.run_suite_dir(gen.out_dir, sla_ms=sla_in or None)
+                st.session_state["run"] = core.run_selected(kept_cases, sla_ms=sla_in or None)
 
         run = st.session_state.get("run")
         if run:

@@ -248,6 +248,13 @@ class RunResult:
     perf: dict = field(default_factory=dict)
 
 
+def run_selected(cases: list, sla_ms: float | None = None) -> RunResult:
+    """Run only a chosen subset of generated cases (write to a temp suite, then run)."""
+    out_dir = tempfile.mkdtemp(prefix="studio_selected_")
+    write_suite(cases, out_dir)
+    return run_suite_dir(out_dir, sla_ms)
+
+
 def run_suite_dir(prompts_dir: str, sla_ms: float | None = None) -> RunResult:
     model = get_model()
     cases = load_cases(prompts_dir)
