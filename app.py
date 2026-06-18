@@ -174,8 +174,29 @@ with tab_test:
         )
     with col2:
         ai_type = st.selectbox("AI type", AI_TYPES, key="aitype_input")
-        st.caption("Tip: with the Claude backend, a full user story yields a test per acceptance criterion. "
-                   "See the **Story analysis** tab for what we'd test.")
+        st.caption("Tip: a full user story yields a test per acceptance criterion "
+                   "with the Claude backend.")
+
+    # Declare what the AI can do, so only fitting cases are generated (no need to
+    # judge/prune irrelevant ones). Defaults are derived from the AI type.
+    _CAP_OPTS = {
+        "Takes actions (create / update / delete)": "acts",
+        "Returns structured data (JSON / API)": "structured",
+        "Stateful service (has status / on-off)": "stateful",
+    }
+    _flag_to_label = {v: k for k, v in _CAP_OPTS.items()}
+    _derived = {"agent": ["acts"], "classifier": ["structured"]}.get(ai_type, [])
+    if st.session_state.get("_caps_for_aitype") != ai_type:
+        st.session_state["caps_select"] = [_flag_to_label[f] for f in _derived]
+        st.session_state["_caps_for_aitype"] = ai_type
+    cap_labels = st.multiselect(
+        "What can this AI do?  (only fitting tests are generated)",
+        list(_CAP_OPTS), key="caps_select",
+        help="Leave empty for a read-only / text AI (e.g. a Q&A or document agent). "
+             "Tick what applies and the generator skips cases that don't fit — so you "
+             "don't have to judge and remove them.",
+    )
+    capabilities = [_CAP_OPTS[lbl] for lbl in cap_labels]
 
     with st.expander("Coverage overrides (optional) — raise the bar for this feature"):
         st.caption("Each category set here becomes REQUIRED at the given minimum.")
@@ -194,7 +215,8 @@ with tab_test:
         core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         with st.spinner("Generating cases…"):
             st.session_state["gen"] = core.generate_suite(
-                feature, None if ai_type == "(none)" else ai_type, overrides or None)
+                feature, None if ai_type == "(none)" else ai_type,
+                overrides or None, capabilities=capabilities)
     gc2.button("Clear", on_click=_clear_feature, disabled=not feature, key="clear_feature")
 
     gen = st.session_state.get("gen")

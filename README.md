@@ -41,8 +41,9 @@ The UI is organised into four tabs:
    (paste a key), or **any HTTP endpoint**. The HTTP backend has one-click
    **presets** (Rovo proxy, OpenAI-compatible).
 2. **Describe the feature** — a short phrase or a **full user story with
-   acceptance criteria** — pick an **AI type**, and optionally raise the
-   **coverage bar**.
+   acceptance criteria** — pick an **AI type**, and **declare what the AI can do**
+   (takes actions? returns JSON? stateful?) so only fitting cases are generated.
+   Optionally raise the **coverage bar**.
 3. **Generate** — see the cases (id, category, severity, validator) + a coverage
    check against the standard.
 4. **Run** (with an optional **SLA in ms**) — view the **report** inline with

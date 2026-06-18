@@ -218,9 +218,10 @@ class GenerateResult:
 
 def generate_suite(feature: str, ai_type: str | None = None,
                    overrides: dict[str, int] | None = None,
-                   out_dir: str | None = None) -> GenerateResult:
+                   out_dir: str | None = None,
+                   capabilities: list | None = None) -> GenerateResult:
     generator = get_generator()
-    raw = generator.generate(feature, ai_type)
+    raw = generator.generate(feature, ai_type, capabilities)
     validated = validate_all(raw)
     report = gcov.assess(validated.cases, overrides)
     out_dir = out_dir or tempfile.mkdtemp(prefix="studio_suite_")
