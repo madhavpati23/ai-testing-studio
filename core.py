@@ -57,11 +57,16 @@ from test_case_generator.serialize import write_suite
 # ---- model backend selection (drives get_model via env) --------------------
 
 _BACKEND_ENV = ("PRS_HTTP_URL", "PRS_HTTP_BODY", "PRS_HTTP_RESPONSE_PATH",
-                "PRS_HTTP_HEADERS", "PRS_HTTP_METHOD", "ANTHROPIC_API_KEY")
+                "PRS_HTTP_HEADERS", "PRS_HTTP_METHOD", "PRS_HTTP_BLOCK_PRIVATE",
+                "ANTHROPIC_API_KEY")
 
 
-def set_backend(kind: str, **opts: str) -> None:
-    """Configure which model the runner uses. kind: mock | claude | http."""
+def set_backend(kind: str, **opts) -> None:
+    """Configure which model the runner uses. kind: mock | claude | http.
+
+    `block_private=True` (http) enables SSRF protection — the endpoint may not
+    resolve to a private/loopback/metadata address.
+    """
     for key in _BACKEND_ENV:           # start clean so precedence is predictable
         os.environ.pop(key, None)
     if kind == "claude":
@@ -75,6 +80,8 @@ def set_backend(kind: str, **opts: str) -> None:
             os.environ["PRS_HTTP_RESPONSE_PATH"] = opts["response_path"]
         if opts.get("headers"):
             os.environ["PRS_HTTP_HEADERS"] = opts["headers"]
+        if opts.get("block_private"):
+            os.environ["PRS_HTTP_BLOCK_PRIVATE"] = "1"
     # kind == "mock": leave everything cleared
 
 

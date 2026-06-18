@@ -5,12 +5,18 @@ Run locally:   streamlit run app.py
 
 from __future__ import annotations
 
-import json
+import glob
+import os
 
 import streamlit as st
 import streamlit.components.v1 as components
 
 import core
+
+# In a shared public deployment, one process serves all sessions — so we must
+# NOT accept secrets (ANTHROPIC_API_KEY) or arbitrary URLs (SSRF). Set
+# PRS_STUDIO_PUBLIC=1 on the public instance: it restricts to the offline mock.
+PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "true", "yes", "on")
 
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
 
@@ -24,10 +30,14 @@ st.caption(
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
     st.header("Model under test")
+    backends = ["Mock (offline)"] if PUBLIC else ["Mock (offline)", "Claude API", "HTTP endpoint"]
     backend = st.radio(
-        "Backend", ["Mock (offline)", "Claude API", "HTTP endpoint"],
+        "Backend", backends,
         help="Mock runs offline with no key. Claude/HTTP test a real model.",
     )
+    if PUBLIC:
+        st.caption("This is a public demo — it runs the offline mock only. "
+                   "Clone the repo to test the Claude API or your own endpoint.")
     backend_opts: dict[str, str] = {}
     if backend == "Claude API":
         backend_opts["api_key"] = st.text_input("ANTHROPIC_API_KEY", type="password")
@@ -55,7 +65,7 @@ with st.expander("🔎 Quick prompt quality check (optional)"):
     st.caption("Paste a prompt to get a score and a couple of quick pointers — no lecturing.")
     pq_text = st.text_area("Prompt to score", height=110, key="pq_text",
                            placeholder="Paste the prompt you wrote…")
-    pq_llm = st.checkbox("Use Claude for the critique (needs the Claude backend + key)")
+    pq_llm = (not PUBLIC) and st.checkbox("Use Claude for the critique (needs the Claude backend + key)")
     if st.button("Score this prompt", disabled=not pq_text.strip()):
         if pq_llm:
             core.set_backend("claude", **({"api_key": backend_opts.get("api_key", "")}))
@@ -173,8 +183,6 @@ if gen:
         rc1.download_button("⬇️ HTML report", run.html, "report.html", "text/html")
         rc2.download_button("⬇️ JSON report", run.json, "report.json", "application/json")
         # bundle the generated YAML for download
-        import glob
-        import os
         bundle = "\n".join(
             f"# === {os.path.basename(p)} ===\n" + open(p, encoding="utf-8").read()
             for p in sorted(glob.glob(os.path.join(gen.out_dir, "*.yaml")))

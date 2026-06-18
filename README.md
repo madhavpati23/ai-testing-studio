@@ -62,6 +62,22 @@ Push to GitHub and deploy on [Streamlit Community Cloud](https://share.streamlit
 point it at `app.py`. `requirements.txt` installs the framework packages from
 GitHub, so the deployed app is self-contained.
 
+**For a public instance, set `PRS_STUDIO_PUBLIC=1`** (in the app's *Advanced
+settings → Secrets/env*). This is important: the app serves all sessions from
+one process, so a public instance must not accept secrets or arbitrary URLs.
+With it set, the Studio restricts to the **offline mock** — no API-key field, no
+outbound requests. Visitors get the full generate → run → report demo safely;
+anyone who wants to test a real model clones the repo and runs it locally.
+
+## Security
+
+- **Public mode** (`PRS_STUDIO_PUBLIC=1`) disables the Claude/HTTP backends so
+  the shared instance handles no secrets and makes no outbound calls.
+- The HTTP adapter only allows `http`/`https` (no `file://` etc.) and, with
+  `PRS_HTTP_BLOCK_PRIVATE=1`, refuses private/loopback/metadata addresses (SSRF)
+  and won't follow redirects — see prompt-regression-suite.
+- All YAML is parsed with `safe_load`; there is no `eval`/`exec`/`subprocess`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
