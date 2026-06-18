@@ -32,6 +32,10 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
+> There's also a **"Quick prompt quality check"** panel: paste any prompt and get
+> a score plus a couple of concise pointers (heuristic, or Claude with `--llm`).
+
+
 1. **Pick the model under test** (sidebar): offline **Mock**, the **Claude API**
    (paste a key), or **any HTTP endpoint** (URL + body template + response path).
 2. **Describe the feature** — a short phrase, or paste a **full user story with

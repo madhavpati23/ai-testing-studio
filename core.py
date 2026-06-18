@@ -49,6 +49,7 @@ from prompt_regression.gating import decide
 from prompt_regression.models import get_model
 from prompt_regression.runner import load_cases, run_suite, summarize
 from test_case_generator import coverage as gcov
+from test_case_generator import prompt_quality
 from test_case_generator.generators import get_generator
 from test_case_generator.schema import validate_all
 from test_case_generator.serialize import write_suite
@@ -75,6 +76,13 @@ def set_backend(kind: str, **opts: str) -> None:
         if opts.get("headers"):
             os.environ["PRS_HTTP_HEADERS"] = opts["headers"]
     # kind == "mock": leave everything cleared
+
+
+# ---- prompt quality --------------------------------------------------------
+
+def assess_prompt(text: str, use_llm: bool = False):
+    """Score how well-written a prompt is (heuristic, or Claude if use_llm)."""
+    return prompt_quality.assess_llm(text) if use_llm else prompt_quality.assess(text)
 
 
 # ---- generate --------------------------------------------------------------
