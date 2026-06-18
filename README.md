@@ -34,18 +34,19 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into four tabs:
+The UI is organised into three working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): offline **Mock**, the **Claude API**
-   (paste a key), or **any HTTP endpoint**. The HTTP backend has one-click
-   **presets** (Rovo proxy, OpenAI-compatible).
+   (paste a key), or **any HTTP endpoint** (OpenAI-compatible preset built in).
 2. **Describe the feature** — a short phrase or a **full user story with
    acceptance criteria** — pick an **AI type**, and **declare what the AI can do**
    (takes actions? returns JSON? stateful?) so only fitting cases are generated.
    Optionally raise the **coverage bar**.
-3. **Generate** — see the cases (id, category, severity, validator) + a coverage
-   check against the standard.
+3. **Generate** a **starter scaffold** of cases (id, category, severity,
+   validator) + a coverage check against the standard. The offline mock fills
+   generic risk-category templates — a starting point a human (or the Claude
+   backend) tailors, not a finished suite.
 4. **Run** (with an optional **SLA in ms**) — view the **report** inline with
    metric tiles (pass rate, verdict, avg latency) and the verdict
    (**SHIP / NEEDS SIGN-OFF / BLOCK**). Download the HTML/JSON report and the YAML suite.
@@ -54,10 +55,9 @@ The UI is organised into four tabs:
 and get a quality score, a few concise pointers, and a concrete **suggested
 rewrite** (task-type aware; Claude does a fully tailored rewrite when available).
 
-**🧭 Story analysis** — paste a user story and see **what can be tested on it**
-(testable requirements + suggested scenarios by category + a validation matrix),
-plus an **example of how to write a user story for AI testing**. One click sends
-it to the Test-a-feature tab.
+**📄 Example audit** — a real adversarial audit run with this methodology: 13
+sharp probes against a live model, judged with explicit pass criteria, with a
+documented defect and a ship / no-ship verdict.
 
 **ℹ️ How it works** — the flow, the risk categories, and the verdict legend.
 

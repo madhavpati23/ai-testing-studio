@@ -22,12 +22,6 @@ PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "
 # HTTP-backend presets so common targets are one click (no typing).
 _HTTP_PRESETS = {
     "Custom": None,
-    "Rovo proxy (localhost:8000)": {
-        "url": "http://localhost:8000/ask",
-        "body": '{"prompt": {PROMPT}}',
-        "response_path": "output",
-        "headers": "",
-    },
     "OpenAI-compatible": {
         "url": "https://api.openai.com/v1/chat/completions",
         "body": '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": {PROMPT}}]}',
@@ -124,9 +118,6 @@ with st.sidebar:
                                                       help='Dotted path to the answer, e.g. choices.0.message.content')
         backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
                                                 placeholder='{"Authorization": "Bearer ..."}')
-        if st.session_state.get("http_preset", "").startswith("Rovo"):
-            st.caption("Start the rovo-test-proxy first: `uvicorn app:app --port 8000`. "
-                       "If you set PROXY_TOKEN, add it as a header: {\"X-Proxy-Token\": \"…\"}.")
 
     st.divider()
     st.markdown(
@@ -136,8 +127,8 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-tab_test, tab_prompt, tab_story, tab_audit, tab_help = st.tabs(
-    ["🧪 Test a feature", "✍️ Prompt & instructions", "🧭 Story analysis",
+tab_test, tab_prompt, tab_audit, tab_help = st.tabs(
+    ["🧪 Test a feature", "✍️ Prompt & instructions",
      "📄 Example audit", "ℹ️ How it works"]
 )
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -221,11 +212,13 @@ with tab_test:
 
     gen = st.session_state.get("gen")
     if gen:
-        st.success(f"Generated {len(gen.cases)} case(s) with **{gen.generator_name}**.")
+        st.success(f"Generated a **starter scaffold** of {len(gen.cases)} case(s) "
+                   f"with **{gen.generator_name}**.")
         if gen.errors:
             st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
-        st.caption("Review the generated cases and **untick any that don't apply** to your AI, "
-                   "then run only the selected ones.")
+        st.caption("This is a **scaffold, not a finished suite** — the offline mock fills generic "
+                   "risk-category templates. Review each case, **untick any that don't apply**, and "
+                   "treat the prompts as a starting point a human (or the Claude backend) tailors.")
         _df = pd.DataFrame(
             [{"keep": True, "id": c.id, "category": c.category, "severity": c.severity,
               "validator": c.validator, "prompt": c.prompt} for c in gen.cases]
@@ -347,52 +340,7 @@ with tab_prompt:
                     st.code(score.example, language="text")
 
 # ============================================================================
-# TAB 3 — Story analysis
-# ============================================================================
-with tab_story:
-    st.subheader("What can we test on this story?")
-    st.session_state.setdefault("story_text", "")
-
-    def _load_example_into_story():
-        st.session_state["story_text"] = core.EXAMPLE_USER_STORY
-
-    def _use_in_test():
-        st.session_state["feature_input"] = st.session_state.get("story_text", "")
-        st.session_state["ex_choice"] = "(custom)"
-        st.session_state.pop("_applied_example", None)
-
-    story_text = st.text_area(
-        "Feature or user story", key="story_text", height=160,
-        placeholder="Paste a feature or a full user story with acceptance criteria, then click Analyse.",
-    )
-    c1, c2, c3, _ = st.columns([1.3, 1.6, 1.8, 2])
-    if c1.button("🧭 Analyse this story", type="primary", disabled=not story_text.strip()):
-        st.session_state["story_analysis"] = core.analyze_story(story_text)
-    c2.button("📋 Load the example story", on_click=_load_example_into_story)
-    c3.button("↪ Use in 'Test a feature'", on_click=_use_in_test, disabled=not story_text.strip())
-
-    a = st.session_state.get("story_analysis")
-    if a and story_text.strip():
-        with st.container(border=True):
-            st.markdown("**Testable requirements — functional**")
-            st.markdown("\n".join(f"- {x}" for x in a.functional))
-            st.markdown("**Non-functional:** " + ", ".join(a.non_functional))
-            st.markdown("**Suggested tests, by risk category**")
-            for cat, items in a.suggested.items():
-                st.markdown(f"- **`{cat}`** — " + "; ".join(items))
-            st.markdown("**Validation matrix**")
-            st.table({"Area": [m[0] for m in a.matrix], "What to verify": [m[1] for m in a.matrix]})
-        st.caption("Heuristic preview. Click **Use in 'Test a feature'** then **Generate** to turn this "
-                   "into a runnable suite (tailored with the Claude backend).")
-
-    st.divider()
-    st.markdown("#### 📋 How to write a user story for AI testing")
-    st.caption("A clear AI-testing story: role, want, so-that, explicit acceptance criteria, and "
-               "testing notes (source of truth + abuse cases).")
-    st.code(core.EXAMPLE_USER_STORY, language="text")
-
-# ============================================================================
-# TAB 4 — Example audit (a real report produced with this methodology)
+# TAB 3 — Example audit (a real report produced with this methodology)
 # ============================================================================
 with tab_audit:
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
@@ -404,7 +352,7 @@ with tab_audit:
 
 
 # ============================================================================
-# TAB 5 — How it works
+# TAB 4 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
