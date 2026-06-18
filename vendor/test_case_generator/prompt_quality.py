@@ -121,6 +121,54 @@ def _clean_task(prompt: str) -> str:
     return (t[0].upper() + t[1:]) if t else "Complete the request"
 
 
+def _recipe(low: str, prompt: str) -> str | None:
+    """A rich, structured rewrite for common task types (closer to an LLM rewrite).
+
+    These encode the gold-standard shape for a task type — role, audience,
+    format, and a numbered 'include' checklist. Genuinely user-specific bits
+    (topic, audience) are left as [bracketed slots], the same way a strong
+    hand-written or LLM template does. Returns None if no recipe matches.
+    """
+    task = _clean_task(prompt)
+    if any(k in low for k in ("train", "teach", "course", "lesson", "curriculum",
+                              "tutorial", "instructor", "onboarding", "workshop", "syllabus")):
+        return (
+            "You are an experienced instructor and technical writer.\n"
+            f"{task}. Produce it as a comprehensive training document I can teach from.\n"
+            "- Audience: [state the learners, e.g. beginners with no background].\n"
+            "- Length & format: a structured guide with sections, worked examples, and a lesson outline.\n"
+            "Please include:\n"
+            "1. An overview and clear learning objectives\n"
+            "2. Core concepts and key terminology\n"
+            "3. The main types/categories with practical, worked examples\n"
+            "4. Tools and best practices\n"
+            "5. Hands-on exercises and discussion questions\n"
+            "6. A suggested lesson plan / teaching sequence\n"
+            "7. Common mistakes and how to address learner questions\n"
+            "Write in a clear, instructional tone suitable for teaching this for the first time. "
+            "Provide the final, ready-to-use document."
+        )
+    if any(k in low for k in ("email", "e-mail", "reply to", "message to", "write to")):
+        return (
+            "You are a professional communications assistant.\n"
+            f"{task}.\n"
+            "- Audience: [who it's for, e.g. a client or manager]. Purpose: [the outcome you want].\n"
+            "- Tone: professional and concise. Length: brief.\n"
+            "- Include: a clear subject line, a short greeting, the key message, and a specific call to action.\n"
+            "Provide the final email ready to send (no commentary)."
+        )
+    if any(k in low for k in ("report", "status update", "summary of", "executive summary")):
+        return (
+            "You are an analyst who writes clear executive summaries.\n"
+            f"{task}.\n"
+            "- Audience: [e.g. leadership]. Purpose: [decision or update it supports].\n"
+            "- Format: short sections with headings and bullet points; lead with the key takeaway.\n"
+            "- Include: status/findings, key metrics, risks or blockers, and recommended next steps.\n"
+            "Be accurate and concise. Provide the final report directly."
+        )
+    return None
+
+
 def _rewrite(prompt: str, present: dict[str, bool]) -> str:
     """Produce a concrete, ready-to-use rewrite of the prompt (no placeholders).
 
@@ -158,7 +206,7 @@ def assess(prompt: str) -> PromptScore:
     missing = sorted((d for d, ok in present.items() if not ok),
                      key=lambda d: _DIMENSIONS[d][0], reverse=True)
     suggestions = [] if score >= 85 else [_DIMENSIONS[d][1] for d in missing[:3]]
-    example = "" if score >= 85 else _rewrite(prompt, present)
+    example = "" if score >= 85 else (_recipe(prompt.lower(), prompt) or _rewrite(prompt, present))
     return PromptScore(score=score, level=level, summary=summary, strengths=strengths,
                        suggestions=suggestions, present=present, example=example)
 
