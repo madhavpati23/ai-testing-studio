@@ -152,24 +152,33 @@ st.markdown(
 )
 
 with st.expander("🔎  Open the prompt quality check", expanded=False):
-    st.caption("Paste a prompt to get a score, a couple of quick pointers, and an "
-               "example of how it could look — no lecturing.")
-    pq_text = st.text_area("Prompt to score", height=110, key="pq_text",
-                           placeholder="Paste the prompt you wrote…")
-    pq_llm = (not PUBLIC) and st.checkbox("Use Claude for the critique (needs the Claude backend + key)")
+    pq_mode = st.radio("What are you scoring?", ["Prompt", "Agent instructions"],
+                       horizontal=True, key="pq_mode")
+    is_instr = pq_mode == "Agent instructions"
+    st.caption(("Paste an agent's instructions/config to check it defines role, tools, "
+                "permissions, refusal rules, and data sources.") if is_instr else
+               ("Paste a prompt to get a score, a couple of quick pointers, and an "
+                "example of how it could look — no lecturing."))
+    pq_text = st.text_area("Instructions to score" if is_instr else "Prompt to score",
+                           height=110, key="pq_text",
+                           placeholder=("Paste the agent's instructions…" if is_instr
+                                        else "Paste the prompt you wrote…"))
+    pq_llm = (not is_instr) and (not PUBLIC) and st.checkbox(
+        "Use Claude for the critique (needs the Claude backend + key)")
 
     def _clear_pq():
         st.session_state["pq_text"] = ""
 
     bc1, bc2, _ = st.columns([1, 1, 4])
-    do_score = bc1.button("Score this prompt", type="primary", disabled=not pq_text.strip())
+    do_score = bc1.button("Score this", type="primary", disabled=not pq_text.strip())
     bc2.button("Clear", on_click=_clear_pq, disabled=not pq_text)
 
     if do_score:
         if pq_llm:
             core.set_backend("claude", api_key=backend_opts.get("api_key", ""))
         try:
-            score = core.assess_prompt(pq_text, use_llm=pq_llm)
+            score = (core.assess_instructions(pq_text) if is_instr
+                     else core.assess_prompt(pq_text, use_llm=pq_llm))
         except Exception as exc:
             st.error(f"Could not score with Claude: {exc}")
         else:

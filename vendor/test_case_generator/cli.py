@@ -116,7 +116,12 @@ def _cmd_review(args) -> int:
 
 def _cmd_assess_prompt(args) -> int:
     text = args.text if args.text else open(args.file, encoding="utf-8").read()
-    score = prompt_quality.assess_llm(text) if args.llm else prompt_quality.assess(text)
+    if args.instructions:
+        score = prompt_quality.assess_instructions(text)
+    elif args.llm:
+        score = prompt_quality.assess_llm(text)
+    else:
+        score = prompt_quality.assess(text)
     print(f"Prompt score : {score.score}/100  ({score.level})")
     print(f"  {score.summary}")
     if score.strengths:
@@ -181,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
     apsrc.add_argument("--text", help="the prompt text to score")
     apsrc.add_argument("--file", help="path to a file containing the prompt")
     ap.add_argument("--llm", action="store_true", help="use Claude for the critique (needs API key)")
+    ap.add_argument("--instructions", action="store_true",
+                    help="score agent instructions (role/tools/permissions/...) instead of a prompt")
     ap.set_defaults(func=_cmd_assess_prompt)
 
     args = parser.parse_args(argv)

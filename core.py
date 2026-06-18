@@ -199,6 +199,11 @@ def assess_prompt(text: str, use_llm: bool = False):
     return prompt_quality.assess_llm(text) if use_llm else prompt_quality.assess(text)
 
 
+def assess_instructions(text: str):
+    """Score an agent's instructions/configuration (heuristic)."""
+    return prompt_quality.assess_instructions(text)
+
+
 # ---- generate --------------------------------------------------------------
 
 @dataclass
