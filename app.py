@@ -59,6 +59,12 @@ st.markdown(
       .chip{display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;
             border-radius:999px;padding:2px 11px;margin:3px;font-size:12px;font-weight:600;}
       .section-num{color:#10b981;font-weight:700;}
+      /* prompt-check callout */
+      .pq-callout{background:#ecfdf5;border:1px solid #6ee7b7;border-left:4px solid #10b981;
+                  border-radius:10px;padding:.7rem 1rem;margin:.2rem 0 .4rem;color:#065f46;}
+      .pq-callout b{color:#047857;}
+      .pq-badge{display:inline-block;background:#10b981;color:#fff;border-radius:999px;
+                padding:1px 9px;font-size:11px;font-weight:700;margin-right:6px;vertical-align:middle;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -137,7 +143,15 @@ _BACKEND_KIND = {"Mock (offline)": "mock", "Claude API": "claude", "HTTP endpoin
 # ---- optional: quick prompt quality check ---------------------------------
 st.session_state.setdefault("pq_text", "")
 
-with st.expander("🔎 Quick prompt quality check (optional)"):
+st.markdown(
+    '<div class="pq-callout"><span class="pq-badge">NEW</span>'
+    '<b style="font-size:1.1rem;">✍️ Score your prompt instantly</b><br>'
+    'Paste any prompt to get a quality score, a few quick pointers, and an example '
+    'of how it could look — open the panel below to try it.</div>',
+    unsafe_allow_html=True,
+)
+
+with st.expander("🔎  Open the prompt quality check", expanded=False):
     st.caption("Paste a prompt to get a score, a couple of quick pointers, and an "
                "example of how it could look — no lecturing.")
     pq_text = st.text_area("Prompt to score", height=110, key="pq_text",
