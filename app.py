@@ -110,11 +110,12 @@ with st.expander("🔎 Quick prompt quality check (optional)"):
                            placeholder="Paste the prompt you wrote…")
     pq_llm = (not PUBLIC) and st.checkbox("Use Claude for the critique (needs the Claude backend + key)")
 
+    def _clear_pq():
+        st.session_state["pq_text"] = ""
+
     bc1, bc2, _ = st.columns([1, 1, 4])
     do_score = bc1.button("Score this prompt", type="primary", disabled=not pq_text.strip())
-    if bc2.button("Clear", disabled=not pq_text):
-        st.session_state["pq_text"] = ""
-        st.rerun()
+    bc2.button("Clear", on_click=_clear_pq, disabled=not pq_text)
 
     if do_score:
         if pq_llm:
@@ -146,7 +147,7 @@ st.subheader("1 · Describe the feature")
 
 scenarios = core.load_scenarios()
 by_label = {f"{s.group} — {s.label}": s for s in scenarios}
-choice = st.selectbox("Start from an example (optional)", ["(custom)"] + list(by_label))
+choice = st.selectbox("Start from an example (optional)", ["(custom)"] + list(by_label), key="ex_choice")
 if choice != "(custom)" and st.session_state.get("_applied_example") != choice:
     s = by_label[choice]
     st.session_state["feature_input"] = s.feature
@@ -187,6 +188,17 @@ with st.expander("Coverage overrides (optional) — raise the bar for this featu
     overrides = {k: int(v) for k, v in
                  {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
 
+def _clear_feature():
+    st.session_state["feature_input"] = ""
+    st.session_state["aitype_input"] = "(none)"
+    st.session_state["ex_choice"] = "(custom)"
+    st.session_state["ov_safety"] = 0
+    st.session_state["ov_accuracy"] = 0
+    st.session_state["ov_agent"] = 0
+    for k in ("_applied_example", "gen", "run"):
+        st.session_state.pop(k, None)
+
+
 gc1, gc2, _ = st.columns([1, 1, 4])
 if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
     core.set_backend(_BACKEND_KIND[backend], **backend_opts)
@@ -197,13 +209,7 @@ if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature
             overrides or None,
         )
     st.session_state["gen"] = gen
-if gc2.button("Clear", disabled=not feature, key="clear_feature"):
-    for k in ("feature_input", "aitype_input", "ov_safety", "ov_accuracy",
-              "ov_agent", "_applied_example"):
-        st.session_state.pop(k, None)
-    st.session_state.pop("gen", None)
-    st.session_state.pop("run", None)
-    st.rerun()
+gc2.button("Clear", on_click=_clear_feature, disabled=not feature, key="clear_feature")
 
 # ---- step 1 results --------------------------------------------------------
 gen = st.session_state.get("gen")
