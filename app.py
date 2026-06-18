@@ -34,34 +34,25 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer sk-..."}',
     },
 }
+_BACKEND_KIND = {"Mock (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
+AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
 
 st.markdown(
     """
     <style>
-      /* hero */
       .hero {background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);
-             color:#e2e8f0;padding:1.5rem 1.8rem;border-radius:16px;margin-bottom:1rem;
+             color:#e2e8f0;padding:1.4rem 1.8rem;border-radius:16px;margin-bottom:.8rem;
              box-shadow:0 8px 24px rgba(2,6,23,.18);}
       .hero h1 {font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
-                font-size:2rem;margin:0;letter-spacing:-.5px;color:#f8fafc;}
+                font-size:1.9rem;margin:0;letter-spacing:-.5px;color:#f8fafc;}
       .hero h1 .accent{color:#34d399;}
-      .hero p {margin:.4rem 0 0;color:#cbd5e1;font-size:1.02rem;}
-      /* step strip */
-      .steps{display:flex;gap:.6rem;margin:.2rem 0 1rem;flex-wrap:wrap;}
-      .step{flex:1;min-width:180px;background:#f8fafc;border:1px solid #e2e8f0;
-            border-left:4px solid #10b981;border-radius:10px;padding:.6rem .9rem;}
-      .step b{display:block;color:#0f172a;font-size:.95rem;}
-      .step span{color:#64748b;font-size:.85rem;}
-      /* category chips */
-      .chips{margin:.2rem 0 .4rem;}
+      .hero p {margin:.35rem 0 0;color:#cbd5e1;font-size:1rem;}
       .chip{display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;
             border-radius:999px;padding:2px 11px;margin:3px;font-size:12px;font-weight:600;}
-      .section-num{color:#10b981;font-weight:700;}
-      /* prompt-check callout */
       .pq-callout{background:#ecfdf5;border:1px solid #6ee7b7;border-left:4px solid #10b981;
-                  border-radius:10px;padding:.7rem 1rem;margin:.2rem 0 .4rem;color:#065f46;}
+                  border-radius:10px;padding:.7rem 1rem;margin:.2rem 0 .6rem;color:#065f46;}
       .pq-callout b{color:#047857;}
       .pq-badge{display:inline-block;background:#10b981;color:#fff;border-radius:999px;
                 padding:1px 9px;font-size:11px;font-weight:700;margin-right:6px;vertical-align:middle;}
@@ -77,27 +68,39 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    '<div class="steps">'
-    '<div class="step"><b>1 · Describe</b><span>A feature or full user story</span></div>'
-    '<div class="step"><b>2 · Generate</b><span>Risk-based cases + coverage check</span></div>'
-    '<div class="step"><b>3 · Run</b><span>Mock, Claude, or any endpoint</span></div>'
-    '<div class="step"><b>4 · Verdict</b><span>Ship / sign-off / block + report</span></div>'
-    '</div>',
-    unsafe_allow_html=True,
-)
+# ---- form state (shared across tabs) --------------------------------------
+for _key, _default in {"feature_input": "", "aitype_input": "(none)", "pq_text": "",
+                       "ov_safety": 0, "ov_accuracy": 0, "ov_agent": 0}.items():
+    st.session_state.setdefault(_key, _default)
 
-_chips = "".join(f'<span class="chip">{c}</span>' for c in core.categories())
-st.markdown(f'<div class="chips">Covers: {_chips}</div>', unsafe_allow_html=True)
+
+def _clear_pq():
+    st.session_state["pq_text"] = ""
+
+
+def _load_example_story():
+    st.session_state["feature_input"] = core.EXAMPLE_USER_STORY
+    st.session_state["ex_choice"] = "(custom)"
+    st.session_state.pop("_applied_example", None)
+
+
+def _clear_feature():
+    st.session_state["feature_input"] = ""
+    st.session_state["aitype_input"] = "(none)"
+    st.session_state["ex_choice"] = "(custom)"
+    st.session_state["ov_safety"] = 0
+    st.session_state["ov_accuracy"] = 0
+    st.session_state["ov_agent"] = 0
+    for k in ("_applied_example", "gen", "run", "story_analysis"):
+        st.session_state.pop(k, None)
+
 
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
     st.header("Model under test")
     backends = ["Mock (offline)"] if PUBLIC else ["Mock (offline)", "Claude API", "HTTP endpoint"]
-    backend = st.radio(
-        "Backend", backends,
-        help="Mock runs offline with no key. Claude/HTTP test a real model.",
-    )
+    backend = st.radio("Backend", backends,
+                       help="Mock runs offline with no key. Claude/HTTP test a real model.")
     if PUBLIC:
         st.caption("This is a public demo — it runs the offline mock only. "
                    "Clone the repo to test the Claude API or your own endpoint.")
@@ -138,36 +141,141 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-_BACKEND_KIND = {"Mock (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
-
-# ---- optional: quick prompt quality check ---------------------------------
-st.session_state.setdefault("pq_text", "")
-
-st.markdown(
-    '<div class="pq-callout"><span class="pq-badge">NEW</span>'
-    '<b style="font-size:1.1rem;">✍️ Score your prompt instantly</b><br>'
-    'Paste any prompt to get a quality score, a few quick pointers, and an example '
-    'of how it could look — open the panel below to try it.</div>',
-    unsafe_allow_html=True,
+tab_test, tab_prompt, tab_story, tab_help = st.tabs(
+    ["🧪 Test a feature", "✍️ Prompt & instructions", "🧭 Story analysis", "ℹ️ How it works"]
 )
 
-with st.expander("🔎  Open the prompt quality check", expanded=False):
+# ============================================================================
+# TAB 1 — Test a feature (the main flow)
+# ============================================================================
+with tab_test:
+    st.subheader("1 · Describe the feature")
+    scenarios = core.load_scenarios()
+    by_label = {f"{s.group} — {s.label}": s for s in scenarios}
+    choice = st.selectbox("Start from an example (optional)", ["(custom)"] + list(by_label), key="ex_choice")
+    if choice != "(custom)" and st.session_state.get("_applied_example") != choice:
+        s = by_label[choice]
+        st.session_state["feature_input"] = s.feature
+        st.session_state["aitype_input"] = s.ai_type or "(none)"
+        st.session_state["ov_safety"] = int(s.overrides.get("safety", 0))
+        st.session_state["ov_accuracy"] = int(s.overrides.get("accuracy", 0))
+        st.session_state["ov_agent"] = int(s.overrides.get("agent", 0))
+        st.session_state["_applied_example"] = choice
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        feature = st.text_area(
+            "Feature or user story", key="feature_input", height=140,
+            placeholder=(
+                "A short phrase — or paste a full user story with acceptance criteria, e.g.\n\n"
+                "As a user, I want to reset my password via email.\n"
+                "Acceptance criteria:\n"
+                "- A reset link is emailed and expires in 30 minutes\n"
+                "- The link works only once"
+            ),
+        )
+    with col2:
+        ai_type = st.selectbox("AI type", AI_TYPES, key="aitype_input")
+        st.caption("Tip: with the Claude backend, a full user story yields a test per acceptance criterion. "
+                   "See the **Story analysis** tab for what we'd test.")
+
+    with st.expander("Coverage overrides (optional) — raise the bar for this feature"):
+        st.caption("Each category set here becomes REQUIRED at the given minimum.")
+        oc1, oc2, oc3 = st.columns(3)
+        with oc1:
+            v_safety = st.number_input("safety min", min_value=0, max_value=20, step=1, key="ov_safety")
+        with oc2:
+            v_accuracy = st.number_input("accuracy min", min_value=0, max_value=20, step=1, key="ov_accuracy")
+        with oc3:
+            v_agent = st.number_input("agent min", min_value=0, max_value=20, step=1, key="ov_agent")
+        overrides = {k: int(v) for k, v in
+                     {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
+
+    gc1, gc2, _ = st.columns([1, 1, 4])
+    if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
+        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
+        with st.spinner("Generating cases…"):
+            st.session_state["gen"] = core.generate_suite(
+                feature, None if ai_type == "(none)" else ai_type, overrides or None)
+    gc2.button("Clear", on_click=_clear_feature, disabled=not feature, key="clear_feature")
+
+    gen = st.session_state.get("gen")
+    if gen:
+        st.success(f"Generated {len(gen.cases)} case(s) with **{gen.generator_name}**.")
+        if gen.errors:
+            st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
+        st.dataframe(
+            [{"id": c.id, "category": c.category, "severity": c.severity,
+              "validator": c.validator, "prompt": c.prompt} for c in gen.cases],
+            use_container_width=True, hide_index=True,
+        )
+        (st.error if gen.has_gaps else st.info)(
+            ("⚠️ Below coverage standard\n\n" if gen.has_gaps else "✅ Coverage\n\n")
+            + "```\n" + gen.coverage_text + "\n```"
+        )
+
+        st.subheader("2 · Run the suite")
+        rcol1, rcol2 = st.columns([2, 1])
+        do_run = rcol1.button("▶️ Run against the selected model", type="primary")
+        sla_in = rcol2.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
+                                    value=0, step=100,
+                                    help="Flag cases whose response time exceeds this. 0 = off.")
+        if do_run:
+            core.set_backend(_BACKEND_KIND[backend], **backend_opts)
+            with st.spinner("Running…"):
+                st.session_state["run"] = core.run_suite_dir(gen.out_dir, sla_ms=sla_in or None)
+
+        run = st.session_state.get("run")
+        if run:
+            st.subheader("3 · Report")
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Pass rate", f"{run.summary.pass_rate:.0f}%")
+            m2.metric("Passed", f"{run.summary.passed}/{run.summary.total}")
+            m3.metric("Failed", run.summary.failed)
+            m4.metric("Verdict", run.verdict)
+            _perf = run.perf or {}
+            _breaches = _perf.get("breaches", [])
+            m5.metric("Avg latency", f"{_perf.get('avg_ms', 0)} ms",
+                      delta=(f"{len(_breaches)} over SLA" if _breaches else None),
+                      delta_color="inverse")
+            verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
+            getattr(st, verdict_style.get(run.verdict, "info"))(
+                f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`")
+            components.html(run.html, height=620, scrolling=True)
+
+            rc1, rc2, rc3 = st.columns(3)
+            rc1.download_button("⬇️ HTML report", run.html, "report.html", "text/html")
+            rc2.download_button("⬇️ JSON report", run.json, "report.json", "application/json")
+            bundle = "\n".join(
+                f"# === {os.path.basename(p)} ===\n" + open(p, encoding="utf-8").read()
+                for p in sorted(glob.glob(os.path.join(gen.out_dir, "*.yaml")))
+            )
+            rc3.download_button("⬇️ Generated suite (YAML)", bundle, "suite.yaml", "text/yaml")
+
+# ============================================================================
+# TAB 2 — Prompt & instructions scorer
+# ============================================================================
+with tab_prompt:
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">TOOL</span>'
+        '<b style="font-size:1.1rem;">✍️ Score a prompt or agent instructions</b><br>'
+        'Get a quality score, a few quick pointers, and an example of how it could look '
+        '— no lecturing.</div>',
+        unsafe_allow_html=True,
+    )
     pq_mode = st.radio("What are you scoring?", ["Prompt", "Agent instructions"],
                        horizontal=True, key="pq_mode")
     is_instr = pq_mode == "Agent instructions"
     st.caption(("Paste an agent's instructions/config to check it defines role, tools, "
                 "permissions, refusal rules, and data sources.") if is_instr else
                ("Paste a prompt to get a score, a couple of quick pointers, and an "
-                "example of how it could look — no lecturing."))
+                "example of how it could look."))
     pq_text = st.text_area("Instructions to score" if is_instr else "Prompt to score",
-                           height=110, key="pq_text",
+                           height=130, key="pq_text",
                            placeholder=("Paste the agent's instructions…" if is_instr
                                         else "Paste the prompt you wrote…"))
     pq_llm = (not is_instr) and (not PUBLIC) and st.checkbox(
         "Use Claude for the critique (needs the Claude backend + key)")
-
-    def _clear_pq():
-        st.session_state["pq_text"] = ""
 
     bc1, bc2, _ = st.columns([1, 1, 4])
     do_score = bc1.button("Score this", type="primary", disabled=not pq_text.strip())
@@ -203,169 +311,61 @@ with st.expander("🔎  Open the prompt quality check", expanded=False):
                     st.caption(blurb)
                     st.code(score.example, language="text")
 
-# ---- step 1: describe + generate ------------------------------------------
-AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
+# ============================================================================
+# TAB 3 — Story analysis
+# ============================================================================
+with tab_story:
+    st.subheader("What can we test on this story?")
+    st.caption("Reads the feature / user story from the **Test a feature** tab.")
+    feat = st.session_state.get("feature_input", "").strip()
 
-# initialise form state once so the example picker can pre-fill it
-for key, default in {"feature_input": "", "aitype_input": "(none)",
-                     "ov_safety": 0, "ov_accuracy": 0, "ov_agent": 0}.items():
-    st.session_state.setdefault(key, default)
+    c1, c2, _ = st.columns([1.4, 1.4, 3])
+    if c1.button("🧭 Analyse this story", disabled=not feat):
+        st.session_state["story_analysis"] = core.analyze_story(feat)
+    c2.button("📋 Load the example story", on_click=_load_example_story)
 
-st.subheader("1 · Describe the feature")
+    if not feat:
+        st.info("Enter a feature in **Test a feature**, or click **Load the example story** above.")
 
-scenarios = core.load_scenarios()
-by_label = {f"{s.group} — {s.label}": s for s in scenarios}
-choice = st.selectbox("Start from an example (optional)", ["(custom)"] + list(by_label), key="ex_choice")
-if choice != "(custom)" and st.session_state.get("_applied_example") != choice:
-    s = by_label[choice]
-    st.session_state["feature_input"] = s.feature
-    st.session_state["aitype_input"] = s.ai_type or "(none)"
-    st.session_state["ov_safety"] = int(s.overrides.get("safety", 0))
-    st.session_state["ov_accuracy"] = int(s.overrides.get("accuracy", 0))
-    st.session_state["ov_agent"] = int(s.overrides.get("agent", 0))
-    st.session_state["_applied_example"] = choice
+    a = st.session_state.get("story_analysis")
+    if a and feat:
+        with st.container(border=True):
+            st.markdown("**Testable requirements — functional**")
+            st.markdown("\n".join(f"- {x}" for x in a.functional))
+            st.markdown("**Non-functional:** " + ", ".join(a.non_functional))
+            st.markdown("**Suggested tests, by risk category**")
+            for cat, items in a.suggested.items():
+                st.markdown(f"- **`{cat}`** — " + "; ".join(items))
+            st.markdown("**Validation matrix**")
+            st.table({"Area": [m[0] for m in a.matrix], "What to verify": [m[1] for m in a.matrix]})
+        st.caption("Heuristic preview. **Generate** (Test a feature tab) turns this into a runnable "
+                   "suite — tailored to your acceptance criteria with the Claude backend.")
 
-col1, col2 = st.columns([3, 1])
-with col1:
-    feature = st.text_area(
-        "Feature or user story",
-        key="feature_input",
-        height=140,
-        placeholder=(
-            "A short phrase — or paste a full user story with acceptance criteria, e.g.\n\n"
-            "As a user, I want to reset my password via email.\n"
-            "Acceptance criteria:\n"
-            "- A reset link is emailed and expires in 30 minutes\n"
-            "- The link works only once\n"
-            "- Unknown emails get a neutral 'if an account exists…' response"
-        ),
-    )
-with col2:
-    ai_type = st.selectbox("AI type", AI_TYPES, key="aitype_input")
-    st.caption("Tip: with the Claude backend, a full user story yields a test per acceptance criterion.")
-
-with st.expander("Coverage overrides (optional) — raise the bar for this feature"):
-    st.caption("Each category set here becomes REQUIRED at the given minimum.")
-    oc1, oc2, oc3 = st.columns(3)
-    with oc1:
-        v_safety = st.number_input("safety min", min_value=0, max_value=20, step=1, key="ov_safety")
-    with oc2:
-        v_accuracy = st.number_input("accuracy min", min_value=0, max_value=20, step=1, key="ov_accuracy")
-    with oc3:
-        v_agent = st.number_input("agent min", min_value=0, max_value=20, step=1, key="ov_agent")
-    overrides = {k: int(v) for k, v in
-                 {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
-
-# ---- understand the story --------------------------------------------------
-def _load_example_story():
-    st.session_state["feature_input"] = core.EXAMPLE_USER_STORY
-    st.session_state["ex_choice"] = "(custom)"
-    st.session_state.pop("_applied_example", None)
-
-ac1, ac2, _ = st.columns([1.4, 1.4, 3])
-if ac1.button("🧭 What can we test on this?", disabled=not feature):
-    st.session_state["story_analysis"] = core.analyze_story(feature)
-ac2.button("📋 Load the example story", on_click=_load_example_story)
-
-a = st.session_state.get("story_analysis")
-if a:
-    with st.container(border=True):
-        st.markdown("#### 🧭 What we can test on this story")
-        st.markdown("**Testable requirements — functional**")
-        st.markdown("\n".join(f"- {x}" for x in a.functional))
-        st.markdown("**Non-functional:** " + ", ".join(a.non_functional))
-        st.markdown("**Suggested tests, by risk category**")
-        for cat, items in a.suggested.items():
-            st.markdown(f"- **`{cat}`** — " + "; ".join(items))
-        st.markdown("**Validation matrix**")
-        st.table({"Area": [m[0] for m in a.matrix], "What to verify": [m[1] for m in a.matrix]})
-        st.caption("Heuristic preview. Click **Generate** to turn this into a runnable suite "
-                   "(with the Claude backend it's tailored to your acceptance criteria).")
-
-with st.expander("📋 Example: how to write a user story for AI testing"):
-    st.caption("A clear AI-testing story: role, want, so-that, explicit acceptance criteria, "
-               "and testing notes (source of truth + abuse cases). Click 'Load the example story' to try it.")
+    st.divider()
+    st.markdown("#### 📋 How to write a user story for AI testing")
+    st.caption("A clear AI-testing story: role, want, so-that, explicit acceptance criteria, and "
+               "testing notes (source of truth + abuse cases).")
     st.code(core.EXAMPLE_USER_STORY, language="text")
 
-
-def _clear_feature():
-    st.session_state["feature_input"] = ""
-    st.session_state["aitype_input"] = "(none)"
-    st.session_state["ex_choice"] = "(custom)"
-    st.session_state["ov_safety"] = 0
-    st.session_state["ov_accuracy"] = 0
-    st.session_state["ov_agent"] = 0
-    for k in ("_applied_example", "gen", "run", "story_analysis"):
-        st.session_state.pop(k, None)
-
-
-gc1, gc2, _ = st.columns([1, 1, 4])
-if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
-    core.set_backend(_BACKEND_KIND[backend], **backend_opts)
-    with st.spinner("Generating cases…"):
-        gen = core.generate_suite(
-            feature,
-            None if ai_type == "(none)" else ai_type,
-            overrides or None,
-        )
-    st.session_state["gen"] = gen
-gc2.button("Clear", on_click=_clear_feature, disabled=not feature, key="clear_feature")
-
-# ---- step 1 results --------------------------------------------------------
-gen = st.session_state.get("gen")
-if gen:
-    st.success(f"Generated {len(gen.cases)} case(s) with **{gen.generator_name}**.")
-    if gen.errors:
-        st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
-
-    st.dataframe(
-        [{"id": c.id, "category": c.category, "severity": c.severity,
-          "validator": c.validator, "prompt": c.prompt} for c in gen.cases],
-        use_container_width=True, hide_index=True,
+# ============================================================================
+# TAB 4 — How it works
+# ============================================================================
+with tab_help:
+    st.subheader("How it works")
+    st.markdown(
+        "1. **Describe** a feature or paste a full user story.\n"
+        "2. **Generate** a risk-based suite and check it against the coverage standard.\n"
+        "3. **Run** it against the offline mock, the Claude API, or any HTTP endpoint.\n"
+        "4. Get a **report** with pass-rate, severity, latency, and a ship / no-ship **verdict**."
     )
-    (st.error if gen.has_gaps else st.info)(
-        ("⚠️ Below coverage standard\n\n" if gen.has_gaps else "✅ Coverage\n\n")
-        + "```\n" + gen.coverage_text + "\n```"
+    st.markdown("#### Risk categories covered")
+    st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>' for c in core.categories()) + '</div>',
+                unsafe_allow_html=True)
+    st.markdown("#### The release verdict")
+    st.markdown(
+        "- **BLOCK** — any Critical case fails, or a High `safety`/`hallucination` case fails\n"
+        "- **NEEDS SIGN-OFF** — any other High case fails\n"
+        "- **SHIP** — no Critical/High failures remain"
     )
-
-    # ---- step 2: run -------------------------------------------------------
-    st.subheader("2 · Run the suite")
-    rcol1, rcol2 = st.columns([2, 1])
-    do_run = rcol1.button("▶️ Run against the selected model", type="primary")
-    sla_in = rcol2.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
-                                value=0, step=100,
-                                help="Flag cases whose response time exceeds this. 0 = off.")
-    if do_run:
-        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
-        with st.spinner("Running…"):
-            run = core.run_suite_dir(gen.out_dir, sla_ms=sla_in or None)
-        st.session_state["run"] = run
-
-    run = st.session_state.get("run")
-    if run:
-        st.subheader("3 · Report")
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Pass rate", f"{run.summary.pass_rate:.0f}%")
-        m2.metric("Passed", f"{run.summary.passed}/{run.summary.total}")
-        m3.metric("Failed", run.summary.failed)
-        m4.metric("Verdict", run.verdict)
-        _perf = run.perf or {}
-        _breaches = _perf.get("breaches", [])
-        m5.metric("Avg latency", f"{_perf.get('avg_ms', 0)} ms",
-                  delta=(f"{len(_breaches)} over SLA" if _breaches else None),
-                  delta_color="inverse")
-        verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
-        getattr(st, verdict_style.get(run.verdict, "info"))(
-            f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`"
-        )
-        components.html(run.html, height=620, scrolling=True)
-
-        rc1, rc2, rc3 = st.columns(3)
-        rc1.download_button("⬇️ HTML report", run.html, "report.html", "text/html")
-        rc2.download_button("⬇️ JSON report", run.json, "report.json", "application/json")
-        # bundle the generated YAML for download
-        bundle = "\n".join(
-            f"# === {os.path.basename(p)} ===\n" + open(p, encoding="utf-8").read()
-            for p in sorted(glob.glob(os.path.join(gen.out_dir, "*.yaml")))
-        )
-        rc3.download_button("⬇️ Generated suite (YAML)", bundle, "suite.yaml", "text/yaml")
+    st.caption("Performance/SLA is reported alongside, but does not change the verdict — speed and "
+               "correctness are kept as separate signals.")
