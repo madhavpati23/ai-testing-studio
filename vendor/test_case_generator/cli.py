@@ -131,7 +131,7 @@ def _cmd_assess_prompt(args) -> int:
         for s in score.suggestions:
             print(f"   - {s}")
     if score.example:
-        print("  Example shape:")
+        print("  Suggested rewrite:")
         for line in score.example.splitlines():
             print(f"    {line}")
     return 0

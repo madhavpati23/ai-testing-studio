@@ -305,7 +305,8 @@ with tab_prompt:
                         "A stronger version of your prompt — copy and use it."
                 else:
                     heading, blurb = "✍️ Suggested rewrite", \
-                        "A stronger shape built around your ask — fill the <slots> and use it."
+                        ("A stronger, ready-to-use rewrite of your prompt. For one tailored to "
+                         "your exact content, use the Claude backend.")
                 with st.container(border=True):
                     st.markdown(f"#### {heading}")
                     st.caption(blurb)

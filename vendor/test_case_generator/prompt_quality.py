@@ -84,24 +84,59 @@ def _level(score: int) -> tuple[str, str]:
     return "Needs work", "This prompt is likely to give inconsistent results."
 
 
-def _example_shape(prompt: str, present: dict[str, bool]) -> str:
-    """Build a concrete 'good' shape around the user's actual ask.
+# task keywords -> a sensible role for the rewrite
+_ROLE_HINTS = [
+    (("instructor", "teach", "lesson", "course", "training", "tutorial", "student", "learn", "document", "guide"),
+     "an experienced instructor and technical writer"),
+    (("code", "function", "program", "bug", "refactor", "api", "python", "javascript", "sql", "implement"),
+     "a senior software engineer"),
+    (("test", "qa", "quality", "validation"), "a senior QA engineer"),
+    (("email", "message", "reply", "customer", "support"), "a professional communications assistant"),
+    (("summar", "tl;dr", "digest"), "an expert summarizer"),
+    (("data", "analy", "metric", "chart", "report"), "a data analyst"),
+    (("legal", "contract", "policy", "compliance"), "a careful legal assistant"),
+    (("market", "copy", "ad", "campaign", "blog"), "a skilled marketing copywriter"),
+]
 
-    Fills only the parts that are missing, so it reads as a template to complete
-    — not a lecture. Angle-bracket slots are for the user to fill in.
+
+def _infer_role(low: str) -> str:
+    for keys, role in _ROLE_HINTS:
+        if any(k in low for k in keys):
+            return role
+    return "an expert assistant"
+
+
+def _clean_task(prompt: str) -> str:
+    t = " ".join(prompt.strip().split())
+    t = re.sub(r"\bi\b", "I", t)        # fix a lone lowercase 'i'
+    t = t.rstrip(". ")
+    return (t[0].upper() + t[1:]) if t else "Complete the request"
+
+
+def _rewrite(prompt: str, present: dict[str, bool]) -> str:
+    """Produce a concrete, ready-to-use rewrite of the prompt (no placeholders).
+
+    Keeps the user's task, adds a sensible role and the missing best-practice
+    elements as real instructions. A Claude-backed rewrite (assess_llm) tailors
+    it further to the exact content.
     """
-    task = prompt.strip().rstrip(".")
-    lines = []
+    low = prompt.lower()
+    parts: list[str] = []
     if not present["context/role"]:
-        lines.append("You are an expert assistant for this task.")
-    lines.append(f"Task: {task}.")
+        parts.append(f"You are {_infer_role(low)}.")
+    parts.append(f"{_clean_task(prompt)}.")
+    extras: list[str] = []
     if not present["constraints"]:
-        lines.append("Constraints: be accurate and concise; if unsure, say so.")
+        extras.append("Be accurate and concise, define key terms, and avoid unnecessary jargon.")
     if not present["output format"]:
-        lines.append("Output: return a clear, structured response (e.g. short bullets or JSON).")
+        extras.append("Organise the answer with clear sections or bullet points so it is easy to follow.")
     if not present["example"]:
-        lines.append("Example of a good answer: <add one short example>.")
-    return "\n".join(lines)
+        extras.append("Include a brief example where it helps.")
+    if not present["specific"]:
+        extras.append("State any assumptions you make.")
+    extras.append("If anything is unclear or outside your knowledge, say so instead of guessing.")
+    parts.append(" ".join(extras))
+    return " ".join(parts)
 
 
 def assess(prompt: str) -> PromptScore:
@@ -115,7 +150,7 @@ def assess(prompt: str) -> PromptScore:
     missing = sorted((d for d, ok in present.items() if not ok),
                      key=lambda d: _DIMENSIONS[d][0], reverse=True)
     suggestions = [] if score >= 85 else [_DIMENSIONS[d][1] for d in missing[:3]]
-    example = "" if score >= 85 else _example_shape(prompt, present)
+    example = "" if score >= 85 else _rewrite(prompt, present)
     return PromptScore(score=score, level=level, summary=summary, strengths=strengths,
                        suggestions=suggestions, present=present, example=example)
 
