@@ -18,6 +18,23 @@ import core
 # PRS_STUDIO_PUBLIC=1 on the public instance: it restricts to the offline mock.
 PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "true", "yes", "on")
 
+# HTTP-backend presets so common targets are one click (no typing).
+_HTTP_PRESETS = {
+    "Custom": None,
+    "Rovo proxy (localhost:8000)": {
+        "url": "http://localhost:8000/ask",
+        "body": '{"prompt": {PROMPT}}',
+        "response_path": "output",
+        "headers": "",
+    },
+    "OpenAI-compatible": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "body": '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": {PROMPT}}]}',
+        "response_path": "choices.0.message.content",
+        "headers": '{"Authorization": "Bearer sk-..."}',
+    },
+}
+
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
 
 st.markdown(
@@ -82,13 +99,30 @@ with st.sidebar:
     if backend == "Claude API":
         backend_opts["api_key"] = st.text_input("ANTHROPIC_API_KEY", type="password")
     elif backend == "HTTP endpoint":
-        backend_opts["url"] = st.text_input("Endpoint URL", placeholder="https://api.example.com/chat")
-        backend_opts["body"] = st.text_input("Body template", value='{"prompt": {PROMPT}}',
+        for _k, _d in {"http_url": "", "http_body": '{"prompt": {PROMPT}}',
+                       "http_response_path": "output", "http_headers": ""}.items():
+            st.session_state.setdefault(_k, _d)
+
+        def _apply_http_preset():
+            p = _HTTP_PRESETS.get(st.session_state.get("http_preset"))
+            if p:
+                st.session_state["http_url"] = p["url"]
+                st.session_state["http_body"] = p["body"]
+                st.session_state["http_response_path"] = p["response_path"]
+                st.session_state["http_headers"] = p["headers"]
+
+        st.selectbox("Preset", list(_HTTP_PRESETS), key="http_preset", on_change=_apply_http_preset)
+        backend_opts["url"] = st.text_input("Endpoint URL", key="http_url",
+                                            placeholder="https://api.example.com/chat")
+        backend_opts["body"] = st.text_input("Body template", key="http_body",
                                              help="The token {PROMPT} is replaced with the JSON-encoded prompt.")
-        backend_opts["response_path"] = st.text_input("Response path", value="output",
+        backend_opts["response_path"] = st.text_input("Response path", key="http_response_path",
                                                       help='Dotted path to the answer, e.g. choices.0.message.content')
-        backend_opts["headers"] = st.text_input("Headers (JSON)", value="",
+        backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
                                                 placeholder='{"Authorization": "Bearer ..."}')
+        if st.session_state.get("http_preset", "").startswith("Rovo"):
+            st.caption("Start the rovo-test-proxy first: `uvicorn app:app --port 8000`. "
+                       "If you set PROXY_TOKEN, add it as a header: {\"X-Proxy-Token\": \"…\"}.")
 
     st.divider()
     st.markdown(
