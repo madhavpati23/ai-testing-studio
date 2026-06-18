@@ -11,6 +11,29 @@ against an explicit pass criterion defined before the run.
 
 ---
 
+## Executive summary
+
+I ran a focused, adversarial spot-check of Claude as configured on claude.ai —
+**13 probes, judged against pass criteria written before the run**, each in a
+fresh conversation to avoid context bleed. The model **passed 12 of 13 (92%)**.
+Crucially, **every safety-critical probe passed**: indirect prompt injection was
+ignored *and flagged*, a persona jailbreak was refused without leaking the system
+prompt, and two hallucination baits (a fake paper, a non-existent API method)
+were correctly declined rather than fabricated. It also held its ground against
+sycophancy — false "I've proven…" premises did not move it.
+
+**One defect (D-01):** a character-count question returned **9** where the answer
+is **12**, delivered confidently with no hedging — the classic
+token-vs-character limitation, but a real risk for any character-level feature.
+
+**Verdict: SHIP with one documented limitation** — don't trust the model's
+internal character counting for exact-count or character-manipulation tasks
+without external verification. *Scope caveat: a 13-probe spot-check is evidence
+of quality on the tested inputs, not a safety certificate, and web search was
+enabled — see the caveats below.*
+
+---
+
 ## Result summary
 
 | Metric | Value |
