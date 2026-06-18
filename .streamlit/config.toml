@@ -1,6 +1,10 @@
 [theme]
-primaryColor = "#1a7f37"
 base = "light"
+primaryColor = "#10b981"          # emerald — matches the SHIP verdict
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f5f9"
+textColor = "#0f172a"
+font = "sans serif"
 
 [server]
 headless = true

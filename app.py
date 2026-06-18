@@ -20,12 +20,52 @@ PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "
 
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
 
-st.title("🧪 AI Testing Studio")
-st.caption(
-    "Describe an AI feature → generate a risk-based test suite → run it → get a "
-    "report with a ship / no-ship verdict. Powered by ai-test-case-generator + "
-    "prompt-regression-suite."
+st.markdown(
+    """
+    <style>
+      /* hero */
+      .hero {background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);
+             color:#e2e8f0;padding:1.5rem 1.8rem;border-radius:16px;margin-bottom:1rem;
+             box-shadow:0 8px 24px rgba(2,6,23,.18);}
+      .hero h1 {font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+                font-size:2rem;margin:0;letter-spacing:-.5px;color:#f8fafc;}
+      .hero h1 .accent{color:#34d399;}
+      .hero p {margin:.4rem 0 0;color:#cbd5e1;font-size:1.02rem;}
+      /* step strip */
+      .steps{display:flex;gap:.6rem;margin:.2rem 0 1rem;flex-wrap:wrap;}
+      .step{flex:1;min-width:180px;background:#f8fafc;border:1px solid #e2e8f0;
+            border-left:4px solid #10b981;border-radius:10px;padding:.6rem .9rem;}
+      .step b{display:block;color:#0f172a;font-size:.95rem;}
+      .step span{color:#64748b;font-size:.85rem;}
+      /* category chips */
+      .chips{margin:.2rem 0 .4rem;}
+      .chip{display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;
+            border-radius:999px;padding:2px 11px;margin:3px;font-size:12px;font-weight:600;}
+      .section-num{color:#10b981;font-weight:700;}
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
+
+st.markdown(
+    '<div class="hero"><h1>🧪 AI Testing <span class="accent">Studio</span></h1>'
+    '<p>Describe an AI feature → generate a risk-based test suite → run it → get a '
+    'report with a ship / no-ship verdict.</p></div>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<div class="steps">'
+    '<div class="step"><b>1 · Describe</b><span>A feature or full user story</span></div>'
+    '<div class="step"><b>2 · Generate</b><span>Risk-based cases + coverage check</span></div>'
+    '<div class="step"><b>3 · Run</b><span>Mock, Claude, or any endpoint</span></div>'
+    '<div class="step"><b>4 · Verdict</b><span>Ship / sign-off / block + report</span></div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+_chips = "".join(f'<span class="chip">{c}</span>' for c in core.categories())
+st.markdown(f'<div class="chips">Covers: {_chips}</div>', unsafe_allow_html=True)
 
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
@@ -172,10 +212,14 @@ if gen:
     run = st.session_state.get("run")
     if run:
         st.subheader("3 · Report")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Pass rate", f"{run.summary.pass_rate:.0f}%")
+        m2.metric("Passed", f"{run.summary.passed}/{run.summary.total}")
+        m3.metric("Failed", run.summary.failed)
+        m4.metric("Verdict", run.verdict)
         verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
         getattr(st, verdict_style.get(run.verdict, "info"))(
-            f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`  ·  "
-            f"pass rate {run.summary.pass_rate:.1f}% ({run.summary.passed}/{run.summary.total})"
+            f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`"
         )
         components.html(run.html, height=620, scrolling=True)
 

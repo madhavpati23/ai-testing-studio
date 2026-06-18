@@ -85,6 +85,12 @@ def set_backend(kind: str, **opts) -> None:
     # kind == "mock": leave everything cleared
 
 
+def categories() -> list[str]:
+    """The risk categories the suite covers (for display)."""
+    from test_case_generator.taxonomy import TAXONOMY
+    return list(TAXONOMY)
+
+
 # ---- prompt quality --------------------------------------------------------
 
 def assess_prompt(text: str, use_llm: bool = False):
