@@ -78,12 +78,6 @@ def _clear_pq():
     st.session_state["pq_text"] = ""
 
 
-def _load_example_story():
-    st.session_state["feature_input"] = core.EXAMPLE_USER_STORY
-    st.session_state["ex_choice"] = "(custom)"
-    st.session_state.pop("_applied_example", None)
-
-
 def _clear_feature():
     st.session_state["feature_input"] = ""
     st.session_state["aitype_input"] = "(none)"
@@ -317,19 +311,28 @@ with tab_prompt:
 # ============================================================================
 with tab_story:
     st.subheader("What can we test on this story?")
-    st.caption("Reads the feature / user story from the **Test a feature** tab.")
-    feat = st.session_state.get("feature_input", "").strip()
+    st.session_state.setdefault("story_text", "")
 
-    c1, c2, _ = st.columns([1.4, 1.4, 3])
-    if c1.button("🧭 Analyse this story", disabled=not feat):
-        st.session_state["story_analysis"] = core.analyze_story(feat)
-    c2.button("📋 Load the example story", on_click=_load_example_story)
+    def _load_example_into_story():
+        st.session_state["story_text"] = core.EXAMPLE_USER_STORY
 
-    if not feat:
-        st.info("Enter a feature in **Test a feature**, or click **Load the example story** above.")
+    def _use_in_test():
+        st.session_state["feature_input"] = st.session_state.get("story_text", "")
+        st.session_state["ex_choice"] = "(custom)"
+        st.session_state.pop("_applied_example", None)
+
+    story_text = st.text_area(
+        "Feature or user story", key="story_text", height=160,
+        placeholder="Paste a feature or a full user story with acceptance criteria, then click Analyse.",
+    )
+    c1, c2, c3, _ = st.columns([1.3, 1.6, 1.8, 2])
+    if c1.button("🧭 Analyse this story", type="primary", disabled=not story_text.strip()):
+        st.session_state["story_analysis"] = core.analyze_story(story_text)
+    c2.button("📋 Load the example story", on_click=_load_example_into_story)
+    c3.button("↪ Use in 'Test a feature'", on_click=_use_in_test, disabled=not story_text.strip())
 
     a = st.session_state.get("story_analysis")
-    if a and feat:
+    if a and story_text.strip():
         with st.container(border=True):
             st.markdown("**Testable requirements — functional**")
             st.markdown("\n".join(f"- {x}" for x in a.functional))
@@ -339,8 +342,8 @@ with tab_story:
                 st.markdown(f"- **`{cat}`** — " + "; ".join(items))
             st.markdown("**Validation matrix**")
             st.table({"Area": [m[0] for m in a.matrix], "What to verify": [m[1] for m in a.matrix]})
-        st.caption("Heuristic preview. **Generate** (Test a feature tab) turns this into a runnable "
-                   "suite — tailored to your acceptance criteria with the Claude backend.")
+        st.caption("Heuristic preview. Click **Use in 'Test a feature'** then **Generate** to turn this "
+                   "into a runnable suite (tailored with the Claude backend).")
 
     st.divider()
     st.markdown("#### 📋 How to write a user story for AI testing")
