@@ -16,12 +16,13 @@ from dataclasses import dataclass, field
 
 # dimension -> (weight, gentle suggestion when it's missing)
 _DIMENSIONS = {
-    "clear task": (25, "Lead with a clear action verb so the ask is unambiguous."),
-    "context/role": (20, "Add a line of context or a role (e.g. 'You are a...') to frame it."),
-    "specific": (20, "Replace vague references ('it', 'this') with the specific subject."),
-    "constraints": (15, "State any constraints - length, tone, or what to avoid."),
-    "output format": (12, "Say what the output should look like (e.g. JSON, a bulleted list)."),
-    "example": (8, "A short example of a good answer can sharpen results."),
+    "clear task": (18, "Lead with a clear action verb so the ask is unambiguous."),
+    "role / domain": (15, "Name the role/domain to assume (e.g. 'Act as a project manager')."),
+    "audience & purpose": (15, "Say who it's for and why (the audience and the goal)."),
+    "key details": (15, "Include the specific points to cover; avoid vague references."),
+    "constraints (tone & length)": (15, "State the tone, the length, and what to avoid."),
+    "output format": (14, "Specify the output format (email, bullet points, report, JSON...)."),
+    "example / style": (8, "Give a short example or a style sample to match."),
 }
 
 
@@ -58,19 +59,24 @@ def _checks(prompt: str) -> dict[str, bool]:
         "clear task": bool(re.search(
             r"\b(write|create|generate|list|summari|explain|translate|classif|extract|"
             r"review|analy(?:z|s)e|compare|draft|fix|implement|design|answer|describe|"
-            r"convert|rewrite|evaluate|test|build|find|identify|plan|recommend)\w*\b", low)
+            r"convert|rewrite|evaluate|test|build|find|identify|plan|recommend|help)\w*\b", low)
         ) or p.endswith("?"),
-        "context/role": bool(re.search(
-            r"\b(you are|act as|context|background|given|as an?|the goal|we are|i am|i'm)\b", low)
-        ) or n >= 25,
-        "specific": n >= 12 and vague <= 2,
-        "constraints": bool(re.search(
+        "role / domain": bool(re.search(
+            r"\b(you are|act as|as an?|role|expert in|specialist|persona|responsible for)\b", low)),
+        "audience & purpose": bool(re.search(
+            r"\b(audience|for an?|for the|reader|manager|client|team|customer|user|stakeholder|"
+            r"recipient|purpose|so that|goal|in order to|to help|intended|status update|escalation)\b", low)),
+        "key details": (n >= 12 and vague <= 2) or bool(re.search(
+            r"\b(include|details?|points?|cover|specifically|key|the following)\b", low)),
+        "constraints (tone & length)": bool(re.search(
             r"\b(must|should|only|do not|don'?t|avoid|limit|at most|no more than|within|"
-            r"in \d+ (words|sentences|bullets|lines)|tone|formal|concise|professional)\b", low)),
+            r"in \d+ (words|sentences|bullets|lines|paragraphs)|tone|formal|concise|professional|"
+            r"polite|assertive|brief|detailed|length|accurate|complete)\b", low)),
         "output format": bool(re.search(
-            r"\b(json|yaml|table|markdown|bullet|numbered list|list|format|schema|csv|"
-            r"step by step|steps|headings?)\b", low)),
-        "example": bool(re.search(r"(e\.?g\.?\b|for example|for instance|\bexample\b|\bsample\b|such as)", low)),
+            r"\b(json|yaml|table|markdown|bullet|numbered|list|format|schema|csv|step|heading|"
+            r"email|report|script|release notes|slide|memo|paragraph)\b", low)),
+        "example / style": bool(re.search(
+            r"(e\.?g\.?\b|for example|for instance|\bexample\b|\bsample\b|such as|match this style|like the following)", low)),
     }
 
 
@@ -86,6 +92,8 @@ def _level(score: int) -> tuple[str, str]:
 
 # task keywords -> a sensible role for the rewrite
 _ROLE_HINTS = [
+    (("project", "manager", "scrum", "delivery", "sprint", "stakeholder"), "an experienced project manager"),
+    (("iam", "identity", "access management", "okta", "active directory", "provisioning"), "an IAM specialist"),
     (("instructor", "teach", "lesson", "course", "training", "tutorial", "student", "learn", "document", "guide"),
      "an experienced instructor and technical writer"),
     (("code", "function", "program", "bug", "refactor", "api", "python", "javascript", "sql", "implement"),
@@ -122,18 +130,20 @@ def _rewrite(prompt: str, present: dict[str, bool]) -> str:
     """
     low = prompt.lower()
     lines: list[str] = []
-    if not present["context/role"]:
+    if not present["role / domain"]:
         lines.append(f"You are {_infer_role(low)}.")
     lines.append(f"{_clean_task(prompt)}.")
-    if not present["constraints"]:
-        lines.append("- Be accurate and concise, define key terms, and avoid unnecessary jargon.")
+    if not present["audience & purpose"]:
+        lines.append("- Audience & purpose: write it for a professional audience and make the goal explicit.")
+    if not present["key details"]:
+        lines.append("- Cover the key points the request needs, and state any assumptions you make.")
+    if not present["constraints (tone & length)"]:
+        lines.append("- Use a professional, concise tone; keep it as brief as the task allows; be accurate and complete.")
     if not present["output format"]:
-        lines.append("- Organise the answer with clear sections or bullet points so it is easy to follow.")
-    if not present["example"]:
-        lines.append("- Include a brief example to illustrate.")
-    if not present["specific"]:
-        lines.append("- State any assumptions you make.")
-    lines.append("- If anything is unclear or outside your knowledge, say so instead of guessing.")
+        lines.append("- Format it appropriately (e.g. email, bullet points, or a short report).")
+    if not present["example / style"]:
+        lines.append("- Include a brief example to illustrate where it helps.")
+    lines.append("- Provide the final, ready-to-use answer; if anything is unclear, ask instead of guessing.")
     return "\n".join(lines)
 
 
