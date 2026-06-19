@@ -417,6 +417,20 @@ with tab_practice:
     st.caption(f"Drawn at random from **{core.question_bank_size()}** practice questions "
                f"across **{len(core.practice_exercises())}** skills — no two sessions are the same.")
 
+    st.session_state.setdefault("practice_score", {"correct": 0, "total": 0})
+    _sc = st.session_state["practice_score"]
+    sccol1, sccol2 = st.columns([3, 1])
+    if _sc["total"]:
+        _pct = round(100 * _sc["correct"] / _sc["total"])
+        sccol1.metric("🎯 Your score this session",
+                      f"{_sc['correct']} / {_sc['total']} correct", f"{_pct}%")
+    else:
+        sccol1.caption("🎯 Score this session: judge a question (against the **Mock**) to start "
+                       "scoring. Graded automatically only on the Mock — a real bot has no answer key.")
+    sccol2.button("Reset score", key="practice_reset_score",
+                  on_click=lambda: st.session_state.update(
+                      {"practice_score": {"correct": 0, "total": 0}}))
+
     # Draw the first question, or a fresh one on demand.
     if "practice_q" not in st.session_state:
         _ex0, _p0 = core.random_question()
@@ -467,10 +481,26 @@ with tab_practice:
         verdict = vcol1.radio("Your verdict — did it pass or fail this probe?",
                               ["It PASSED", "It FAILED", "Not sure"],
                               key=f"practice_verdict_{n}", horizontal=True)
+        _is_mock = _BACKEND_KIND[backend] == "mock"
         if vcol2.button("OK — reveal", type="primary", key=f"practice_ok_{n}"):
             st.session_state[f"practice_reveal_{n}"] = True
+            if _is_mock and not st.session_state.get(f"practice_scored_{n}"):
+                _exp = core.expected_verdict(ex.id)
+                st.session_state["practice_score"]["total"] += 1
+                if verdict == _exp:
+                    st.session_state["practice_score"]["correct"] += 1
+                st.session_state[f"practice_scored_{n}"] = True
 
         if st.session_state.get(f"practice_reveal_{n}"):
+            if _is_mock:
+                _exp = core.expected_verdict(ex.id)
+                if verdict == _exp:
+                    st.success(f"✅ Correct — the right call here is **{_exp}**.")
+                else:
+                    st.error(f"❌ Not quite — the right call is **{_exp}**. Here's why:")
+            else:
+                st.info("No auto-grade against a real bot (there's no answer key) — use the "
+                        "analysis below to check your own judgement.")
             with st.container(border=True):
                 st.markdown("#### 🔎 Expert analysis")
                 st.caption(f"Your call: **{verdict}**")
