@@ -1,4 +1,6 @@
-# AI Testing Studio
+# AI Evaluation Studio
+
+*(formerly "AI Testing Studio" — the repo/URL keep the old slug)*
 
 A browser UI that makes the whole AI-testing toolchain usable by anyone — no
 terminal required. Describe a feature → generate a risk-based test suite → run it

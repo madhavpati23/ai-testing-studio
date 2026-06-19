@@ -1,4 +1,4 @@
-"""AI Testing Studio — a browser UI for the generate -> run -> report toolchain.
+"""AI Evaluation Studio — a browser UI for the generate -> run -> report toolchain.
 
 Run locally:   streamlit run app.py
 """
@@ -53,7 +53,7 @@ _HTTP_PRESETS = {
 _BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 
-st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="AI Evaluation Studio", page_icon="🧪", layout="wide")
 
 st.markdown(
     """
@@ -78,7 +78,7 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="hero"><h1>🧪 AI Testing <span class="accent">Studio</span></h1>'
+    '<div class="hero"><h1>🧪 AI Evaluation <span class="accent">Studio</span></h1>'
     '<p>Describe an AI feature → generate a risk-based test suite → run it → get a '
     'report with a ship / no-ship verdict.</p></div>',
     unsafe_allow_html=True,
