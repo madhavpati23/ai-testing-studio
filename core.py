@@ -135,6 +135,9 @@ def _http_generate(feature: str, ai_type: str | None,
         caps = sorted(capabilities)
         user += (f"\nCapabilities: {caps or 'read-only (no actions, no structured output, stateless)'}. "
                  "Only design cases that apply to these capabilities.")
+    user += ("\nNo grader is available — do NOT use the llm_judge validator (it can't be graded "
+             "and would falsely fail). Use only regex / contains / not_contains / json_schema / "
+             "equals_number, and make sure a correct answer would actually pass each one.")
     model = get_model()
     raw_text = model.ask(_SYSTEM + "\n\n" + user).strip()
     # Be lenient: extract the JSON object even if wrapped in prose/fences.
@@ -142,7 +145,10 @@ def _http_generate(feature: str, ai_type: str | None,
     if start == -1 or end == -1:
         raise ValueError(f"the model did not return JSON cases (got: {raw_text[:120]!r})")
     data = json.loads(raw_text[start:end + 1])
-    return data.get("cases", []), model.name
+    # Safety net: no grader on this backend, so drop any llm_judge cases the model
+    # still produced — they would fail to grade and falsely BLOCK.
+    cases = [c for c in data.get("cases", []) if c.get("validator") != "llm_judge"]
+    return cases, model.name
 
 
 def generate_suite(feature: str, ai_type: str | None = None,
