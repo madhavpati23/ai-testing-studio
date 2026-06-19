@@ -258,16 +258,16 @@ def assess_instructions(text: str) -> PromptScore:
                        suggestions=suggestions, present=present, example=example)
 
 
-def assess_llm(prompt: str) -> PromptScore:
-    """Short, non-preachy critique from Claude. Needs ANTHROPIC_API_KEY."""
+def assess_llm(prompt: str, api_key: str | None = None) -> PromptScore:
+    """Short, non-preachy critique from Claude. Needs a Claude key (api_key or env)."""
     import json
     import os
 
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if not api_key and not os.environ.get("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY is required for assess_llm")
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
     system = (
         "You rate how well-written a prompt is. Be concise and encouraging, not "
         "preachy. Reply with ONLY JSON: {\"score\": 0-100, \"summary\": \"<one "

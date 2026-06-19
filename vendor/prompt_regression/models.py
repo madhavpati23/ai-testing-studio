@@ -183,12 +183,15 @@ class ClaudeModel:
     the supported thinking mode for Opus 4.8 (a fixed budget_tokens would 400).
     """
 
-    def __init__(self, model: str = "claude-opus-4-8", max_tokens: int = 1024):
+    def __init__(self, model: str = "claude-opus-4-8", max_tokens: int = 1024,
+                 api_key: str | None = None):
         import anthropic  # imported lazily so mock-mode needs no dependency
 
         self.name = model
         self._max_tokens = max_tokens
-        self._client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+        # api_key=None lets the SDK fall back to ANTHROPIC_API_KEY; passing it
+        # explicitly keeps a session key out of the process environment.
+        self._client = anthropic.Anthropic(api_key=api_key)
 
     def ask(self, prompt: str) -> str:
         return self.converse([prompt])

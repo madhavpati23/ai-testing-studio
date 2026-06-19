@@ -97,9 +97,9 @@ def categories() -> list[str]:
 
 # ---- prompt quality --------------------------------------------------------
 
-def assess_prompt(text: str, use_llm: bool = False):
+def assess_prompt(text: str, use_llm: bool = False, api_key: str | None = None):
     """Score how well-written a prompt is (heuristic, or Claude if use_llm)."""
-    return prompt_quality.assess_llm(text) if use_llm else prompt_quality.assess(text)
+    return prompt_quality.assess_llm(text, api_key=api_key) if use_llm else prompt_quality.assess(text)
 
 
 def assess_instructions(text: str):
@@ -119,8 +119,34 @@ class GenerateResult:
     generator_name: str
 
 
+def make_model(kind: str, opts: dict | None = None):
+    """Build a model object directly from explicit config — no process environment.
+
+    Keeps a per-session API key / URL out of os.environ, so a shared public app
+    never leaks one user's key into another user's request.
+    """
+    opts = opts or {}
+    from prompt_regression.models import MockModel
+    if kind == "claude":
+        from prompt_regression.models import ClaudeModel
+        return ClaudeModel(os.environ.get("PRS_MODEL", "claude-opus-4-8"),
+                           api_key=(opts.get("api_key") or None))
+    if kind == "http":
+        from prompt_regression.models import HttpModel
+        headers = json.loads(opts["headers"]) if opts.get("headers") else None
+        return HttpModel(
+            url=opts.get("url", ""),
+            body_template=opts.get("body") or '{"prompt": {PROMPT}}',
+            response_path=opts.get("response_path", "output"),
+            headers=headers,
+            method=opts.get("method", "POST"),
+            block_private=bool(opts.get("block_private")),
+        )
+    return MockModel()
+
+
 def _http_generate(feature: str, ai_type: str | None,
-                   capabilities: list | None) -> tuple[list[dict], str]:
+                   capabilities: list | None, model=None) -> tuple[list[dict], str]:
     """Design tailored cases with the selected OpenAI-compatible model (e.g. Groq).
 
     Reuses the configured HTTP backend: sends the generator's system instructions
@@ -140,7 +166,7 @@ def _http_generate(feature: str, ai_type: str | None,
     user += ("\nNo grader is available — do NOT use the llm_judge validator (it can't be graded "
              "and would falsely fail). Use only regex / contains / not_contains / json_schema / "
              "equals_number, and make sure a correct answer would actually pass each one.")
-    model = get_model()
+    model = model if model is not None else get_model()
     raw_text = model.ask(_SYSTEM + "\n\n" + user).strip()
     # Be lenient: extract the JSON object even if wrapped in prose/fences.
     start, end = raw_text.find("{"), raw_text.rfind("}")
@@ -156,10 +182,27 @@ def _http_generate(feature: str, ai_type: str | None,
 def generate_suite(feature: str, ai_type: str | None = None,
                    overrides: dict[str, int] | None = None,
                    out_dir: str | None = None,
-                   capabilities: list | None = None) -> GenerateResult:
-    # An HTTP/OpenAI-compatible backend (e.g. Groq) designs tailored cases; Claude
-    # uses its generator; otherwise the offline mock scaffold.
-    if os.environ.get("PRS_HTTP_URL"):
+                   capabilities: list | None = None,
+                   kind: str | None = None,
+                   opts: dict | None = None) -> GenerateResult:
+    # Choose the case designer. With explicit `kind`/`opts` (session-scoped, no
+    # env), an HTTP/OpenAI-compatible backend (e.g. Groq) designs tailored cases,
+    # Claude uses its generator, mock is the offline scaffold. Without them, fall
+    # back to the env-based path (CI / back-compat).
+    opts = opts or {}
+    if kind == "http":
+        raw, generator_name = _http_generate(feature, ai_type, capabilities,
+                                             model=make_model("http", opts))
+    elif kind == "claude":
+        from test_case_generator.generators import ClaudeGenerator
+        g = ClaudeGenerator(os.environ.get("TCG_MODEL", "claude-opus-4-8"),
+                            api_key=(opts.get("api_key") or None))
+        raw, generator_name = g.generate(feature, ai_type, capabilities), g.name
+    elif kind == "mock":
+        from test_case_generator.generators import MockGenerator
+        g = MockGenerator()
+        raw, generator_name = g.generate(feature, ai_type, capabilities), g.name
+    elif os.environ.get("PRS_HTTP_URL"):
         raw, generator_name = _http_generate(feature, ai_type, capabilities)
     else:
         generator = get_generator()
@@ -192,21 +235,22 @@ class RunResult:
 
 
 def run_selected(cases: list, sla_ms: float | None = None,
-                 repeat: int = 1, pass_threshold: float = 1.0) -> RunResult:
+                 repeat: int = 1, pass_threshold: float = 1.0, model=None) -> RunResult:
     """Run only a chosen subset of generated cases (write to a temp suite, then run).
 
     `repeat` runs each case N times (the model is non-deterministic) and a case
     passes only if its pass rate >= `pass_threshold`; cases that pass some runs
-    but not all are flagged *flaky*.
+    but not all are flagged *flaky*. Pass an explicit `model` (built with
+    make_model) to avoid the process environment.
     """
     out_dir = tempfile.mkdtemp(prefix="studio_selected_")
     write_suite(cases, out_dir)
-    return run_suite_dir(out_dir, sla_ms, repeat, pass_threshold)
+    return run_suite_dir(out_dir, sla_ms, repeat, pass_threshold, model=model)
 
 
 def run_suite_dir(prompts_dir: str, sla_ms: float | None = None,
-                  repeat: int = 1, pass_threshold: float = 1.0) -> RunResult:
-    model = get_model()
+                  repeat: int = 1, pass_threshold: float = 1.0, model=None) -> RunResult:
+    model = model if model is not None else get_model()
     cases = load_cases(prompts_dir)
     results = run_suite(model, cases, repeat=repeat, pass_threshold=pass_threshold)
     summary = summarize(model.name, results)
@@ -411,13 +455,13 @@ def build_golden(text: str) -> tuple[list, list[str]]:
     return validated.cases, parse_errors + list(validated.errors)
 
 
-def ask_once(prompt: str) -> tuple[str, str]:
+def ask_once(prompt: str, model=None) -> tuple[str, str]:
     """Send a single prompt to the configured backend. Returns (model_name, answer).
 
     Used by the Practice tab so a learner can fire one probe and judge the raw
     answer themselves. Set the backend with `set_backend()` first.
     """
-    model = get_model()
+    model = model if model is not None else get_model()
     return model.name, model.ask(prompt)
 
 

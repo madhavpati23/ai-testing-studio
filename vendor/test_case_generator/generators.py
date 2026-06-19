@@ -186,12 +186,13 @@ and 1 robustness case. Aim for 12-16 cases total."""
 class ClaudeGenerator:
     """Asks Claude to design cases. Activates when ANTHROPIC_API_KEY is set."""
 
-    def __init__(self, model: str = "claude-opus-4-8", max_tokens: int = 4096):
+    def __init__(self, model: str = "claude-opus-4-8", max_tokens: int = 4096,
+                 api_key: str | None = None):
         import anthropic
 
         self.name = model
         self._max_tokens = max_tokens
-        self._client = anthropic.Anthropic()
+        self._client = anthropic.Anthropic(api_key=api_key)
 
     def generate(self, feature: str, ai_type: str | None = None,
                  capabilities: Any = None) -> list[dict[str, Any]]:

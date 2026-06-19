@@ -15,9 +15,10 @@ import streamlit.components.v1 as components
 
 import core
 
-# In a shared public deployment, one process serves all sessions — so we must
-# NOT accept secrets (ANTHROPIC_API_KEY) or arbitrary URLs (SSRF). Set
-# PRS_STUDIO_PUBLIC=1 on the public instance: it restricts to the offline mock.
+# Keys are session-scoped (built per request via core.make_model, never written
+# to the process env), so a shared instance can offer bring-your-own-key safely.
+# Set PRS_STUDIO_PUBLIC=1 on a public instance to force the SSRF guard on the HTTP
+# backend (refuse private/loopback/metadata URLs).
 PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "true", "yes", "on")
 
 
@@ -107,15 +108,18 @@ def _clear_feature():
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
     st.header("Model under test")
-    backends = ["Demo bot (offline)"] if PUBLIC else ["Demo bot (offline)", "Claude API", "HTTP endpoint"]
+    backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint"]
     backend = st.radio("Backend", backends,
                        help="The Demo bot is a built-in offline dummy with planted bugs — for "
-                            "free demos and Practice, no key. Claude/HTTP test a real model.")
-    if PUBLIC:
-        st.caption("This is a public demo — it runs the offline **Demo bot** only (a dummy with "
-                   "planted bugs, for trying the pipeline and Practice). Clone the repo to test "
-                   "the Claude API or your own endpoint.")
+                            "free demos and Practice, no key. Claude/HTTP test a real model with "
+                            "your own key (used only for your session).")
     backend_opts: dict[str, str] = {}
+    if backend != "Demo bot (offline)":
+        st.caption("🔑 **Bring your own key.** It's kept only in *your* browser session and sent "
+                   "directly to the provider per request — never written to the server's "
+                   "environment, never stored or logged.")
+    if PUBLIC and backend == "HTTP endpoint":
+        backend_opts["block_private"] = True   # SSRF guard for untrusted public URLs
     if backend == "Claude API":
         _sk = _secret("ANTHROPIC_API_KEY")
         if _sk:
@@ -243,12 +247,12 @@ with tab_test:
 
     gc1, gc2, _ = st.columns([1, 1, 4])
     if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
-        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         with st.spinner("Generating cases…"):
             try:
                 st.session_state["gen"] = core.generate_suite(
                     feature, None if ai_type == "(none)" else ai_type,
-                    overrides or None, capabilities=capabilities)
+                    overrides or None, capabilities=capabilities,
+                    kind=_BACKEND_KIND[backend], opts=backend_opts)
             except Exception as exc:
                 st.session_state.pop("gen", None)
                 st.error(f"Could not generate the suite: {exc}")
@@ -322,13 +326,13 @@ with tab_test:
         else:
             thr_pct = 100
         if do_run:
-            core.set_backend(_BACKEND_KIND[backend], **backend_opts)
             with st.spinner(f"Running {len(kept_cases)} case(s)"
                             + (f" × {repeat_in} runs…" if repeat_in > 1 else "…")):
                 try:
                     st.session_state["run"] = core.run_selected(
                         kept_cases, sla_ms=sla_in or None,
-                        repeat=int(repeat_in), pass_threshold=thr_pct / 100)
+                        repeat=int(repeat_in), pass_threshold=thr_pct / 100,
+                        model=core.make_model(_BACKEND_KIND[backend], backend_opts))
                 except Exception as exc:
                     st.session_state.pop("run", None)
                     st.error(f"The run failed against **{backend}**: {exc}\n\n"
@@ -405,13 +409,13 @@ with tab_test:
         cc3.button("Clear result", key="clear_cert",
                    on_click=lambda: st.session_state.pop("cert_run", None))
     if do_cert:
-        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         st.session_state["_cert_backend"] = backend
         with st.spinner("Running the certification battery…"):
             try:
                 _cases = core.build_certification()
                 st.session_state["cert_run"] = core.run_selected(
-                    _cases, repeat=int(cert_repeat))
+                    _cases, repeat=int(cert_repeat),
+                    model=core.make_model(_BACKEND_KIND[backend], backend_opts))
             except Exception as exc:
                 st.session_state.pop("cert_run", None)
                 st.error(f"Certification run failed against **{backend}**: {exc}")
@@ -508,11 +512,11 @@ with tab_golden:
         g_sla = grc3.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
                                   value=0, step=100, key="golden_sla")
         if do_golden:
-            core.set_backend(_BACKEND_KIND[backend], **backend_opts)
             with st.spinner(f"Running {len(gcases)} case(s) against {backend}…"):
                 try:
                     st.session_state["golden_run"] = core.run_selected(
-                        gcases, sla_ms=g_sla or None, repeat=int(g_repeat))
+                        gcases, sla_ms=g_sla or None, repeat=int(g_repeat),
+                        model=core.make_model(_BACKEND_KIND[backend], backend_opts))
                 except Exception as exc:
                     st.session_state.pop("golden_run", None)
                     st.error(f"Run failed against **{backend}**: {exc}")
@@ -558,19 +562,19 @@ with tab_prompt:
                            height=130, key="pq_text",
                            placeholder=("Paste the agent's instructions…" if is_instr
                                         else "Paste the prompt you wrote…"))
-    pq_llm = (not is_instr) and (not PUBLIC) and st.checkbox(
-        "Use Claude for the critique (needs the Claude backend + key)")
+    pq_llm = (not is_instr) and st.checkbox(
+        "Use Claude for the critique (needs a Claude key — select the Claude backend "
+        "or set ANTHROPIC_API_KEY in Secrets)")
+    _claude_key = backend_opts.get("api_key") or _secret("ANTHROPIC_API_KEY")
 
     bc1, bc2, _ = st.columns([1, 1, 4])
     do_score = bc1.button("Score this", type="primary", disabled=not pq_text.strip())
     bc2.button("Clear", on_click=_clear_pq, disabled=not pq_text)
 
     if do_score:
-        if pq_llm:
-            core.set_backend("claude", api_key=backend_opts.get("api_key", ""))
         try:
             score = (core.assess_instructions(pq_text) if is_instr
-                     else core.assess_prompt(pq_text, use_llm=pq_llm))
+                     else core.assess_prompt(pq_text, use_llm=pq_llm, api_key=_claude_key))
         except Exception as exc:
             st.error(f"Could not score with Claude: {exc}")
         else:
@@ -678,10 +682,10 @@ with tab_practice:
                      key=f"practice_send_{n}", disabled=not probe.strip())
 
     if send:
-        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         with st.spinner("Asking the bot…"):
             try:
-                model_name, answer = core.ask_once(probe)
+                model_name, answer = core.ask_once(
+                    probe, model=core.make_model(_BACKEND_KIND[backend], backend_opts))
                 st.session_state[f"practice_ans_{n}"] = (model_name, answer)
                 st.session_state.pop(f"practice_reveal_{n}", None)  # fresh answer -> re-judge
             except Exception as exc:
