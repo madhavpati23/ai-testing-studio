@@ -254,18 +254,24 @@ with tab_test:
 
     gen = st.session_state.get("gen")
     if gen:
-        st.success(f"Generated a **starter scaffold** of {len(gen.cases)} case(s) "
-                   f"— cases *designed by* the **{gen.generator_name}** generator.")
+        _is_mock_gen = gen.generator_name == "mock"
+        if _is_mock_gen:
+            st.success(f"Generated a **starter scaffold** of {len(gen.cases)} case(s) "
+                       f"with the offline **mock** generator.")
+        else:
+            st.success(f"Designed **{len(gen.cases)} tailored case(s)** for your feature "
+                       f"using **`{gen.generator_name}`**.")
         if gen.errors:
             st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
-        if gen.generator_name == "mock" and _BACKEND_KIND[backend] != "mock":
-            st.info(f"ℹ️ The **case designer** is the offline scaffold (it only uses Claude if an "
-                    f"`ANTHROPIC_API_KEY` is set). Your **model under test is `{backend}`** — these "
-                    f"prompts get sent to it when you click **Run** below, and its answers are judged.")
-        st.caption("This is a **scaffold, not a finished suite** — generic risk-category templates. "
-                   "Review each case, **untick any that don't apply**, and treat the prompts as a "
-                   "starting point. (Tip: the **Certification** battery below tests your selected "
-                   "model directly — no scaffold needed.)")
+        if _is_mock_gen:
+            st.caption("This is a **generic scaffold, not a finished suite** — the offline mock "
+                       "fills the same risk-category templates regardless of feature. **Select a "
+                       "real backend (e.g. Groq) and re-generate** to have the model design "
+                       "feature-specific cases. Review each case and untick any that don't apply.")
+        else:
+            st.caption("These cases were **designed for your feature** by the selected model. "
+                       "Still review them — especially the *expected* answers in each validator — "
+                       "before trusting them as a baseline. Untick any that don't fit.")
         _df = pd.DataFrame(
             [{"keep": True, "id": c.id, "category": c.category, "severity": c.severity,
               "validator": c.validator, "prompt": c.prompt} for c in gen.cases]

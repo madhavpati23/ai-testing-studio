@@ -7,6 +7,7 @@ thin shell. It wires the two packages together: generate + validate + coverage
 
 from __future__ import annotations
 
+import json
 import os
 import random
 import tempfile
@@ -116,12 +117,45 @@ class GenerateResult:
     generator_name: str
 
 
+def _http_generate(feature: str, ai_type: str | None,
+                   capabilities: list | None) -> tuple[list[dict], str]:
+    """Design tailored cases with the selected OpenAI-compatible model (e.g. Groq).
+
+    Reuses the configured HTTP backend: sends the generator's system instructions
+    plus the feature as one prompt and parses the model's JSON. Lets a non-Claude
+    model write a feature-specific suite instead of the generic mock scaffold.
+    """
+    from test_case_generator.generators import _SYSTEM
+
+    user = f"Feature: {feature}"
+    if ai_type:
+        user += (f"\nAI type: {ai_type}. Weight categories accordingly "
+                 "(e.g. RAG -> groundedness/accuracy; agent -> unauthorized actions).")
+    if capabilities is not None:
+        caps = sorted(capabilities)
+        user += (f"\nCapabilities: {caps or 'read-only (no actions, no structured output, stateless)'}. "
+                 "Only design cases that apply to these capabilities.")
+    model = get_model()
+    raw_text = model.ask(_SYSTEM + "\n\n" + user).strip()
+    # Be lenient: extract the JSON object even if wrapped in prose/fences.
+    start, end = raw_text.find("{"), raw_text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"the model did not return JSON cases (got: {raw_text[:120]!r})")
+    data = json.loads(raw_text[start:end + 1])
+    return data.get("cases", []), model.name
+
+
 def generate_suite(feature: str, ai_type: str | None = None,
                    overrides: dict[str, int] | None = None,
                    out_dir: str | None = None,
                    capabilities: list | None = None) -> GenerateResult:
-    generator = get_generator()
-    raw = generator.generate(feature, ai_type, capabilities)
+    # An HTTP/OpenAI-compatible backend (e.g. Groq) designs tailored cases; Claude
+    # uses its generator; otherwise the offline mock scaffold.
+    if os.environ.get("PRS_HTTP_URL"):
+        raw, generator_name = _http_generate(feature, ai_type, capabilities)
+    else:
+        generator = get_generator()
+        raw, generator_name = generator.generate(feature, ai_type, capabilities), generator.name
     validated = validate_all(raw)
     report = gcov.assess(validated.cases, overrides)
     out_dir = out_dir or tempfile.mkdtemp(prefix="studio_suite_")
@@ -132,7 +166,7 @@ def generate_suite(feature: str, ai_type: str | None = None,
         coverage_text=gcov.render(report),
         has_gaps=report.has_gaps,
         out_dir=out_dir,
-        generator_name=generator.name,
+        generator_name=generator_name,
     )
 
 
