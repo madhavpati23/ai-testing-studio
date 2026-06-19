@@ -137,8 +137,8 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-tab_test, tab_prompt, tab_audit, tab_help = st.tabs(
-    ["🧪 Test a feature", "✍️ Prompt & instructions",
+tab_test, tab_prompt, tab_practice, tab_audit, tab_help = st.tabs(
+    ["🧪 Test a feature", "✍️ Prompt & instructions", "🎓 Practice",
      "📄 Example audit", "ℹ️ How it works"]
 )
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -398,7 +398,70 @@ with tab_prompt:
                     st.code(score.example, language="text")
 
 # ============================================================================
-# TAB 3 — Example audit (a real report produced with this methodology)
+# TAB 3 — Practice (guided, hands-on AI-testing drills)
+# ============================================================================
+with tab_practice:
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">LEARN</span>'
+        '<b style="font-size:1.1rem;">🎓 Practice testing an AI</b><br>'
+        'Pick a drill, fire the probe at the bot under test, judge the answer yourself '
+        '— then reveal what an expert tester looks for.</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Tip: these probes are tuned so the **offline Mock** already fails them — so you "
+        "can practice catching real bugs with no key. Then switch to **Groq (free)** or "
+        "**Claude** in the sidebar and run the same probes against a real bot, where a "
+        "strong model should pass. (Real backends: run locally.)")
+
+    exercises = core.practice_exercises()
+    titles = [e.title for e in exercises]
+    pick = st.selectbox("Choose a drill", titles, key="practice_pick")
+    ex = next(e for e in exercises if e.title == pick)
+
+    st.markdown(f"**Skill:** {ex.skill}  ·  category `{ex.category}`")
+    st.info(f"**Your task:** {ex.brief}")
+
+    probe_key = f"practice_probe_{ex.id}"
+    st.session_state.setdefault(probe_key, ex.probe)
+    probe = st.text_area("Probe to send (edit it — crafting the probe is half the skill)",
+                         key=probe_key, height=90)
+
+    pcol1, pcol2, _ = st.columns([1.4, 1, 3])
+    send = pcol1.button("▶️ Send to the bot", type="primary",
+                        key=f"practice_send_{ex.id}", disabled=not probe.strip())
+    pcol2.button("↺ Reset probe", key=f"practice_reset_{ex.id}",
+                 on_click=lambda k=probe_key, v=ex.probe: st.session_state.update({k: v}))
+
+    if send:
+        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
+        with st.spinner("Asking the bot…"):
+            try:
+                model_name, answer = core.ask_once(probe)
+                st.session_state[f"practice_ans_{ex.id}"] = (model_name, answer)
+            except Exception as exc:
+                st.session_state.pop(f"practice_ans_{ex.id}", None)
+                st.error(f"The call failed against **{backend}**: {exc}")
+
+    got = st.session_state.get(f"practice_ans_{ex.id}")
+    if got:
+        model_name, answer = got
+        with st.container(border=True):
+            st.markdown(f"**The bot replied**  ·  `{model_name}`")
+            st.markdown(f"> {answer}")
+        st.radio("Your verdict — did it pass or fail this probe?",
+                 ["I think it PASSED", "I think it FAILED", "Not sure"],
+                 key=f"practice_verdict_{ex.id}", horizontal=True)
+
+    with st.expander("🔎 Reveal what an expert tester looks for", expanded=False):
+        st.markdown(f"**What to inspect:** {ex.look_for}")
+        st.markdown(f"**Pass / fail rule:** {ex.pass_criterion}")
+        st.markdown(f"**Why it matters:** {ex.why}")
+        st.markdown(f"**Common rookie mistake:** {ex.pitfall}")
+
+
+# ============================================================================
+# TAB 4 — Example audit (a real report produced with this methodology)
 # ============================================================================
 with tab_audit:
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
@@ -410,7 +473,7 @@ with tab_audit:
 
 
 # ============================================================================
-# TAB 4 — How it works
+# TAB 5 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
