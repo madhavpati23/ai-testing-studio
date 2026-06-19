@@ -180,9 +180,10 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-tab_test, tab_golden, tab_prompt, tab_practice, tab_audit, tab_help = st.tabs(
-    ["🧪 Test a feature", "📋 Golden set", "✍️ Prompt & instructions", "🎓 Practice",
-     "📄 Example audit", "ℹ️ How it works"]
+(tab_test, tab_golden, tab_judge, tab_prompt, tab_practice,
+ tab_audit, tab_help) = st.tabs(
+    ["🧪 Test a feature", "📋 Golden set", "⚖️ Judge", "✍️ Prompt & instructions",
+     "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
 )
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "reports", "claude-audit-2026-06-18.md")
@@ -336,10 +337,13 @@ with tab_test:
             with st.spinner(f"Running {len(kept_cases)} case(s)"
                             + (f" × {repeat_in} runs…" if repeat_in > 1 else "…")):
                 try:
+                    _judge = (core.make_judge(_BACKEND_KIND[backend], backend_opts)
+                              if _BACKEND_KIND[backend] != "mock" else None)
                     st.session_state["run"] = core.run_selected(
                         kept_cases, sla_ms=sla_in or None,
                         repeat=int(repeat_in), pass_threshold=thr_pct / 100,
-                        model=core.make_model(_BACKEND_KIND[backend], backend_opts))
+                        model=core.make_model(_BACKEND_KIND[backend], backend_opts),
+                        judge=_judge)
                 except Exception as exc:
                     st.session_state.pop("run", None)
                     st.error(f"The run failed against **{backend}**: {exc}\n\n"
@@ -548,7 +552,79 @@ with tab_golden:
                    "answers, and upload it. Tip: run it against **Groq/Claude**, not the Demo bot.")
 
 # ============================================================================
-# TAB 3 — Prompt & instructions scorer
+# TAB 3 — Judge (calibrate an LLM-as-judge against human labels)
+# ============================================================================
+with tab_judge:
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">JUDGE</span>'
+        '<b style="font-size:1.1rem;">⚖️ Calibrate an LLM judge</b><br>'
+        'For open-ended quality (faithfulness, a refusal that <i>actually</i> refuses) a keyword '
+        'check is too brittle — you grade with a model. But a judge is only trustworthy if it '
+        '<b>agrees with humans</b>. Upload labelled examples and measure that agreement before you '
+        'rely on it.</div>',
+        unsafe_allow_html=True,
+    )
+    _judge_kind = _BACKEND_KIND[backend]
+    if _judge_kind == "mock":
+        st.warning("Pick a **real backend** (Claude / Groq / OpenAI) in the sidebar — the Demo bot "
+                   "can't grade. Tip: use a *strong* model as the judge, ideally **different** from "
+                   "the model you're testing (self-grading is biased).")
+    else:
+        st.caption(f"Judge model: **`{backend}`**. Use a strong model, ideally different from the "
+                   "one under test (self-grading is biased).")
+
+    st.markdown(
+        "**CSV columns:** `criterion`, `answer`, `human_pass` (true/false) — your human "
+        "judgement of whether each answer satisfies the criterion."
+    )
+    st.download_button("⬇️ Download a calibration template", core.CALIBRATION_TEMPLATE,
+                       "judge-calibration-template.csv", "text/csv")
+    cup = st.file_uploader("Upload your labelled calibration CSV", type=["csv"], key="calib_csv")
+    crows, cerrors = [], []
+    if cup is not None:
+        try:
+            crows, cerrors = core.parse_calibration_csv(cup.getvalue().decode("utf-8", errors="replace"))
+        except Exception as exc:
+            st.error(f"Could not read the CSV: {exc}")
+    if cerrors:
+        st.warning("Skipped some rows:\n\n- " + "\n- ".join(cerrors))
+    if crows:
+        st.success(f"Loaded **{len(crows)}** labelled example(s).")
+        if st.button("⚖️ Calibrate the judge", type="primary", key="run_calib",
+                     disabled=_judge_kind == "mock"):
+            with st.spinner(f"Grading {len(crows)} example(s) with {backend}…"):
+                try:
+                    _jfn = core.make_judge(_judge_kind, backend_opts)
+                    st.session_state["calib"] = core.calibrate_judge(crows, _jfn)
+                except Exception as exc:
+                    st.session_state.pop("calib", None)
+                    st.error(f"Calibration failed against **{backend}**: {exc}")
+
+        cal = st.session_state.get("calib")
+        if cal:
+            jm1, jm2 = st.columns(2)
+            jm1.metric("Agreement with humans", f"{cal.agreement:.0f}%", f"{cal.agree}/{cal.total}")
+            jm2.metric("Judge verdict", cal.verdict)
+            _jv = {"TRUSTWORTHY": "success", "USE WITH CAUTION": "warning", "DO NOT TRUST": "error"}
+            getattr(st, _jv.get(cal.verdict, "info"))(
+                f"This judge agreed with your labels **{cal.agreement:.0f}%** of the time → "
+                f"**{cal.verdict}**. " + ("Safe to use for grading." if cal.verdict == "TRUSTWORTHY"
+                else "Disagreements below — tighten your criteria or pick a stronger judge."))
+            st.markdown("**Where the judge landed (❌ = disagreed with your label)**")
+            st.dataframe(
+                pd.DataFrame([{
+                    "match": "✅" if m else "❌",
+                    "human": "pass" if h else "fail",
+                    "judge": ("pass" if j else "fail") if j is not None else "error",
+                    "criterion": crit, "answer": ans, "judge reason": reason,
+                } for (crit, ans, h, j, reason, m) in cal.rows]),
+                hide_index=True, use_container_width=True)
+    elif cup is None:
+        st.caption("No file yet — download the template, label each row with your own pass/fail "
+                   "judgement, and upload it to measure how well the judge matches you.")
+
+# ============================================================================
+# TAB 4 — Prompt & instructions scorer
 # ============================================================================
 with tab_prompt:
     st.markdown(
@@ -608,7 +684,7 @@ with tab_prompt:
                     st.code(score.example, language="text")
 
 # ============================================================================
-# TAB 4 — Practice (guided, hands-on AI-testing drills)
+# TAB 5 — Practice (guided, hands-on AI-testing drills)
 # ============================================================================
 with tab_practice:
     st.markdown(
@@ -750,7 +826,7 @@ with tab_practice:
 
 
 # ============================================================================
-# TAB 5 — Example audit (a real report produced with this methodology)
+# TAB 6 — Example audit (a real report produced with this methodology)
 # ============================================================================
 with tab_audit:
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
@@ -762,7 +838,7 @@ with tab_audit:
 
 
 # ============================================================================
-# TAB 6 — How it works
+# TAB 7 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
@@ -804,6 +880,8 @@ with tab_help:
         "certification** battery across every risk dimension with a per-dimension scorecard.\n"
         "- **📋 Golden set** — upload your own **input → expected** pairs and test against "
         "**truth you defined** (the most trustworthy run — judged on real ground truth, not a guess).\n"
+        "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels and see how often it "
+        "agrees with you, before trusting it to grade open-ended quality.\n"
         "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"
         "- **🎓 Practice** — learn by doing: 500+ probes across 19 skills; fire one, judge it, "
         "then reveal what an expert looks for (auto-scored against the Demo bot).\n"

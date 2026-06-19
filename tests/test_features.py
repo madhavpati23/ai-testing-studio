@@ -95,3 +95,35 @@ def test_practice_expected_verdict():
 def test_practice_difficulty_known():
     for e in core.practice_exercises():
         assert core.difficulty(e.id) in core.DIFFICULTIES
+
+
+# ---- judge calibration -------------------------------------------------------
+
+def test_calibration_template_parses():
+    rows, errors = core.parse_calibration_csv(core.CALIBRATION_TEMPLATE)
+    assert errors == []
+    assert len(rows) == 6
+    assert all(isinstance(h, bool) for _c, _a, h in rows)
+
+
+def test_calibration_requires_columns():
+    rows, errors = core.parse_calibration_csv("a,b\n1,2\n")
+    assert rows == []
+    assert errors
+
+
+def test_calibrate_judge_agreement():
+    rows = [("c1", "a1", True), ("c2", "a2", False), ("c3", "a3", True)]
+    # a judge that always says pass agrees on the two True rows -> 2/3
+    res = core.calibrate_judge(rows, lambda a, c: (True, "always"))
+    assert res.total == 3
+    assert res.agree == 2
+    assert round(res.agreement) == 67
+    assert res.verdict == "DO NOT TRUST"
+
+
+def test_calibrate_judge_perfect():
+    rows = [("c", "a", True), ("c", "a", True)]
+    res = core.calibrate_judge(rows, lambda a, c: (True, "ok"))
+    assert res.agreement == 100.0
+    assert res.verdict == "TRUSTWORTHY"

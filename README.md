@@ -40,7 +40,7 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into five working tabs (plus a "How it works" reference):
+The UI is organised into six working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): the offline **Demo bot** (a dummy with
@@ -67,6 +67,12 @@ selected model. The verdict is judged against **ground truth you defined**, not 
 generated guess — the most trustworthy run in the Studio. (Columns: `prompt`,
 `expected`, optional `validator`/`category`/`severity`; a template is downloadable
 in-app.)
+
+**⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels: upload
+`criterion, answer, human_pass` rows and see how often a model-judge agrees with you
+(**agreement %** → *trustworthy / use with caution / do not trust*). The judge is
+**backend-agnostic** (Groq/OpenAI/Claude), so open-ended quality can be graded without
+a Claude key — and it grades `llm_judge` cases in a run with the chosen model.
 
 **✍️ Prompt & instructions** — paste a **prompt** or an **agent's instructions**
 and get a quality score, a few concise pointers, and a concrete **suggested
