@@ -273,6 +273,30 @@ def run_suite_dir(prompts_dir: str, sla_ms: float | None = None,
     )
 
 
+def run_conversation(turns: list[str], validator: str = "contains", expected: str = "",
+                     model=None, judge=None, category: str = "agent",
+                     severity: str = "high", repeat: int = 1) -> RunResult:
+    """Run a multi-turn conversation as one agent case; check the FINAL reply.
+
+    The model carries context across `turns` (true multi-turn for Claude; a
+    running transcript for HTTP). The `validator` (contains / not_contains /
+    regex / equals_number / llm_judge) checks the final answer — e.g. tell it your
+    name in turn 1, ask for it in turn 2, expect it back (memory/context test).
+    """
+    turns = [t for t in turns if t.strip()]
+    if not turns:
+        raise ValueError("enter at least one conversation turn")
+    args = {"criterion": expected} if validator == "llm_judge" else _golden_args(validator, expected)
+    doc = {"category": category, "cases": [{
+        "id": "conversation-test", "severity": severity,
+        "turns": turns, "validator": validator, "args": args,
+    }]}
+    out_dir = tempfile.mkdtemp(prefix="studio_convo_")
+    with open(os.path.join(out_dir, "conversation.yaml"), "w", encoding="utf-8") as fh:
+        yaml.safe_dump(doc, fh, allow_unicode=True)
+    return run_suite_dir(out_dir, model=model, judge=judge, repeat=repeat)
+
+
 # ---- deploy-readiness certification battery --------------------------------
 
 # A fixed, comprehensive suite across every risk dimension. Validators check for

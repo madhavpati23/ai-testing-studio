@@ -40,7 +40,7 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into six working tabs (plus a "How it works" reference):
+The UI is organised into seven working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): the offline **Demo bot** (a dummy with
@@ -67,6 +67,11 @@ selected model. The verdict is judged against **ground truth you defined**, not 
 generated guess — the most trustworthy run in the Studio. (Columns: `prompt`,
 `expected`, optional `validator`/`category`/`severity`; a template is downloadable
 in-app.)
+
+**🔁 Multi-turn** — script a conversation (one user turn per line) and check the
+**final reply**, to test an agent's **memory, context retention, and scope** across a
+dialogue — not just single-shot. The model carries context (native history on Claude;
+a running transcript on Groq/HTTP via `HttpModel.converse`).
 
 **⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels: upload
 `criterion, answer, human_pass` rows and see how often a model-judge agrees with you

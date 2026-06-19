@@ -127,3 +127,21 @@ def test_calibrate_judge_perfect():
     res = core.calibrate_judge(rows, lambda a, c: (True, "ok"))
     assert res.agreement == 100.0
     assert res.verdict == "TRUSTWORTHY"
+
+
+# ---- multi-turn conversation -------------------------------------------------
+
+def test_conversation_memory_against_mock():
+    m = core.make_model("mock")
+    run = core.run_conversation(
+        ["My name is Sam.", "What is my name?"],
+        validator="contains", expected="Sam", model=m)
+    assert run.results[0].passed
+    assert "Sam" in run.results[0].answer
+
+
+def test_conversation_requires_turns():
+    import pytest
+    with pytest.raises(ValueError):
+        core.run_conversation(["   ", ""], validator="contains", expected="x",
+                              model=core.make_model("mock"))

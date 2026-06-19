@@ -353,6 +353,21 @@ class HttpModel:
             except urllib.error.URLError as exc:
                 raise RuntimeError(f"Could not reach {self.url}: {exc.reason}") from None
 
+    def converse(self, turns: list[str]) -> str:
+        """Multi-turn: send each turn carrying the running transcript as context.
+
+        Endpoint-agnostic — works with any single-prompt body template, so an
+        OpenAI-style chat API or a custom service both get the prior turns. (Claude
+        uses a native role-separated history; here the transcript rides in the
+        prompt.) Returns the final turn's answer.
+        """
+        transcript, answer = "", ""
+        for turn in turns:
+            content = f"{transcript}User: {turn}\nAssistant:" if transcript else turn
+            answer = self.ask(content)
+            transcript += f"User: {turn}\nAssistant: {answer}\n"
+        return answer
+
 
 def _truthy(value: str | None) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")

@@ -180,10 +180,10 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-(tab_test, tab_golden, tab_judge, tab_prompt, tab_practice,
+(tab_test, tab_golden, tab_agent, tab_judge, tab_prompt, tab_practice,
  tab_audit, tab_help) = st.tabs(
-    ["🧪 Test a feature", "📋 Golden set", "⚖️ Judge", "✍️ Prompt & instructions",
-     "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
+    ["🧪 Test a feature", "📋 Golden set", "🔁 Multi-turn", "⚖️ Judge",
+     "✍️ Prompt & instructions", "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
 )
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "reports", "claude-audit-2026-06-18.md")
@@ -552,7 +552,63 @@ with tab_golden:
                    "answers, and upload it. Tip: run it against **Groq/Claude**, not the Demo bot.")
 
 # ============================================================================
-# TAB 3 — Judge (calibrate an LLM-as-judge against human labels)
+# TAB 3 — Multi-turn (test an agent across a conversation)
+# ============================================================================
+with tab_agent:
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
+        '<b style="font-size:1.1rem;">🔁 Test across a conversation</b><br>'
+        'Single-turn tests miss what agents get wrong: <b>memory, context retention, staying in '
+        'scope over a dialogue</b>. Script several user turns; the model carries context, and the '
+        'check runs on the <b>final reply</b>.</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption("The model keeps context across turns (true multi-turn on Claude; a running "
+               "transcript on Groq/HTTP). Classic test: state a fact, then ask for it back.")
+
+    _convo_default = "My name is Sam and my account ID is 4471.\nWhat is my account ID?"
+    convo = st.text_area("Conversation — one user turn per line", value=_convo_default,
+                         height=130, key="convo_turns")
+
+    ac1, ac2 = st.columns([1, 2])
+    convo_validator = ac1.selectbox(
+        "Check the final reply with",
+        ["contains", "not_contains", "regex", "equals_number", "llm_judge"], key="convo_validator")
+    convo_expected = ac2.text_input(
+        "Expected (substring / regex / number / judge criterion)", value="4471",
+        key="convo_expected")
+
+    if st.button("▶️ Run conversation", type="primary", key="run_convo",
+                 disabled=not convo.strip() or not convo_expected.strip()):
+        _turns = [ln for ln in convo.splitlines() if ln.strip()]
+        with st.spinner(f"Running {len(_turns)} turn(s) against {backend}…"):
+            try:
+                _kind = _BACKEND_KIND[backend]
+                _cjudge = (core.make_judge(_kind, backend_opts)
+                           if convo_validator == "llm_judge" and _kind != "mock" else None)
+                st.session_state["convo_run"] = core.run_conversation(
+                    _turns, validator=convo_validator, expected=convo_expected,
+                    model=core.make_model(_kind, backend_opts), judge=_cjudge)
+            except Exception as exc:
+                st.session_state.pop("convo_run", None)
+                st.error(f"Conversation run failed against **{backend}**: {exc}")
+
+    crun = st.session_state.get("convo_run")
+    if crun:
+        res = crun.results[0]
+        (st.success if res.passed else st.error)(
+            f"{'✅ PASS' if res.passed else '❌ FAIL'} · verdict **{crun.verdict}** · "
+            f"model `{crun.model_name}`")
+        with st.container(border=True):
+            st.markdown("**Final reply**")
+            st.markdown(f"> {res.answer}")
+            if not res.passed and res.detail:
+                st.caption(f"Why: {res.detail}")
+        st.caption("The check ran on the final reply. To verify mid-conversation behaviour, end "
+                   "the script on the turn you want to assert.")
+
+# ============================================================================
+# TAB 4 — Judge (calibrate an LLM-as-judge against human labels)
 # ============================================================================
 with tab_judge:
     st.markdown(
@@ -624,7 +680,7 @@ with tab_judge:
                    "judgement, and upload it to measure how well the judge matches you.")
 
 # ============================================================================
-# TAB 4 — Prompt & instructions scorer
+# TAB 5 — Prompt & instructions scorer
 # ============================================================================
 with tab_prompt:
     st.markdown(
@@ -684,7 +740,7 @@ with tab_prompt:
                     st.code(score.example, language="text")
 
 # ============================================================================
-# TAB 5 — Practice (guided, hands-on AI-testing drills)
+# TAB 6 — Practice (guided, hands-on AI-testing drills)
 # ============================================================================
 with tab_practice:
     st.markdown(
@@ -826,7 +882,7 @@ with tab_practice:
 
 
 # ============================================================================
-# TAB 6 — Example audit (a real report produced with this methodology)
+# TAB 7 — Example audit (a real report produced with this methodology)
 # ============================================================================
 with tab_audit:
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
@@ -838,7 +894,7 @@ with tab_audit:
 
 
 # ============================================================================
-# TAB 7 — How it works
+# TAB 8 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
@@ -880,6 +936,8 @@ with tab_help:
         "certification** battery across every risk dimension with a per-dimension scorecard.\n"
         "- **📋 Golden set** — upload your own **input → expected** pairs and test against "
         "**truth you defined** (the most trustworthy run — judged on real ground truth, not a guess).\n"
+        "- **🔁 Multi-turn** — script a conversation and check the final reply, to test an agent's "
+        "**memory, context retention, and scope** across turns (not just single-shot).\n"
         "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels and see how often it "
         "agrees with you, before trusting it to grade open-ended quality.\n"
         "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"
