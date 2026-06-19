@@ -12,6 +12,7 @@ import json
 import os
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
@@ -223,6 +224,7 @@ def _dig(data: Any, path: str) -> Any:
 
 
 _MAX_RESPONSE_BYTES = 4_000_000   # cap response size (DoS guard)
+_MAX_RETRIES = 4                  # retry transient 429/503 with backoff
 
 
 def _assert_safe_url(url: str, block_private: bool) -> None:
@@ -320,22 +322,33 @@ class HttpModel:
                      "User-Agent": "prompt-regression-suite/1.0 (+https://github.com/madhavpati23)",
                      **self.headers},
         )
-        try:
-            with self._opener.open(request, timeout=self.timeout) as response:
-                raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            body = ""
+        for attempt in range(_MAX_RETRIES + 1):
             try:
-                body = exc.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace").strip()
-            except Exception:
-                pass
-            raise RuntimeError(
-                f"HTTP {exc.code} {exc.reason} from {self.url}"
-                + (f" -- {body[:200]}" if body else "")
-            ) from None
-        except urllib.error.URLError as exc:
-            raise RuntimeError(f"Could not reach {self.url}: {exc.reason}") from None
-        return self.extract(raw, self.response_path)
+                with self._opener.open(request, timeout=self.timeout) as response:
+                    raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
+                return self.extract(raw, self.response_path)
+            except urllib.error.HTTPError as exc:
+                # 429 / 503 are transient (rate limit / overload): back off and retry,
+                # honouring Retry-After when the server provides it.
+                if exc.code in (429, 503) and attempt < _MAX_RETRIES:
+                    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                    try:
+                        wait = float(retry_after)
+                    except (TypeError, ValueError):
+                        wait = 2.0 * (attempt + 1)
+                    time.sleep(min(max(wait, 1.0), 30.0))
+                    continue
+                body = ""
+                try:
+                    body = exc.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace").strip()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    f"HTTP {exc.code} {exc.reason} from {self.url}"
+                    + (f" -- {body[:200]}" if body else "")
+                ) from None
+            except urllib.error.URLError as exc:
+                raise RuntimeError(f"Could not reach {self.url}: {exc.reason}") from None
 
 
 def _truthy(value: str | None) -> bool:
