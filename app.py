@@ -418,18 +418,18 @@ with tab_practice:
                f"across **{len(core.practice_exercises())}** skills — no two sessions are the same.")
 
     st.session_state.setdefault("practice_score", {"correct": 0, "total": 0})
-    _sc = st.session_state["practice_score"]
     sccol1, sccol2 = st.columns([3, 1])
-    if _sc["total"]:
-        _pct = round(100 * _sc["correct"] / _sc["total"])
-        sccol1.metric("🎯 Your score this session",
-                      f"{_sc['correct']} / {_sc['total']} correct", f"{_pct}%")
-    else:
-        sccol1.caption("🎯 Score this session: judge a question (against the **Mock**) to start "
-                       "scoring. Graded automatically only on the Mock — a real bot has no answer key.")
-    sccol2.button("Reset score", key="practice_reset_score",
-                  on_click=lambda: st.session_state.update(
-                      {"practice_score": {"correct": 0, "total": 0}}))
+    if sccol2.button("Reset score", key="practice_reset_score"):
+        st.session_state["practice_score"] = {"correct": 0, "total": 0}
+        for _k in [k for k in st.session_state if str(k).startswith("practice_scored_")]:
+            del st.session_state[_k]
+        st.rerun()
+    _sc = st.session_state["practice_score"]
+    _pct = round(100 * _sc["correct"] / _sc["total"]) if _sc["total"] else 0
+    sccol1.metric("🎯 Your score this session",
+                  f"{_sc['correct']} / {_sc['total']} correct",
+                  f"{_pct}%" if _sc["total"] else None)
+    sccol1.caption("Graded automatically only on the **Mock** — a real bot has no answer key.")
 
     # Optional focus: narrow the pool to chosen skills / difficulties.
     with st.expander("🎚️ Focus your session (optional) — pick skills or difficulty"):
