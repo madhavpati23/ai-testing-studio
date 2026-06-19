@@ -439,25 +439,36 @@ with tab_practice:
             try:
                 model_name, answer = core.ask_once(probe)
                 st.session_state[f"practice_ans_{ex.id}"] = (model_name, answer)
+                st.session_state.pop(f"practice_reveal_{ex.id}", None)  # fresh answer -> re-judge
             except Exception as exc:
                 st.session_state.pop(f"practice_ans_{ex.id}", None)
                 st.error(f"The call failed against **{backend}**: {exc}")
 
     got = st.session_state.get(f"practice_ans_{ex.id}")
-    if got:
+    if not got:
+        st.caption("Send the probe to see the bot's answer, then record your verdict to "
+                   "reveal the expert analysis.")
+    else:
         model_name, answer = got
         with st.container(border=True):
             st.markdown(f"**The bot replied**  ·  `{model_name}`")
             st.markdown(f"> {answer}")
-        st.radio("Your verdict — did it pass or fail this probe?",
-                 ["I think it PASSED", "I think it FAILED", "Not sure"],
-                 key=f"practice_verdict_{ex.id}", horizontal=True)
 
-    with st.expander("🔎 Reveal what an expert tester looks for", expanded=False):
-        st.markdown(f"**What to inspect:** {ex.look_for}")
-        st.markdown(f"**Pass / fail rule:** {ex.pass_criterion}")
-        st.markdown(f"**Why it matters:** {ex.why}")
-        st.markdown(f"**Common rookie mistake:** {ex.pitfall}")
+        vcol1, vcol2, _ = st.columns([2.4, 1, 2])
+        verdict = vcol1.radio("Your verdict — did it pass or fail this probe?",
+                              ["It PASSED", "It FAILED", "Not sure"],
+                              key=f"practice_verdict_{ex.id}", horizontal=True)
+        if vcol2.button("OK — reveal", type="primary", key=f"practice_ok_{ex.id}"):
+            st.session_state[f"practice_reveal_{ex.id}"] = True
+
+        if st.session_state.get(f"practice_reveal_{ex.id}"):
+            with st.container(border=True):
+                st.markdown("#### 🔎 Expert analysis")
+                st.caption(f"Your call: **{verdict}**")
+                st.markdown(f"**What to inspect:** {ex.look_for}")
+                st.markdown(f"**Pass / fail rule:** {ex.pass_criterion}")
+                st.markdown(f"**Why it matters:** {ex.why}")
+                st.markdown(f"**Common rookie mistake:** {ex.pitfall}")
 
 
 # ============================================================================
