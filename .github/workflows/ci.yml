@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt pytest
+      - name: Compile
+        run: python -m py_compile app.py core.py
+      - name: Tests
+        run: python -m pytest -q
+
+  vendor-drift:
+    # The vendored framework copies MUST match their source repos. Fail loudly if
+    # someone changed upstream without re-syncing vendor/ (silent prod divergence).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: madhavpati23/ai-test-case-generator
+          path: _src_tcg
+      - uses: actions/checkout@v4
+        with:
+          repository: madhavpati23/prompt-regression-suite
+          path: _src_prs
+      - name: Compare vendored packages to source
+        run: |
+          diff -r --exclude=__pycache__ vendor/test_case_generator _src_tcg/src/test_case_generator
+          diff -r --exclude=__pycache__ vendor/prompt_regression  _src_prs/src/prompt_regression
+          echo "vendor/ is in sync with source."

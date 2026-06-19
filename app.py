@@ -118,8 +118,6 @@ with st.sidebar:
         st.caption("🔑 **Bring your own key.** It's kept only in *your* browser session and sent "
                    "directly to the provider per request — never written to the server's "
                    "environment, never stored or logged.")
-    if PUBLIC and backend == "HTTP endpoint":
-        backend_opts["block_private"] = True   # SSRF guard for untrusted public URLs
     if backend == "Claude API":
         _sk = _secret("ANTHROPIC_API_KEY")
         if _sk:
@@ -162,8 +160,17 @@ with st.sidebar:
                                                     placeholder='{"Authorization": "Bearer ..."}')
         if _preset.startswith("Groq") and not _hk:
             st.caption("Free key: sign up at console.groq.com → API Keys → create one "
-                       "(starts `gsk_`), and paste it into the Authorization header above. "
-                       "Run this **locally** — don't paste keys into the public app.")
+                       "(starts `gsk_`) and paste it into the Authorization header above.")
+
+        # SSRF guard ON by default; private/loopback/metadata addresses are refused
+        # unless the user explicitly allows them (only for a trusted local endpoint).
+        _allow_local = st.checkbox(
+            "Allow private / localhost addresses (e.g. a local Ollama server)",
+            value=False,
+            help="Off by default for safety — the app refuses internal/metadata IPs so it "
+                 "can't be used to reach private infrastructure. Tick only for an endpoint "
+                 "you run and trust on your own machine/network.")
+        backend_opts["block_private"] = not _allow_local
 
     st.divider()
     st.markdown(

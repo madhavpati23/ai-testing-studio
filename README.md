@@ -100,20 +100,24 @@ point it at `app.py`. The framework packages are **bundled in `vendor/`**, so th
 app is fully self-contained — **it deploys from a private repo with no external
 dependencies, and the live app URL is still public.**
 
-**For a public instance, set `PRS_STUDIO_PUBLIC=1`** (in the app's *Advanced
-settings → Secrets/env*). This is important: the app serves all sessions from
-one process, so a public instance must not accept secrets or arbitrary URLs.
-With it set, the Studio restricts to the **offline Demo bot** — no API-key field, no
-outbound requests. Visitors get the full generate → run → report demo safely;
-anyone who wants to test a real model clones the repo and runs it locally.
+**Bring-your-own-key is safe on a shared instance:** a user's key is kept only in
+their **Streamlit session** and built into the model object **per request** — it is
+never written to the server's environment, stored, or logged (see
+[`core.make_model`](core.py)). So visitors can test real models with their own key
+without a local install. Setting **`PRS_STUDIO_PUBLIC=1`** is still recommended on a
+public deploy (it's a no-op for keys now, but documents intent).
 
 ## Security
 
-- **Public mode** (`PRS_STUDIO_PUBLIC=1`) disables the Claude/HTTP backends so
-  the shared instance handles no secrets and makes no outbound calls.
-- The HTTP adapter only allows `http`/`https` (no `file://` etc.) and, with
-  `PRS_HTTP_BLOCK_PRIVATE=1`, refuses private/loopback/metadata addresses (SSRF)
-  and won't follow redirects — see prompt-regression-suite.
+- **Session-scoped keys** — API keys are passed per request via `core.make_model`,
+  never placed in the process environment, so one user's key can't bleed into
+  another's session.
+- **SSRF guard on by default** — the HTTP backend refuses private / loopback /
+  metadata addresses and won't follow redirects. A user must explicitly tick
+  *"Allow private / localhost addresses"* to reach a trusted local endpoint
+  (e.g. Ollama). Only `http`/`https` schemes are allowed (no `file://`).
+- **Rate-limit resilient** — transient `429`/`503` are retried with backoff
+  (honouring `Retry-After`).
 - All YAML is parsed with `safe_load`; there is no `eval`/`exec`/`subprocess`.
 
 ## License

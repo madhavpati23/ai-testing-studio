@@ -140,7 +140,7 @@ def make_model(kind: str, opts: dict | None = None):
             response_path=opts.get("response_path", "output"),
             headers=headers,
             method=opts.get("method", "POST"),
-            block_private=bool(opts.get("block_private")),
+            block_private=bool(opts.get("block_private", True)),   # safe default: block SSRF
         )
     return MockModel()
 
