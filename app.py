@@ -6,6 +6,7 @@ Run locally:   streamlit run app.py
 from __future__ import annotations
 
 import glob
+import json
 import os
 
 import pandas as pd
@@ -18,6 +19,19 @@ import core
 # NOT accept secrets (ANTHROPIC_API_KEY) or arbitrary URLs (SSRF). Set
 # PRS_STUDIO_PUBLIC=1 on the public instance: it restricts to the offline mock.
 PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _secret(name: str) -> str | None:
+    """Read an API key from Streamlit Secrets, if configured. Safe if absent.
+
+    Lets a *private* deployment hold the key server-side (Settings -> Secrets) so
+    no key is ever typed into the UI. Never use this on a public instance.
+    """
+    try:
+        val = st.secrets.get(name)
+    except Exception:
+        return None
+    return str(val) if val else None
 
 # HTTP-backend presets so common targets are one click (no typing).
 _HTTP_PRESETS = {
@@ -101,7 +115,12 @@ with st.sidebar:
                    "Clone the repo to test the Claude API or your own endpoint.")
     backend_opts: dict[str, str] = {}
     if backend == "Claude API":
-        backend_opts["api_key"] = st.text_input("ANTHROPIC_API_KEY", type="password")
+        _sk = _secret("ANTHROPIC_API_KEY")
+        if _sk:
+            backend_opts["api_key"] = _sk
+            st.caption("🔐 Using **ANTHROPIC_API_KEY** from Secrets.")
+        else:
+            backend_opts["api_key"] = st.text_input("ANTHROPIC_API_KEY", type="password")
     elif backend == "HTTP endpoint":
         for _k, _d in {"http_url": "", "http_body": '{"prompt": {PROMPT}}',
                        "http_response_path": "output", "http_headers": ""}.items():
@@ -122,9 +141,20 @@ with st.sidebar:
                                              help="The token {PROMPT} is replaced with the JSON-encoded prompt.")
         backend_opts["response_path"] = st.text_input("Response path", key="http_response_path",
                                                       help='Dotted path to the answer, e.g. choices.0.message.content')
-        backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
-                                                placeholder='{"Authorization": "Bearer ..."}')
-        if st.session_state.get("http_preset", "").startswith("Groq"):
+
+        # Pull the bearer key from Secrets when one matches the chosen preset, so
+        # no key is typed into the UI (use this only on a *private* deployment).
+        _preset = st.session_state.get("http_preset", "")
+        _secret_name = ("GROQ_API_KEY" if _preset.startswith("Groq")
+                        else "OPENAI_API_KEY" if _preset.startswith("OpenAI") else None)
+        _hk = _secret(_secret_name) if _secret_name else None
+        if _hk:
+            backend_opts["headers"] = json.dumps({"Authorization": f"Bearer {_hk}"})
+            st.caption(f"🔐 Using **{_secret_name}** from Secrets for the Authorization header.")
+        else:
+            backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
+                                                    placeholder='{"Authorization": "Bearer ..."}')
+        if _preset.startswith("Groq") and not _hk:
             st.caption("Free key: sign up at console.groq.com → API Keys → create one "
                        "(starts `gsk_`), and paste it into the Authorization header above. "
                        "Run this **locally** — don't paste keys into the public app.")
