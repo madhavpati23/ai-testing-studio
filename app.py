@@ -307,6 +307,15 @@ with tab_test:
             verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
             getattr(st, verdict_style.get(run.verdict, "info"))(
                 f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`")
+            if str(run.model_name).startswith("mock"):
+                st.warning(
+                    "**Mock backend — this verdict is illustrative, not a real evaluation.** "
+                    "The offline 'AI under test' returns canned, feature-independent answers, "
+                    "so the result is roughly the same whatever feature you type (only the "
+                    "capability checkboxes change the case count). It demonstrates the "
+                    "pipeline end-to-end with no API key. **For a real evaluation that "
+                    "actually depends on your feature, run the Claude or HTTP backend** "
+                    "(locally — see the README).")
             components.html(run.html, height=620, scrolling=True)
 
             rc1, rc2, rc3 = st.columns(3)
