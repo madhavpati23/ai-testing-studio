@@ -204,9 +204,13 @@ with tab_test:
     if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
         core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         with st.spinner("Generating cases…"):
-            st.session_state["gen"] = core.generate_suite(
-                feature, None if ai_type == "(none)" else ai_type,
-                overrides or None, capabilities=capabilities)
+            try:
+                st.session_state["gen"] = core.generate_suite(
+                    feature, None if ai_type == "(none)" else ai_type,
+                    overrides or None, capabilities=capabilities)
+            except Exception as exc:
+                st.session_state.pop("gen", None)
+                st.error(f"Could not generate the suite: {exc}")
     gc2.button("Clear", on_click=_clear_feature, disabled=not feature, key="clear_feature")
 
     gen = st.session_state.get("gen")
@@ -249,7 +253,13 @@ with tab_test:
         if do_run:
             core.set_backend(_BACKEND_KIND[backend], **backend_opts)
             with st.spinner("Running…"):
-                st.session_state["run"] = core.run_selected(kept_cases, sla_ms=sla_in or None)
+                try:
+                    st.session_state["run"] = core.run_selected(kept_cases, sla_ms=sla_in or None)
+                except Exception as exc:
+                    st.session_state.pop("run", None)
+                    st.error(f"The run failed against **{backend}**: {exc}\n\n"
+                             "Check the endpoint URL, body template, and response path "
+                             "in the sidebar — or switch to the offline Mock backend.")
 
         run = st.session_state.get("run")
         if run:

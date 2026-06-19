@@ -12,6 +12,7 @@ import json
 import os
 import re
 import socket
+import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 from typing import Any, Protocol
@@ -301,8 +302,21 @@ class HttpModel:
             method=self.method,
             headers={"Content-Type": "application/json", **self.headers},
         )
-        with self._opener.open(request, timeout=self.timeout) as response:
-            raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
+        try:
+            with self._opener.open(request, timeout=self.timeout) as response:
+                raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace").strip()
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"HTTP {exc.code} {exc.reason} from {self.url}"
+                + (f" -- {body[:200]}" if body else "")
+            ) from None
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Could not reach {self.url}: {exc.reason}") from None
         return self.extract(raw, self.response_path)
 
 
