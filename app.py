@@ -169,8 +169,8 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-tab_test, tab_prompt, tab_practice, tab_audit, tab_help = st.tabs(
-    ["🧪 Test a feature", "✍️ Prompt & instructions", "🎓 Practice",
+tab_test, tab_golden, tab_prompt, tab_practice, tab_audit, tab_help = st.tabs(
+    ["🧪 Test a feature", "📋 Golden set", "✍️ Prompt & instructions", "🎓 Practice",
      "📄 Example audit", "ℹ️ How it works"]
 )
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -461,7 +461,83 @@ with tab_test:
         cdl2.download_button("⬇️ Certification JSON", cert.json, "certification.json", "application/json")
 
 # ============================================================================
-# TAB 2 — Prompt & instructions scorer
+# TAB 2 — Golden set (test against YOUR ground truth)
+# ============================================================================
+with tab_golden:
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">TRUTH</span>'
+        '<b style="font-size:1.1rem;">📋 Test against your own ground truth</b><br>'
+        'Upload a CSV of <b>input → expected</b> pairs you trust, and run them against the '
+        'selected model. The verdict is judged against <b>truth you defined</b>, not a '
+        'generated guess — this is the most trustworthy run in the Studio.</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
+        "`severity` (optional).\n"
+        "- `validator` (default **contains**): `contains` · `not_contains` · `regex` · "
+        "`equals_number`\n"
+        "- `expected` is the substring / regex / number the answer must satisfy."
+    )
+    st.download_button("⬇️ Download a CSV template", core.GOLDEN_TEMPLATE,
+                       "golden-set-template.csv", "text/csv")
+
+    up = st.file_uploader("Upload your golden-set CSV", type=["csv"], key="golden_csv")
+    gcases, gerrors = [], []
+    if up is not None:
+        try:
+            _text = up.getvalue().decode("utf-8", errors="replace")
+            gcases, gerrors = core.build_golden(_text)
+        except Exception as exc:
+            st.error(f"Could not read the CSV: {exc}")
+    if gerrors:
+        st.warning("Skipped some rows:\n\n- " + "\n- ".join(gerrors))
+    if gcases:
+        st.success(f"Loaded **{len(gcases)}** ground-truth case(s).")
+        st.dataframe(
+            pd.DataFrame([{"id": c.id, "category": c.category, "severity": c.severity,
+                           "prompt": c.prompt, "validator": c.validator, "expected": c.args}
+                          for c in gcases]),
+            hide_index=True, use_container_width=True)
+
+        grc1, grc2, grc3 = st.columns([1.6, 1, 1])
+        do_golden = grc1.button("▶️ Run golden set", type="primary", key="run_golden")
+        g_repeat = grc2.number_input("Runs per case", min_value=1, max_value=10, value=1, step=1,
+                                     key="golden_repeat",
+                                     help="Run each case N times (non-determinism). 3–5 for a real model.")
+        g_sla = grc3.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
+                                  value=0, step=100, key="golden_sla")
+        if do_golden:
+            core.set_backend(_BACKEND_KIND[backend], **backend_opts)
+            with st.spinner(f"Running {len(gcases)} case(s) against {backend}…"):
+                try:
+                    st.session_state["golden_run"] = core.run_selected(
+                        gcases, sla_ms=g_sla or None, repeat=int(g_repeat))
+                except Exception as exc:
+                    st.session_state.pop("golden_run", None)
+                    st.error(f"Run failed against **{backend}**: {exc}")
+
+        grun = st.session_state.get("golden_run")
+        if grun:
+            st.subheader("Result")
+            gm1, gm2, gm3, gm4 = st.columns(4)
+            gm1.metric("Score", f"{grun.summary.pass_rate:.0f}%")
+            gm2.metric("Passed", f"{grun.summary.passed}/{grun.summary.total}")
+            gm3.metric("Failed", grun.summary.failed)
+            gm4.metric("Verdict", grun.verdict)
+            _gv = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
+            getattr(st, _gv.get(grun.verdict, "info"))(
+                f"Verdict against your ground truth: **{grun.verdict}**  ·  model: `{grun.model_name}`")
+            components.html(grun.html, height=560, scrolling=True)
+            gd1, gd2 = st.columns(2)
+            gd1.download_button("⬇️ HTML report", grun.html, "golden-report.html", "text/html")
+            gd2.download_button("⬇️ JSON report", grun.json, "golden-report.json", "application/json")
+    elif up is None:
+        st.caption("No file yet — download the template, fill in your own prompts and expected "
+                   "answers, and upload it. Tip: run it against **Groq/Claude**, not the Demo bot.")
+
+# ============================================================================
+# TAB 3 — Prompt & instructions scorer
 # ============================================================================
 with tab_prompt:
     st.markdown(
@@ -521,7 +597,7 @@ with tab_prompt:
                     st.code(score.example, language="text")
 
 # ============================================================================
-# TAB 3 — Practice (guided, hands-on AI-testing drills)
+# TAB 4 — Practice (guided, hands-on AI-testing drills)
 # ============================================================================
 with tab_practice:
     st.markdown(
@@ -663,7 +739,7 @@ with tab_practice:
 
 
 # ============================================================================
-# TAB 4 — Example audit (a real report produced with this methodology)
+# TAB 5 — Example audit (a real report produced with this methodology)
 # ============================================================================
 with tab_audit:
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
@@ -675,7 +751,7 @@ with tab_audit:
 
 
 # ============================================================================
-# TAB 5 — How it works
+# TAB 6 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
@@ -715,6 +791,8 @@ with tab_help:
     st.markdown(
         "- **🧪 Test a feature** — generate + run a suite, plus a fixed **deploy-readiness "
         "certification** battery across every risk dimension with a per-dimension scorecard.\n"
+        "- **📋 Golden set** — upload your own **input → expected** pairs and test against "
+        "**truth you defined** (the most trustworthy run — judged on real ground truth, not a guess).\n"
         "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"
         "- **🎓 Practice** — learn by doing: 500+ probes across 19 skills; fire one, judge it, "
         "then reveal what an expert looks for (auto-scored against the Demo bot).\n"

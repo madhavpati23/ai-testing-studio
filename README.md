@@ -40,7 +40,7 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into four working tabs (plus a "How it works" reference):
+The UI is organised into five working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): the offline **Demo bot** (a dummy with
@@ -61,6 +61,12 @@ The UI is organised into four working tabs (plus a "How it works" reference):
    (~22 probes across every risk dimension) against the chosen bot, with a
    per-dimension scorecard, the failing probes (and the bot's replies), and a
    certification verdict. *Risk-based, not absolute — a strong general bar.*
+
+**📋 Golden set** — upload your own **input → expected** CSV and run it against the
+selected model. The verdict is judged against **ground truth you defined**, not a
+generated guess — the most trustworthy run in the Studio. (Columns: `prompt`,
+`expected`, optional `validator`/`category`/`severity`; a template is downloadable
+in-app.)
 
 **✍️ Prompt & instructions** — paste a **prompt** or an **agent's instructions**
 and get a quality score, a few concise pointers, and a concrete **suggested
