@@ -348,14 +348,22 @@ with tab_test:
         "deploy. *Certification is risk-based, not absolute — this is a strong general bar, not a "
         "guarantee.*")
 
-    cc1, cc2, _ = st.columns([1.4, 1, 3])
+    # Drop a stale result if the backend changed since the last certification run.
+    if st.session_state.get("_cert_backend") not in (None, backend):
+        st.session_state.pop("cert_run", None)
+
+    cc1, cc2, cc3 = st.columns([1.4, 1, 1])
     do_cert = cc1.button("🛡️ Run certification battery", type="primary", key="run_cert")
     cert_repeat = cc2.number_input("Runs per case", min_value=1, max_value=10, value=1, step=1,
                                    key="cert_repeat",
                                    help="Run each probe N times and measure a pass rate "
                                         "(non-determinism). 3–5 for a real model.")
+    if st.session_state.get("cert_run") is not None:
+        cc3.button("Clear result", key="clear_cert",
+                   on_click=lambda: st.session_state.pop("cert_run", None))
     if do_cert:
         core.set_backend(_BACKEND_KIND[backend], **backend_opts)
+        st.session_state["_cert_backend"] = backend
         with st.spinner("Running the certification battery…"):
             try:
                 _cases = core.build_certification()
@@ -367,6 +375,8 @@ with tab_test:
 
     cert = st.session_state.get("cert_run")
     if cert:
+        st.caption("Showing your most recent certification run (it stays until you re-run, "
+                   "clear it, or switch backend).")
         cm1, cm2, cm3, cm4 = st.columns(4)
         cm1.metric("Score", f"{cert.summary.pass_rate:.0f}%")
         cm2.metric("Passed", f"{cert.summary.passed}/{cert.summary.total}")
