@@ -148,17 +148,24 @@ class RunResult:
     perf: dict = field(default_factory=dict)
 
 
-def run_selected(cases: list, sla_ms: float | None = None) -> RunResult:
-    """Run only a chosen subset of generated cases (write to a temp suite, then run)."""
+def run_selected(cases: list, sla_ms: float | None = None,
+                 repeat: int = 1, pass_threshold: float = 1.0) -> RunResult:
+    """Run only a chosen subset of generated cases (write to a temp suite, then run).
+
+    `repeat` runs each case N times (the model is non-deterministic) and a case
+    passes only if its pass rate >= `pass_threshold`; cases that pass some runs
+    but not all are flagged *flaky*.
+    """
     out_dir = tempfile.mkdtemp(prefix="studio_selected_")
     write_suite(cases, out_dir)
-    return run_suite_dir(out_dir, sla_ms)
+    return run_suite_dir(out_dir, sla_ms, repeat, pass_threshold)
 
 
-def run_suite_dir(prompts_dir: str, sla_ms: float | None = None) -> RunResult:
+def run_suite_dir(prompts_dir: str, sla_ms: float | None = None,
+                  repeat: int = 1, pass_threshold: float = 1.0) -> RunResult:
     model = get_model()
     cases = load_cases(prompts_dir)
-    results = run_suite(model, cases)
+    results = run_suite(model, cases, repeat=repeat, pass_threshold=pass_threshold)
     summary = summarize(model.name, results)
     return RunResult(
         model_name=model.name,

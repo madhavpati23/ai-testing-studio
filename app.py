@@ -251,17 +251,32 @@ with tab_test:
         )
 
         st.subheader("2 · Run the suite")
-        rcol1, rcol2 = st.columns([2, 1])
+        rcol1, rcol2, rcol3 = st.columns([2, 1, 1])
         do_run = rcol1.button(f"▶️ Run {len(kept_cases)} selected case(s)",
                               type="primary", disabled=not kept_cases)
-        sla_in = rcol2.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
+        repeat_in = rcol2.number_input(
+            "Runs per case", min_value=1, max_value=20, value=1, step=1,
+            help="The model is non-deterministic — run each case N times and measure a "
+                 "pass rate. A case that passes only sometimes is flagged FLAKY. "
+                 "Use 3–5 when testing a real model (Claude/HTTP).")
+        sla_in = rcol3.number_input("SLA (ms, optional)", min_value=0, max_value=120000,
                                     value=0, step=100,
                                     help="Flag cases whose response time exceeds this. 0 = off.")
+        if repeat_in > 1:
+            thr_pct = st.slider(
+                "Pass threshold — a case passes only if it succeeds in at least this "
+                "share of its runs", min_value=50, max_value=100, value=100, step=10,
+                format="%d%%")
+        else:
+            thr_pct = 100
         if do_run:
             core.set_backend(_BACKEND_KIND[backend], **backend_opts)
-            with st.spinner("Running…"):
+            with st.spinner(f"Running {len(kept_cases)} case(s)"
+                            + (f" × {repeat_in} runs…" if repeat_in > 1 else "…")):
                 try:
-                    st.session_state["run"] = core.run_selected(kept_cases, sla_ms=sla_in or None)
+                    st.session_state["run"] = core.run_selected(
+                        kept_cases, sla_ms=sla_in or None,
+                        repeat=int(repeat_in), pass_threshold=thr_pct / 100)
                 except Exception as exc:
                     st.session_state.pop("run", None)
                     st.error(f"The run failed against **{backend}**: {exc}\n\n"
@@ -281,6 +296,14 @@ with tab_test:
             m5.metric("Avg latency", f"{_perf.get('avg_ms', 0)} ms",
                       delta=(f"{len(_breaches)} over SLA" if _breaches else None),
                       delta_color="inverse")
+            _flaky = [r for r in run.results if getattr(r, "flaky", False)]
+            _runs_per = max((getattr(r, "runs", 1) for r in run.results), default=1)
+            if _runs_per > 1:
+                msg = (f"Ran each case **{_runs_per}×**. "
+                       + (f"⚠️ **{len(_flaky)} flaky** case(s) — passed some runs, not all: "
+                          + ", ".join(f"`{r.case.id}`" for r in _flaky)
+                          if _flaky else "✅ No flaky cases — behaviour was stable across runs."))
+                (st.warning if _flaky else st.success)(msg)
             verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
             getattr(st, verdict_style.get(run.verdict, "info"))(
                 f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`")
