@@ -145,3 +145,42 @@ def test_conversation_requires_turns():
     with pytest.raises(ValueError):
         core.run_conversation(["   ", ""], validator="contains", expected="x",
                               model=core.make_model("mock"))
+
+
+# ---- RAG grounding -----------------------------------------------------------
+
+class _FakeModel:
+    name = "fake"
+
+    def __init__(self, answer):
+        self._answer = answer
+
+    def ask(self, _prompt):
+        return self._answer
+
+
+def test_grounding_faithful_and_correct():
+    r = core.run_grounding(
+        "The sky is blue.", "What colour is the sky?",
+        model=_FakeModel("Blue."), grounding_judge=lambda c, a: (True, "supported"),
+        expected="blue")
+    assert r.verdict == "GROUNDED"
+    assert r.expected_ok is True
+
+
+def test_grounding_detects_hallucination():
+    r = core.run_grounding(
+        "The sky is blue.", "How far is the sun?",
+        model=_FakeModel("About 150 million km."),
+        grounding_judge=lambda c, a: (False, "not in context"))
+    assert r.verdict == "NOT GROUNDED"
+    assert r.grounded is False
+
+
+def test_grounding_faithful_but_wrong():
+    r = core.run_grounding(
+        "The sky is blue.", "colour?",
+        model=_FakeModel("I don't have that information."),
+        grounding_judge=lambda c, a: (True, "ok"), expected="blue")
+    assert r.verdict == "GROUNDED BUT WRONG"
+    assert r.expected_ok is False

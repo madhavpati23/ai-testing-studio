@@ -180,9 +180,9 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-(tab_test, tab_golden, tab_agent, tab_judge, tab_prompt, tab_practice,
+(tab_test, tab_golden, tab_agent, tab_rag, tab_judge, tab_prompt, tab_practice,
  tab_audit, tab_help) = st.tabs(
-    ["🧪 Test a feature", "📋 Golden set", "🔁 Multi-turn", "⚖️ Judge",
+    ["🧪 Test a feature", "📋 Golden set", "🔁 Multi-turn", "📚 RAG grounding", "⚖️ Judge",
      "✍️ Prompt & instructions", "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
 )
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -608,7 +608,62 @@ with tab_agent:
                    "the script on the turn you want to assert.")
 
 # ============================================================================
-# TAB 4 — Judge (calibrate an LLM-as-judge against human labels)
+# TAB 4 — RAG grounding (is the answer faithful to the provided context?)
+# ============================================================================
+with tab_rag:
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">RAG</span>'
+        '<b style="font-size:1.1rem;">📚 Grounding / faithfulness check</b><br>'
+        'A retrieval system\'s worst failure is <b>confidently adding facts that aren\'t in the '
+        'retrieved source</b>. Paste the context, ask a question — the model answers from the '
+        'context only, and a grounding judge checks every claim is actually supported.</div>',
+        unsafe_allow_html=True,
+    )
+    _rag_kind = _BACKEND_KIND[backend]
+    if _rag_kind == "mock":
+        st.warning("Pick a **real backend** (Claude / Groq / OpenAI) — grounding needs a model to "
+                   "answer and a model to grade faithfulness. The Demo bot can't.")
+
+    rag_context = st.text_area(
+        "Context (the retrieved source the answer must stick to)", height=160, key="rag_context",
+        value="Acme Cloud's Pro plan costs $49/month and includes 2 TB of storage and email "
+              "support. The Free plan includes 10 GB of storage and community support only.")
+    rrc1, rrc2 = st.columns([2, 1])
+    rag_question = rrc1.text_input("Question", value="How much does the Pro plan cost and what "
+                                   "support does it include?", key="rag_question")
+    rag_expected = rrc2.text_input("Expected (optional substring)", value="$49", key="rag_expected")
+
+    if st.button("📚 Run grounding check", type="primary", key="run_rag",
+                 disabled=_rag_kind == "mock" or not rag_context.strip() or not rag_question.strip()):
+        with st.spinner(f"Answering from context + grading faithfulness with {backend}…"):
+            try:
+                st.session_state["rag_run"] = core.run_grounding(
+                    rag_context, rag_question,
+                    model=core.make_model(_rag_kind, backend_opts),
+                    grounding_judge=core.make_grounding_judge(_rag_kind, backend_opts),
+                    expected=rag_expected.strip() or None)
+            except Exception as exc:
+                st.session_state.pop("rag_run", None)
+                st.error(f"Grounding check failed against **{backend}**: {exc}")
+
+    rag = st.session_state.get("rag_run")
+    if rag:
+        _rv = {"GROUNDED": "success", "GROUNDED BUT WRONG": "warning", "NOT GROUNDED": "error"}
+        getattr(st, _rv.get(rag.verdict, "info"))(
+            f"**{rag.verdict}** · model `{rag.model_name}`")
+        with st.container(border=True):
+            st.markdown("**The model's answer**")
+            st.markdown(f"> {rag.answer}")
+            st.caption(f"Faithfulness judge: {rag.reason}")
+            if rag.expected is not None:
+                st.caption(f"Expected substring “{rag.expected}”: "
+                           + ("✅ found" if rag.expected_ok else "❌ not found"))
+        st.caption("GROUNDED = every claim is supported by the context. NOT GROUNDED = it added or "
+                   "contradicted facts (hallucination). GROUNDED BUT WRONG = faithful but missed the "
+                   "expected answer.")
+
+# ============================================================================
+# TAB 5 — Judge (calibrate an LLM-as-judge against human labels)
 # ============================================================================
 with tab_judge:
     st.markdown(
@@ -680,7 +735,7 @@ with tab_judge:
                    "judgement, and upload it to measure how well the judge matches you.")
 
 # ============================================================================
-# TAB 5 — Prompt & instructions scorer
+# TAB 6 — Prompt & instructions scorer
 # ============================================================================
 with tab_prompt:
     st.markdown(
@@ -740,7 +795,7 @@ with tab_prompt:
                     st.code(score.example, language="text")
 
 # ============================================================================
-# TAB 6 — Practice (guided, hands-on AI-testing drills)
+# TAB 7 — Practice (guided, hands-on AI-testing drills)
 # ============================================================================
 with tab_practice:
     st.markdown(
@@ -882,7 +937,7 @@ with tab_practice:
 
 
 # ============================================================================
-# TAB 7 — Example audit (a real report produced with this methodology)
+# TAB 8 — Example audit (a real report produced with this methodology)
 # ============================================================================
 with tab_audit:
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
@@ -894,7 +949,7 @@ with tab_audit:
 
 
 # ============================================================================
-# TAB 8 — How it works
+# TAB 9 — How it works
 # ============================================================================
 with tab_help:
     st.subheader("How it works")
@@ -938,6 +993,8 @@ with tab_help:
         "**truth you defined** (the most trustworthy run — judged on real ground truth, not a guess).\n"
         "- **🔁 Multi-turn** — script a conversation and check the final reply, to test an agent's "
         "**memory, context retention, and scope** across turns (not just single-shot).\n"
+        "- **📚 RAG grounding** — give a context + question; a grounding judge checks the answer is "
+        "**faithful to the source** and didn't hallucinate beyond it.\n"
         "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels and see how often it "
         "agrees with you, before trusting it to grade open-ended quality.\n"
         "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"

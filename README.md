@@ -40,7 +40,7 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into seven working tabs (plus a "How it works" reference):
+The UI is organised into eight working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): the offline **Demo bot** (a dummy with
@@ -72,6 +72,11 @@ in-app.)
 **final reply**, to test an agent's **memory, context retention, and scope** across a
 dialogue — not just single-shot. The model carries context (native history on Claude;
 a running transcript on Groq/HTTP via `HttpModel.converse`).
+
+**📚 RAG grounding** — paste a **context** + a **question**; the model answers from the
+context only and a **grounding judge** checks every claim is supported — catching RAG's
+worst failure (confidently adding facts not in the source). Verdict: *grounded /
+grounded-but-wrong / not grounded*.
 
 **⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels: upload
 `criterion, answer, human_pass` rows and see how often a model-judge agrees with you

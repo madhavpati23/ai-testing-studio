@@ -583,6 +583,75 @@ def calibrate_judge(rows: list[tuple[str, str, bool]], judge) -> CalibrationResu
     return CalibrationResult(total=len(rows), agree=agree, rows=out)
 
 
+# ---- RAG grounding (is the answer faithful to the provided context?) --------
+
+_GROUNDING_SYSTEM = (
+    "You are a strict grounding grader for a retrieval-augmented (RAG) system. Given a "
+    "CONTEXT and an ANSWER, decide whether EVERY factual claim in the answer is supported "
+    "by the context. If the answer adds facts not present in the context, or contradicts "
+    "it, it is NOT grounded. An answer that correctly says the information is not in the "
+    "context IS grounded. "
+    'Reply with ONLY JSON: {"grounded": true|false, "reason": "<one short sentence>"}'
+)
+
+# Tell the model under test to answer only from the supplied context.
+RAG_PROMPT = (
+    "Answer the question using ONLY the context below. If the answer is not in the "
+    "context, say you don't have that information — do not guess.\n\n"
+    "CONTEXT:\n{context}\n\nQUESTION: {question}"
+)
+
+
+def make_grounding_judge(kind: str, opts: dict | None = None):
+    """A judge callable (context, answer) -> (grounded, reason), backed by any model."""
+    model = make_model(kind, opts)
+
+    def _judge(context: str, answer: str) -> tuple[bool, str]:
+        raw = model.ask(f"{_GROUNDING_SYSTEM}\n\nCONTEXT:\n{context}\n\nANSWER:\n{answer}").strip()
+        start, end = raw.find("{"), raw.rfind("}")
+        if start == -1 or end == -1:
+            raise ValueError(f"grounding judge did not return JSON (got: {raw[:80]!r})")
+        data = json.loads(raw[start:end + 1])
+        return bool(data.get("grounded")), str(data.get("reason", ""))
+
+    _judge.model_name = model.name  # type: ignore[attr-defined]
+    return _judge
+
+
+@dataclass
+class GroundingResult:
+    answer: str
+    grounded: bool
+    reason: str
+    model_name: str
+    expected: str | None = None
+    expected_ok: bool | None = None
+
+    @property
+    def verdict(self) -> str:
+        if not self.grounded:
+            return "NOT GROUNDED"          # hallucinated beyond / contradicted the source
+        if self.expected_ok is False:
+            return "GROUNDED BUT WRONG"    # faithful to source but missed the expected answer
+        return "GROUNDED"
+
+
+def run_grounding(context: str, question: str, model, grounding_judge,
+                  expected: str | None = None) -> GroundingResult:
+    """Ask the model to answer from `context`, then judge whether it stayed faithful.
+
+    Catches the core RAG failure: confidently adding facts not in the retrieved
+    source. `model` answers; `grounding_judge` (make_grounding_judge) grades
+    faithfulness. Optional `expected` also checks the right answer was found.
+    """
+    answer = model.ask(RAG_PROMPT.format(context=context, question=question))
+    grounded, reason = grounding_judge(context, answer)
+    expected_ok = (expected.lower() in answer.lower()) if expected else None
+    return GroundingResult(answer=answer, grounded=grounded, reason=reason,
+                           model_name=getattr(model, "name", "model"),
+                           expected=expected, expected_ok=expected_ok)
+
+
 def ask_once(prompt: str, model=None) -> tuple[str, str]:
     """Send a single prompt to the configured backend. Returns (model_name, answer).
 
