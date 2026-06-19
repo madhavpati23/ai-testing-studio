@@ -255,12 +255,17 @@ with tab_test:
     gen = st.session_state.get("gen")
     if gen:
         st.success(f"Generated a **starter scaffold** of {len(gen.cases)} case(s) "
-                   f"with **{gen.generator_name}**.")
+                   f"— cases *designed by* the **{gen.generator_name}** generator.")
         if gen.errors:
             st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
-        st.caption("This is a **scaffold, not a finished suite** — the offline mock fills generic "
-                   "risk-category templates. Review each case, **untick any that don't apply**, and "
-                   "treat the prompts as a starting point a human (or the Claude backend) tailors.")
+        if gen.generator_name == "mock" and _BACKEND_KIND[backend] != "mock":
+            st.info(f"ℹ️ The **case designer** is the offline scaffold (it only uses Claude if an "
+                    f"`ANTHROPIC_API_KEY` is set). Your **model under test is `{backend}`** — these "
+                    f"prompts get sent to it when you click **Run** below, and its answers are judged.")
+        st.caption("This is a **scaffold, not a finished suite** — generic risk-category templates. "
+                   "Review each case, **untick any that don't apply**, and treat the prompts as a "
+                   "starting point. (Tip: the **Certification** battery below tests your selected "
+                   "model directly — no scaffold needed.)")
         _df = pd.DataFrame(
             [{"keep": True, "id": c.id, "category": c.category, "severity": c.severity,
               "validator": c.validator, "prompt": c.prompt} for c in gen.cases]
