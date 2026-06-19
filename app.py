@@ -654,6 +654,13 @@ with tab_practice:
                 st.markdown(f"**Why it matters:** {ex.why}")
                 st.markdown(f"**Common rookie mistake:** {ex.pitfall}")
 
+            if st.button("Next question →", type="primary", key=f"practice_nextq_{n}"):
+                _exn, _pn = core.random_question(
+                    avoid=st.session_state["practice_q"]["probe"],
+                    skills=_skill_ids, difficulties=_diffs)
+                st.session_state["practice_q"] = {"ex_id": _exn.id, "probe": _pn, "n": n + 1}
+                st.rerun()
+
 
 # ============================================================================
 # TAB 4 — Example audit (a real report produced with this methodology)
