@@ -310,11 +310,15 @@ class HttpModel:
 
     def ask(self, prompt: str) -> str:
         _assert_safe_url(self.url, block_private=self.block_private)  # re-check (DNS may change)
+        # A real User-Agent avoids Cloudflare bot blocks (HTTP 403, error 1010)
+        # that fire on urllib's default "Python-urllib/x.y". Caller can override.
         request = urllib.request.Request(
             self.url,
             data=self.render_body(self.body_template, prompt),
             method=self.method,
-            headers={"Content-Type": "application/json", **self.headers},
+            headers={"Content-Type": "application/json",
+                     "User-Agent": "prompt-regression-suite/1.0 (+https://github.com/madhavpati23)",
+                     **self.headers},
         )
         try:
             with self._opener.open(request, timeout=self.timeout) as response:

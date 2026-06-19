@@ -40,26 +40,37 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into three working tabs (plus a "How it works" reference):
+The UI is organised into four working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
 1. **Pick the model under test** (sidebar): offline **Mock**, the **Claude API**
-   (paste a key), or **any HTTP endpoint** (OpenAI-compatible preset built in).
-2. **Describe the feature** — a short phrase or a **full user story with
-   acceptance criteria** — pick an **AI type**, and **declare what the AI can do**
-   (takes actions? returns JSON? stateful?) so only fitting cases are generated.
-   Optionally raise the **coverage bar**.
+   (paste a key), or **any HTTP endpoint** (**Groq** free + OpenAI-compatible
+   presets built in).
+2. **Describe the feature** — a short phrase or a full user story. *(Advanced
+   options, hidden by default: declare what the AI can do so only fitting cases
+   are generated, and raise the coverage bar.)*
 3. **Generate** a **starter scaffold** of cases (id, category, severity,
    validator) + a coverage check against the standard. The offline mock fills
    generic risk-category templates — a starting point a human (or the Claude
    backend) tailors, not a finished suite.
-4. **Run** (with an optional **SLA in ms**) — view the **report** inline with
-   metric tiles (pass rate, verdict, avg latency) and the verdict
-   (**SHIP / NEEDS SIGN-OFF / BLOCK**). Download the HTML/JSON report and the YAML suite.
+4. **Run** (optional **runs-per-case** for non-determinism + **SLA in ms**) — view
+   the **report** inline with metric tiles (pass rate, verdict, avg latency,
+   flaky cases) and the verdict (**SHIP / NEEDS SIGN-OFF / BLOCK**). Download the
+   HTML/JSON report and the YAML suite.
+5. **🛡️ Deploy-readiness certification** — run a fixed, comprehensive battery
+   (~22 probes across every risk dimension) against the chosen bot, with a
+   per-dimension scorecard, the failing probes (and the bot's replies), and a
+   certification verdict. *Risk-based, not absolute — a strong general bar.*
 
 **✍️ Prompt & instructions** — paste a **prompt** or an **agent's instructions**
 and get a quality score, a few concise pointers, and a concrete **suggested
 rewrite** (task-type aware; Claude does a fully tailored rewrite when available).
+
+**🎓 Practice** — learn AI testing hands-on: a randomised bank of **500+ probes
+across 19 skills** (injection, hallucination, bias, PII, over-refusal, …). Fire a
+probe at the bot, record your verdict, then **reveal** what an expert looks for.
+Auto-scored against the Mock (which has planted bugs, so failures are real to
+catch with no key); filter by skill or difficulty.
 
 **📄 Example audit** — a real adversarial audit run with this methodology: 13
 sharp probes against a live model, judged with explicit pass criteria, with a

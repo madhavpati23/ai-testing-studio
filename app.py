@@ -652,6 +652,16 @@ with tab_help:
     st.caption("The generated cases are a scaffold — a human (or the Claude backend) "
                "defines the real oracle. Defining 'correct' is the test design; this "
                "tool runs, gates, and reports it.")
+
+    st.markdown("#### What's in each tab")
+    st.markdown(
+        "- **🧪 Test a feature** — generate + run a suite, plus a fixed **deploy-readiness "
+        "certification** battery across every risk dimension with a per-dimension scorecard.\n"
+        "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"
+        "- **🎓 Practice** — learn by doing: 500+ probes across 19 skills; fire one, judge it, "
+        "then reveal what an expert looks for (auto-scored against the Mock).\n"
+        "- **📄 Example audit** — a real adversarial audit that found a documented defect."
+    )
     st.markdown("#### Risk categories covered")
     st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>' for c in core.categories()) + '</div>',
                 unsafe_allow_html=True)
