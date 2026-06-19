@@ -98,6 +98,7 @@ def _result_dict(r: Result) -> dict:
         "category": r.case.category,
         "severity": r.case.severity,
         "validator": r.case.validator,
+        "args": r.case.args,
         "passed": r.passed,
         "runs": r.runs,
         "passes": r.passes,
@@ -152,6 +153,35 @@ def render_json(summary: Summary, results: list[Result], sla_ms: float | None = 
 _VERDICT_COLOR = {"SHIP": "#1a7f37", "NEEDS SIGN-OFF": "#9a6700", "BLOCK": "#cf222e"}
 
 
+def _explain_failure(r: dict) -> str:
+    """A self-contained reason: which check ran, what it required, and the raw detail.
+
+    Makes the 'Why' column readable on its own instead of a terse validator note.
+    """
+    v = r.get("validator") or "?"
+    args = r.get("args") or {}
+    detail = r.get("detail") or ""
+    if v in ("contains", "not_contains"):
+        cond = "INCLUDE" if v == "contains" else "NOT include"
+        return f"[{v}] the answer had to {cond} the exact text “{args.get('value', '')}” — it didn't."
+    if v == "regex":
+        return f"[regex] the answer had to match the pattern /{args.get('pattern', '')}/. {detail}"
+    if v == "equals_number":
+        return f"[equals_number] expected the number {args.get('value')} somewhere in the answer. {detail}"
+    if v == "json_schema":
+        keys = ", ".join((args.get("properties") or {}).keys())
+        return f"[json_schema] the answer had to be JSON with keys: {keys}. {detail}"
+    if v == "tool_trace":
+        return f"[tool_trace] expected tool calls {args.get('expected')}. {detail}"
+    if v == "llm_judge":
+        crit = args.get("criterion", "")
+        base = f"[llm_judge] a model had to grade the answer against: “{crit}”."
+        if "ANTHROPIC_API_KEY" in detail or "could not grade" in detail:
+            return base + " NOT GRADED — this validator needs a Claude key (ANTHROPIC_API_KEY); it is not a real failure."
+        return base + f" {detail}"
+    return f"[{v}] {detail}"
+
+
 def render_html(summary: Summary, results: list[Result], sla_ms: float | None = None) -> str:
     rpt = build_report(summary, results, sla_ms)
     e = html.escape
@@ -181,7 +211,7 @@ def render_html(summary: Summary, results: list[Result], sla_ms: float | None = 
     fail_rows = "".join(
         f"<tr class='sev-{e(r['severity'])}'><td>{e(r['id'])}</td><td>{e(r['category'])}</td>"
         f"<td>{e(r['severity'])}</td><td>{e(r['prompt'])}</td>"
-        f"<td>{e(r['answer'])}</td><td>{e(r['detail'])}</td></tr>"
+        f"<td>{e(r['answer'])}</td><td>{e(_explain_failure(r))}</td></tr>"
         for r in rpt["cases"] if not r["passed"]
     ) or "<tr><td colspan='6'>No failures.</td></tr>"
 
@@ -216,6 +246,6 @@ def render_html(summary: Summary, results: list[Result], sla_ms: float | None = 
 <h2>Pass rate by category</h2>
 <table><tr><th>Category</th><th>Passed</th><th>Rate</th></tr>{cat_rows}</table>
 <h2>Failures</h2>
-<table><tr><th>ID</th><th>Category</th><th>Severity</th><th>Prompt</th><th>Got</th><th>Why</th></tr>{fail_rows}</table>
+<table><tr><th>ID</th><th>Category</th><th>Severity</th><th>Prompt sent</th><th>Model's answer (Got)</th><th>Why it failed (which check &amp; what it required)</th></tr>{fail_rows}</table>
 <p class="muted">A high pass rate is evidence of quality on the tested inputs only — it is not a certificate of safety.</p>
 </body></html>"""
