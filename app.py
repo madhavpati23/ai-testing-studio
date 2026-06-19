@@ -22,6 +22,12 @@ PUBLIC = str(os.environ.get("PRS_STUDIO_PUBLIC", "")).strip().lower() in ("1", "
 # HTTP-backend presets so common targets are one click (no typing).
 _HTTP_PRESETS = {
     "Custom": None,
+    "Groq (free, OpenAI-compatible)": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": '{"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": {PROMPT}}]}',
+        "response_path": "choices.0.message.content",
+        "headers": '{"Authorization": "Bearer gsk_..."}',
+    },
     "OpenAI-compatible": {
         "url": "https://api.openai.com/v1/chat/completions",
         "body": '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": {PROMPT}}]}',
@@ -118,6 +124,10 @@ with st.sidebar:
                                                       help='Dotted path to the answer, e.g. choices.0.message.content')
         backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
                                                 placeholder='{"Authorization": "Bearer ..."}')
+        if st.session_state.get("http_preset", "").startswith("Groq"):
+            st.caption("Free key: sign up at console.groq.com → API Keys → create one "
+                       "(starts `gsk_`), and paste it into the Authorization header above. "
+                       "Run this **locally** — don't paste keys into the public app.")
 
     st.divider()
     st.markdown(
