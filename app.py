@@ -238,6 +238,13 @@ with tab_test:
         _kept_ids = set(_edited[_edited["keep"]]["id"])
         kept_cases = [c for c in gen.cases if c.id in _kept_ids]
         st.caption(f"**{len(kept_cases)} of {len(gen.cases)}** cases selected.")
+
+        with st.expander("🔍 View full prompts (word-wrapped)", expanded=False):
+            st.caption("The table above truncates long prompts; here they are in full.")
+            for c in gen.cases:
+                st.markdown(f"**`{c.id}`**  ·  `{c.category}` / {c.severity} / `{c.validator}`")
+                st.markdown(f"> {c.prompt}")
+                st.divider()
         (st.error if gen.has_gaps else st.info)(
             ("⚠️ Below coverage standard\n\n" if gen.has_gaps else "✅ Coverage\n\n")
             + "```\n" + gen.coverage_text + "\n```"
