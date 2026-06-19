@@ -534,18 +534,27 @@ with tab_practice:
                f"across **{len(core.practice_exercises())}** skills — no two sessions are the same.")
 
     st.session_state.setdefault("practice_score", {"correct": 0, "total": 0})
-    sccol1, sccol2 = st.columns([3, 1])
-    if sccol2.button("Reset score", key="practice_reset_score"):
-        st.session_state["practice_score"] = {"correct": 0, "total": 0}
-        for _k in [k for k in st.session_state if str(k).startswith("practice_scored_")]:
-            del st.session_state[_k]
-        st.rerun()
-    _sc = st.session_state["practice_score"]
-    _pct = round(100 * _sc["correct"] / _sc["total"]) if _sc["total"] else 0
-    sccol1.metric("🎯 Your score this session",
-                  f"{_sc['correct']} / {_sc['total']} correct",
-                  f"{_pct}%" if _sc["total"] else None)
-    sccol1.caption("Graded automatically only on the **Mock** — a real bot has no answer key.")
+    _practice_is_mock = _BACKEND_KIND[backend] == "mock"
+    if _practice_is_mock:
+        # The Mock has a known answer key, so we can auto-grade and keep score.
+        sccol1, sccol2 = st.columns([3, 1])
+        if sccol2.button("Reset score", key="practice_reset_score"):
+            st.session_state["practice_score"] = {"correct": 0, "total": 0}
+            for _k in [k for k in st.session_state if str(k).startswith("practice_scored_")]:
+                del st.session_state[_k]
+            st.rerun()
+        _sc = st.session_state["practice_score"]
+        _pct = round(100 * _sc["correct"] / _sc["total"]) if _sc["total"] else 0
+        sccol1.metric("🎯 Your score this session",
+                      f"{_sc['correct']} / {_sc['total']} correct",
+                      f"{_pct}%" if _sc["total"] else None)
+        sccol1.caption("Auto-graded because you're testing the **Mock** (it has a known answer key).")
+    else:
+        # A real bot has no answer key — scoring is off; the learner self-assesses.
+        st.info(f"🎯 **Self-assessed mode** — you're testing a real bot (`{backend}`), which has no "
+                "fixed answer key, so automatic scoring is off. Judge each answer yourself, then "
+                "**reveal** the expert analysis to check your call. Switch to the **Mock** backend "
+                "(sidebar) to get an auto-graded score.")
 
     # Optional focus: narrow the pool to chosen skills / difficulties.
     with st.expander("🎚️ Focus your session (optional) — pick skills or difficulty"):
