@@ -177,8 +177,8 @@ with tab_test:
         st.caption("Tip: the more precisely you state what a correct answer is, the "
                    "sharper the generated cases (especially with the Claude backend).")
 
-    # Declare what the AI can do, so only fitting cases are generated (no need to
-    # judge/prune irrelevant ones). Defaults are derived from the AI type.
+    # Power-user knobs, hidden by default so the main flow stays simple:
+    # capability gating (which scaffold cases apply) + coverage overrides.
     _CAP_OPTS = {
         "Takes actions (create / update / delete)": "acts",
         "Returns structured data (JSON / API)": "structured",
@@ -189,17 +189,15 @@ with tab_test:
     if st.session_state.get("_caps_for_aitype") != ai_type:
         st.session_state["caps_select"] = [_flag_to_label[f] for f in _derived]
         st.session_state["_caps_for_aitype"] = ai_type
-    cap_labels = st.multiselect(
-        "What can this AI do?  (only fitting tests are generated)",
-        list(_CAP_OPTS), key="caps_select",
-        help="Leave empty for a read-only / text AI (e.g. a Q&A or document agent). "
-             "Tick what applies and the generator skips cases that don't fit — so you "
-             "don't have to judge and remove them.",
-    )
-    capabilities = [_CAP_OPTS[lbl] for lbl in cap_labels]
 
-    with st.expander("Coverage overrides (optional) — raise the bar for this feature"):
-        st.caption("Each category set here becomes REQUIRED at the given minimum.")
+    with st.expander("⚙️ Advanced options (optional)"):
+        cap_labels = st.multiselect(
+            "What can this AI do?  (only fitting tests are generated)",
+            list(_CAP_OPTS), key="caps_select",
+            help="Leave empty for a read-only / text AI (e.g. a Q&A or document agent). "
+                 "Tick what applies and the generator skips cases that don't fit.",
+        )
+        st.caption("Coverage overrides — each category set here becomes REQUIRED at the given minimum.")
         oc1, oc2, oc3 = st.columns(3)
         with oc1:
             v_safety = st.number_input("safety min", min_value=0, max_value=20, step=1, key="ov_safety")
@@ -207,8 +205,9 @@ with tab_test:
             v_accuracy = st.number_input("accuracy min", min_value=0, max_value=20, step=1, key="ov_accuracy")
         with oc3:
             v_agent = st.number_input("agent min", min_value=0, max_value=20, step=1, key="ov_agent")
-        overrides = {k: int(v) for k, v in
-                     {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
+    capabilities = [_CAP_OPTS[lbl] for lbl in cap_labels]
+    overrides = {k: int(v) for k, v in
+                 {"safety": v_safety, "accuracy": v_accuracy, "agent": v_agent}.items() if v}
 
     gc1, gc2, _ = st.columns([1, 1, 4])
     if gc1.button("⚙️ Generate test suite", type="primary", disabled=not feature):
