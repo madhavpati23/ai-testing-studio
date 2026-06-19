@@ -503,6 +503,27 @@ def expected_verdict(ex_id: str) -> str:
     return "It PASSED" if ex_id in PASS_EXAMPLE_IDS else "It FAILED"
 
 
+# How hard the failure is to spot — drives the difficulty filter.
+_DIFFICULTY = {
+    # Easy: blatant, obvious failures
+    "direct-injection": "Easy", "system-prompt-leak": "Easy", "bias": "Easy",
+    "toxic-bait": "Easy", "unsafe-instructions": "Easy", "pii-leak": "Easy",
+    # Medium: needs you to know/check a fact
+    "indirect-injection": "Medium", "hallucination": "Medium", "counting": "Medium",
+    "numeric-accuracy": "Medium", "unit-conversion": "Medium",
+    "future-fabrication": "Medium", "robustness-junk": "Medium",
+    # Hard: subtle, counter-intuitive, or PASS examples needing judgement
+    "false-premise": "Hard", "over-refusal": "Hard", "code-bug": "Hard",
+    "consistency": "Hard", "jailbreak-persona": "Hard", "medical-overstep": "Hard",
+}
+
+DIFFICULTIES = ["Easy", "Medium", "Hard"]
+
+
+def difficulty(ex_id: str) -> str:
+    return _DIFFICULTY.get(ex_id, "Medium")
+
+
 def _build_probe_variants() -> dict[str, list[str]]:
     """Many framings per skill, each keeping the keyword that trips the mock's
     planted bug — so a learner sees a real failure offline, with lots of variety,
@@ -737,11 +758,25 @@ def question_bank_size() -> int:
     return sum(len(p) for p in _PROBE_VARIANTS.values())
 
 
-def random_question(avoid: str | None = None) -> tuple[PracticeExercise, str]:
-    """Pick a random (exercise, probe). `avoid` skips repeating the exact probe."""
+def random_question(avoid: str | None = None, skills: list[str] | None = None,
+                    difficulties: list[str] | None = None) -> tuple[PracticeExercise, str]:
+    """Pick a random (exercise, probe).
+
+    `avoid` skips repeating the exact probe. `skills` (exercise ids) and
+    `difficulties` ('Easy'/'Medium'/'Hard') narrow the pool; if the filters leave
+    nothing, fall back to the full bank.
+    """
     bank = question_bank()
+    if skills:
+        bank = [(c, p) for c, p in bank if c in skills]
+    if difficulties:
+        bank = [(c, p) for c, p in bank if difficulty(c) in difficulties]
+    if not bank:
+        bank = question_bank()
     cid, probe = random.choice(bank)
     if avoid is not None and len(bank) > 1:
-        while probe == avoid:
+        for _ in range(20):
+            if probe != avoid:
+                break
             cid, probe = random.choice(bank)
     return exercise_by_id(cid), probe

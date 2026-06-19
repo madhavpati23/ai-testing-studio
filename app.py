@@ -431,13 +431,25 @@ with tab_practice:
                   on_click=lambda: st.session_state.update(
                       {"practice_score": {"correct": 0, "total": 0}}))
 
+    # Optional focus: narrow the pool to chosen skills / difficulties.
+    with st.expander("🎚️ Focus your session (optional) — pick skills or difficulty"):
+        _title_to_id = {f"{e.title}  ·  {core.difficulty(e.id)}": e.id
+                        for e in core.practice_exercises()}
+        _sel_titles = st.multiselect("Skills (leave empty for all 19)", list(_title_to_id),
+                                     key="practice_filter_skills")
+        _sel_diff = st.multiselect("Difficulty (leave empty for all)", core.DIFFICULTIES,
+                                   key="practice_filter_diff")
+        st.caption("Filters apply to the **next** question.")
+    _skill_ids = [_title_to_id[t] for t in _sel_titles] or None
+    _diffs = _sel_diff or None
+
     # Draw the first question, or a fresh one on demand.
     if "practice_q" not in st.session_state:
-        _ex0, _p0 = core.random_question()
+        _ex0, _p0 = core.random_question(skills=_skill_ids, difficulties=_diffs)
         st.session_state["practice_q"] = {"ex_id": _ex0.id, "probe": _p0, "n": 0}
     if st.button("🎲 New random question", key="practice_next"):
         _curr = st.session_state["practice_q"]["probe"]
-        _exn, _pn = core.random_question(avoid=_curr)
+        _exn, _pn = core.random_question(avoid=_curr, skills=_skill_ids, difficulties=_diffs)
         st.session_state["practice_q"] = {
             "ex_id": _exn.id, "probe": _pn, "n": st.session_state["practice_q"]["n"] + 1}
 
@@ -445,7 +457,8 @@ with tab_practice:
     ex = core.exercise_by_id(q["ex_id"])
     n = q["n"]
 
-    st.markdown(f"**Skill:** {ex.skill}  ·  category `{ex.category}`")
+    st.markdown(f"**Skill:** {ex.skill}  ·  category `{ex.category}`  ·  "
+                f"difficulty **{core.difficulty(ex.id)}**")
     st.info(f"**Your task:** {ex.brief}")
 
     probe_key = f"practice_probe_{n}"
