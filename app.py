@@ -49,7 +49,7 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer sk-..."}',
     },
 }
-_BACKEND_KIND = {"Mock (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
+_BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
@@ -107,12 +107,14 @@ def _clear_feature():
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
     st.header("Model under test")
-    backends = ["Mock (offline)"] if PUBLIC else ["Mock (offline)", "Claude API", "HTTP endpoint"]
+    backends = ["Demo bot (offline)"] if PUBLIC else ["Demo bot (offline)", "Claude API", "HTTP endpoint"]
     backend = st.radio("Backend", backends,
-                       help="Mock runs offline with no key. Claude/HTTP test a real model.")
+                       help="The Demo bot is a built-in offline dummy with planted bugs — for "
+                            "free demos and Practice, no key. Claude/HTTP test a real model.")
     if PUBLIC:
-        st.caption("This is a public demo — it runs the offline mock only. "
-                   "Clone the repo to test the Claude API or your own endpoint.")
+        st.caption("This is a public demo — it runs the offline **Demo bot** only (a dummy with "
+                   "planted bugs, for trying the pipeline and Practice). Clone the repo to test "
+                   "the Claude API or your own endpoint.")
     backend_opts: dict[str, str] = {}
     if backend == "Claude API":
         _sk = _secret("ANTHROPIC_API_KEY")
@@ -257,14 +259,14 @@ with tab_test:
         _is_mock_gen = gen.generator_name == "mock"
         if _is_mock_gen:
             st.success(f"Generated a **starter scaffold** of {len(gen.cases)} case(s) "
-                       f"with the offline **mock** generator.")
+                       f"with the offline **Demo bot** generator.")
         else:
             st.success(f"Designed **{len(gen.cases)} tailored case(s)** for your feature "
                        f"using **`{gen.generator_name}`**.")
         if gen.errors:
             st.warning(f"Dropped {len(gen.errors)} invalid case(s): " + "; ".join(gen.errors))
         if _is_mock_gen:
-            st.caption("This is a **generic scaffold, not a finished suite** — the offline mock "
+            st.caption("This is a **generic scaffold, not a finished suite** — the offline Demo bot "
                        "fills the same risk-category templates regardless of feature. **Select a "
                        "real backend (e.g. Groq) and re-generate** to have the model design "
                        "feature-specific cases. Review each case and untick any that don't apply.")
@@ -331,7 +333,7 @@ with tab_test:
                     st.session_state.pop("run", None)
                     st.error(f"The run failed against **{backend}**: {exc}\n\n"
                              "Check the endpoint URL, body template, and response path "
-                             "in the sidebar — or switch to the offline Mock backend.")
+                             "in the sidebar — or switch to the offline Demo bot backend.")
 
         run = st.session_state.get("run")
         if run:
@@ -359,8 +361,8 @@ with tab_test:
                 f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`")
             if str(run.model_name).startswith("mock"):
                 st.warning(
-                    "**Mock backend — this verdict is illustrative, not a real evaluation.** "
-                    "The offline 'AI under test' returns canned, feature-independent answers, "
+                    "**Demo bot — this verdict is illustrative, not a real evaluation.** "
+                    "The offline demo bot returns canned, feature-independent answers, "
                     "so the result is roughly the same whatever feature you type (only the "
                     "capability checkboxes change the case count). It demonstrates the "
                     "pipeline end-to-end with no API key. **For a real evaluation that "
@@ -429,9 +431,8 @@ with tab_test:
             + ("— ready to deploy on this bar." if cert.verdict == "SHIP"
                else "— do not deploy until the failures below are resolved."))
         if str(cert.model_name).startswith("mock"):
-            st.warning("**Mock backend** — the mock has planted bugs, so it deliberately fails "
-                       "many probes (it is *not* deploy-ready, by design). Run Groq/Claude to "
-                       "certify a real bot.")
+            st.warning("**Demo bot** — it has planted bugs, so it deliberately fails many probes "
+                       "(it is *not* deploy-ready, by design). Run Groq/Claude to certify a real bot.")
         # per-dimension scorecard
         _by_cat: dict[str, list[int]] = {}
         for r in cert.results:
@@ -531,7 +532,7 @@ with tab_practice:
         unsafe_allow_html=True,
     )
     st.caption(
-        "Tip: these probes are tuned so the **offline Mock** already fails them — so you "
+        "Tip: these probes are tuned so the **offline Demo bot** already fails them — so you "
         "can practice catching real bugs with no key. Then switch to **Groq (free)** or "
         "**Claude** in the sidebar and run the same probes against a real bot, where a "
         "strong model should pass. (Real backends: run locally.)")
@@ -542,7 +543,7 @@ with tab_practice:
     st.session_state.setdefault("practice_score", {"correct": 0, "total": 0})
     _practice_is_mock = _BACKEND_KIND[backend] == "mock"
     if _practice_is_mock:
-        # The Mock has a known answer key, so we can auto-grade and keep score.
+        # The Demo bot has a known answer key, so we can auto-grade and keep score.
         sccol1, sccol2 = st.columns([3, 1])
         if sccol2.button("Reset score", key="practice_reset_score"):
             st.session_state["practice_score"] = {"correct": 0, "total": 0}
@@ -554,12 +555,12 @@ with tab_practice:
         sccol1.metric("🎯 Your score this session",
                       f"{_sc['correct']} / {_sc['total']} correct",
                       f"{_pct}%" if _sc["total"] else None)
-        sccol1.caption("Auto-graded because you're testing the **Mock** (it has a known answer key).")
+        sccol1.caption("Auto-graded because you're testing the **Demo bot** (it has a known answer key).")
     else:
         # A real bot has no answer key — scoring is off; the learner self-assesses.
         st.info(f"🎯 **Self-assessed mode** — you're testing a real bot (`{backend}`), which has no "
                 "fixed answer key, so automatic scoring is off. Judge each answer yourself, then "
-                "**reveal** the expert analysis to check your call. Switch to the **Mock** backend "
+                "**reveal** the expert analysis to check your call. Switch to the **Demo bot** backend "
                 "(sidebar) to get an auto-graded score.")
 
     # Optional focus: narrow the pool to chosen skills / difficulties.
@@ -695,7 +696,7 @@ with tab_help:
         "a full user story.\n"
         "2. **Generate** a risk-based starter scaffold and check it against the "
         "coverage standard.\n"
-        "3. **Run** it against the offline mock, the Claude API, or any HTTP endpoint.\n"
+        "3. **Run** it against the offline Demo bot, the Claude API, or any HTTP endpoint.\n"
         "4. Get a **report** with pass-rate, severity, latency, and a ship / no-ship "
         "**verdict**."
     )
@@ -709,7 +710,7 @@ with tab_help:
         "certification** battery across every risk dimension with a per-dimension scorecard.\n"
         "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"
         "- **🎓 Practice** — learn by doing: 500+ probes across 19 skills; fire one, judge it, "
-        "then reveal what an expert looks for (auto-scored against the Mock).\n"
+        "then reveal what an expert looks for (auto-scored against the Demo bot).\n"
         "- **📄 Example audit** — a real adversarial audit that found a documented defect."
     )
     st.markdown("#### Risk categories covered")

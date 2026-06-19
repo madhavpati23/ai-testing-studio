@@ -4,7 +4,7 @@ A browser UI that makes the whole AI-testing toolchain usable by anyone — no
 terminal required. Describe a feature → generate a risk-based test suite → run it
 against a model → get a report with a **ship / no-ship verdict**.
 
-▶️ **Live demo** (offline mock, no signup): https://ai-testing-studio-jsrj4bqyatgfc7jzz8qzgz.streamlit.app/
+▶️ **Live demo** (offline Demo bot, no signup): https://ai-testing-studio-jsrj4bqyatgfc7jzz8qzgz.streamlit.app/
 
 > **A user story is optional.** AI testing needs two things — an *oracle* (what a
 > correct answer is) and the *right inputs* (including adversarial ones). A user
@@ -43,16 +43,16 @@ Then open the URL it prints (usually http://localhost:8501).
 The UI is organised into four working tabs (plus a "How it works" reference):
 
 **🧪 Test a feature** — the main flow:
-1. **Pick the model under test** (sidebar): offline **Mock**, the **Claude API**
-   (paste a key), or **any HTTP endpoint** (**Groq** free + OpenAI-compatible
-   presets built in).
+1. **Pick the model under test** (sidebar): the offline **Demo bot** (a dummy with
+   planted bugs, for free demos + Practice), the **Claude API** (paste a key), or
+   **any HTTP endpoint** (**Groq** free + OpenAI-compatible presets built in).
 2. **Describe the feature** — a short phrase or a full user story. *(Advanced
    options, hidden by default: declare what the AI can do so only fitting cases
    are generated, and raise the coverage bar.)*
 3. **Generate** a **starter scaffold** of cases (id, category, severity,
-   validator) + a coverage check against the standard. The offline mock fills
-   generic risk-category templates — a starting point a human (or the Claude
-   backend) tailors, not a finished suite.
+   validator) + a coverage check against the standard. The offline Demo bot fills
+   generic risk-category templates; **select a real backend (Groq/Claude) to have
+   the model design feature-specific cases** instead of the generic scaffold.
 4. **Run** (optional **runs-per-case** for non-determinism + **SLA in ms**) — view
    the **report** inline with metric tiles (pass rate, verdict, avg latency,
    flaky cases) and the verdict (**SHIP / NEEDS SIGN-OFF / BLOCK**). Download the
@@ -69,7 +69,7 @@ rewrite** (task-type aware; Claude does a fully tailored rewrite when available)
 **🎓 Practice** — learn AI testing hands-on: a randomised bank of **500+ probes
 across 19 skills** (injection, hallucination, bias, PII, over-refusal, …). Fire a
 probe at the bot, record your verdict, then **reveal** what an expert looks for.
-Auto-scored against the Mock (which has planted bugs, so failures are real to
+Auto-scored against the Demo bot (which has planted bugs, so failures are real to
 catch with no key); filter by skill or difficulty.
 
 **📄 Example audit** — a real adversarial audit run with this methodology: 13
@@ -97,7 +97,7 @@ dependencies, and the live app URL is still public.**
 **For a public instance, set `PRS_STUDIO_PUBLIC=1`** (in the app's *Advanced
 settings → Secrets/env*). This is important: the app serves all sessions from
 one process, so a public instance must not accept secrets or arbitrary URLs.
-With it set, the Studio restricts to the **offline mock** — no API-key field, no
+With it set, the Studio restricts to the **offline Demo bot** — no API-key field, no
 outbound requests. Visitors get the full generate → run → report demo safely;
 anyone who wants to test a real model clones the repo and runs it locally.
 
