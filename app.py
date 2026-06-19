@@ -414,37 +414,46 @@ with tab_practice:
         "**Claude** in the sidebar and run the same probes against a real bot, where a "
         "strong model should pass. (Real backends: run locally.)")
 
-    exercises = core.practice_exercises()
-    titles = [e.title for e in exercises]
-    pick = st.selectbox("Choose a drill", titles, key="practice_pick")
-    ex = next(e for e in exercises if e.title == pick)
+    st.caption(f"Drawn at random from **{core.question_bank_size()}** practice questions "
+               f"across **{len(core.practice_exercises())}** skills — no two sessions are the same.")
+
+    # Draw the first question, or a fresh one on demand.
+    if "practice_q" not in st.session_state:
+        _ex0, _p0 = core.random_question()
+        st.session_state["practice_q"] = {"ex_id": _ex0.id, "probe": _p0, "n": 0}
+    if st.button("🎲 New random question", key="practice_next"):
+        _curr = st.session_state["practice_q"]["probe"]
+        _exn, _pn = core.random_question(avoid=_curr)
+        st.session_state["practice_q"] = {
+            "ex_id": _exn.id, "probe": _pn, "n": st.session_state["practice_q"]["n"] + 1}
+
+    q = st.session_state["practice_q"]
+    ex = core.exercise_by_id(q["ex_id"])
+    n = q["n"]
 
     st.markdown(f"**Skill:** {ex.skill}  ·  category `{ex.category}`")
     st.info(f"**Your task:** {ex.brief}")
 
-    probe_key = f"practice_probe_{ex.id}"
-    st.session_state.setdefault(probe_key, ex.probe)
+    probe_key = f"practice_probe_{n}"
+    st.session_state.setdefault(probe_key, q["probe"])
     probe = st.text_area("Probe to send (edit it — crafting the probe is half the skill)",
                          key=probe_key, height=90)
 
-    pcol1, pcol2, _ = st.columns([1.4, 1, 3])
-    send = pcol1.button("▶️ Send to the bot", type="primary",
-                        key=f"practice_send_{ex.id}", disabled=not probe.strip())
-    pcol2.button("↺ Reset probe", key=f"practice_reset_{ex.id}",
-                 on_click=lambda k=probe_key, v=ex.probe: st.session_state.update({k: v}))
+    send = st.button("▶️ Send to the bot", type="primary",
+                     key=f"practice_send_{n}", disabled=not probe.strip())
 
     if send:
         core.set_backend(_BACKEND_KIND[backend], **backend_opts)
         with st.spinner("Asking the bot…"):
             try:
                 model_name, answer = core.ask_once(probe)
-                st.session_state[f"practice_ans_{ex.id}"] = (model_name, answer)
-                st.session_state.pop(f"practice_reveal_{ex.id}", None)  # fresh answer -> re-judge
+                st.session_state[f"practice_ans_{n}"] = (model_name, answer)
+                st.session_state.pop(f"practice_reveal_{n}", None)  # fresh answer -> re-judge
             except Exception as exc:
-                st.session_state.pop(f"practice_ans_{ex.id}", None)
+                st.session_state.pop(f"practice_ans_{n}", None)
                 st.error(f"The call failed against **{backend}**: {exc}")
 
-    got = st.session_state.get(f"practice_ans_{ex.id}")
+    got = st.session_state.get(f"practice_ans_{n}")
     if not got:
         st.caption("Send the probe to see the bot's answer, then record your verdict to "
                    "reveal the expert analysis.")
@@ -457,11 +466,11 @@ with tab_practice:
         vcol1, vcol2, _ = st.columns([2.4, 1, 2])
         verdict = vcol1.radio("Your verdict — did it pass or fail this probe?",
                               ["It PASSED", "It FAILED", "Not sure"],
-                              key=f"practice_verdict_{ex.id}", horizontal=True)
-        if vcol2.button("OK — reveal", type="primary", key=f"practice_ok_{ex.id}"):
-            st.session_state[f"practice_reveal_{ex.id}"] = True
+                              key=f"practice_verdict_{n}", horizontal=True)
+        if vcol2.button("OK — reveal", type="primary", key=f"practice_ok_{n}"):
+            st.session_state[f"practice_reveal_{n}"] = True
 
-        if st.session_state.get(f"practice_reveal_{ex.id}"):
+        if st.session_state.get(f"practice_reveal_{n}"):
             with st.container(border=True):
                 st.markdown("#### 🔎 Expert analysis")
                 st.caption(f"Your call: **{verdict}**")
