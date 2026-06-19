@@ -337,6 +337,78 @@ with tab_test:
             )
             rc3.download_button("⬇️ Generated suite (YAML)", bundle, "suite.yaml", "text/yaml")
 
+    # ---- deploy-readiness certification battery -----------------------------
+    st.divider()
+    st.subheader("🛡️ Deploy-readiness certification")
+    st.caption(
+        f"A fixed, comprehensive battery — **{len(core.CERTIFICATION_CASES)} probes** across "
+        f"**{core.certification_dimensions()}** risk dimensions (safety, security/red-team, "
+        "hallucination, accuracy, reasoning, consistency, robustness, bias, format, and "
+        "refusal-calibration). Validators check for the *correct* behaviour, so a strong model "
+        "passes and a weak one fails. Run it against a real bot (Groq/Claude) to certify it for "
+        "deploy. *Certification is risk-based, not absolute — this is a strong general bar, not a "
+        "guarantee.*")
+
+    cc1, cc2, _ = st.columns([1.4, 1, 3])
+    do_cert = cc1.button("🛡️ Run certification battery", type="primary", key="run_cert")
+    cert_repeat = cc2.number_input("Runs per case", min_value=1, max_value=10, value=1, step=1,
+                                   key="cert_repeat",
+                                   help="Run each probe N times and measure a pass rate "
+                                        "(non-determinism). 3–5 for a real model.")
+    if do_cert:
+        core.set_backend(_BACKEND_KIND[backend], **backend_opts)
+        with st.spinner("Running the certification battery…"):
+            try:
+                _cases = core.build_certification()
+                st.session_state["cert_run"] = core.run_selected(
+                    _cases, repeat=int(cert_repeat))
+            except Exception as exc:
+                st.session_state.pop("cert_run", None)
+                st.error(f"Certification run failed against **{backend}**: {exc}")
+
+    cert = st.session_state.get("cert_run")
+    if cert:
+        cm1, cm2, cm3, cm4 = st.columns(4)
+        cm1.metric("Score", f"{cert.summary.pass_rate:.0f}%")
+        cm2.metric("Passed", f"{cert.summary.passed}/{cert.summary.total}")
+        cm3.metric("Failed", cert.summary.failed)
+        cm4.metric("Verdict", cert.verdict)
+        _cv_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
+        getattr(st, _cv_style.get(cert.verdict, "info"))(
+            f"Certification verdict: **{cert.verdict}**  ·  model: `{cert.model_name}`  "
+            + ("— ready to deploy on this bar." if cert.verdict == "SHIP"
+               else "— do not deploy until the failures below are resolved."))
+        if str(cert.model_name).startswith("mock"):
+            st.warning("**Mock backend** — the mock has planted bugs, so it deliberately fails "
+                       "many probes (it is *not* deploy-ready, by design). Run Groq/Claude to "
+                       "certify a real bot.")
+        # per-dimension scorecard
+        _by_cat: dict[str, list[int]] = {}
+        for r in cert.results:
+            row = _by_cat.setdefault(r.case.category, [0, 0])
+            row[1] += 1
+            if r.passed:
+                row[0] += 1
+        _score_rows = {
+            "risk dimension": [], "passed": [], "status": []}
+        for c, (p, t) in sorted(_by_cat.items()):
+            _score_rows["risk dimension"].append(c)
+            _score_rows["passed"].append(f"{p}/{t}")
+            _score_rows["status"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
+        st.markdown("**Scorecard by risk dimension**")
+        st.table(_score_rows)
+        _fails = [r for r in cert.results if not r.passed]
+        if _fails:
+            with st.expander(f"❌ {len(_fails)} failing probe(s) — what to fix", expanded=False):
+                for r in _fails:
+                    st.markdown(f"**`{r.case.id}`** (`{r.case.category}` / {r.case.severity})")
+                    st.markdown(f"> Prompt: {r.case.prompt}")
+                    st.caption(f"Bot replied: {r.answer[:300]}")
+                    st.divider()
+        cdl1, cdl2 = st.columns(2)
+        cdl1.download_button("⬇️ Certification HTML", cert.html, "certification.html", "text/html")
+        cdl2.download_button("⬇️ Certification JSON", cert.json, "certification.json", "application/json")
+
 # ============================================================================
 # TAB 2 — Prompt & instructions scorer
 # ============================================================================
