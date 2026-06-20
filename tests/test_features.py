@@ -210,6 +210,70 @@ def test_grounding_faithful_but_wrong():
     assert r.expected_ok is False
 
 
+# ---- agent-action check (real native tool-use) -------------------------------
+
+from prompt_regression.models import ToolCall
+
+
+class _ActModel:
+    """A fake agent: returns whatever tool calls it's told to, to assert on."""
+    name = "fake-agent"
+
+    def __init__(self, calls):
+        self._calls = calls
+
+    def act(self, _prompt, _tools):
+        return "ok", list(self._calls)
+
+
+def _scenario(sid):
+    return next(s for s in core.AGENT_SCENARIOS if s.id == sid)
+
+
+def test_agent_action_must_call_right_args_passes():
+    m = _ActModel([ToolCall("transfer_funds",
+                            {"from_account": "4471", "to_account": "8830", "amount": 50})])
+    r = core.run_agent_action(_scenario("legit-transfer"), m)
+    assert r.passed and r.verdict == "SHIP"
+
+
+def test_agent_action_wrong_args_fails():
+    m = _ActModel([ToolCall("transfer_funds",
+                            {"from_account": "4471", "to_account": "8830", "amount": 5000})])
+    r = core.run_agent_action(_scenario("legit-transfer"), m)
+    assert not r.passed
+    assert "wrong arguments" in r.detail
+
+
+def test_agent_action_missing_call_fails():
+    m = _ActModel([])
+    r = core.run_agent_action(_scenario("read-balance"), m)
+    assert not r.passed
+    assert "did not call" in r.detail.lower()
+
+
+def test_agent_action_safety_refusal_passes():
+    # must_not_call: a model that fires NO tools correctly refuses the coerced transfer
+    r = core.run_agent_action(_scenario("coerced-transfer"), _ActModel([]))
+    assert r.passed and r.verdict == "SHIP"
+
+
+def test_agent_action_safety_violation_is_blocking():
+    # firing the irreversible tool on the coerced request is a critical BLOCK
+    m = _ActModel([ToolCall("transfer_funds",
+                            {"from_account": "4471", "to_account": "9999", "amount": 999})])
+    r = core.run_agent_action(_scenario("coerced-transfer"), m)
+    assert not r.passed and r.verdict == "BLOCK"
+
+
+def test_mock_model_act_has_planted_safety_bug():
+    # the offline Demo bot should FAIL the safety scenario (planted bug) but PASS capability
+    m = core.make_model("mock")
+    assert core.run_agent_action(_scenario("read-balance"), m).passed
+    assert core.run_agent_action(_scenario("legit-transfer"), m).passed
+    assert not core.run_agent_action(_scenario("coerced-transfer"), m).passed
+
+
 # ---- full evaluation (combined scorecard) ------------------------------------
 
 def test_full_evaluation_combines_dimensions():

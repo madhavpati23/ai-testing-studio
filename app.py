@@ -130,7 +130,7 @@ with st.sidebar:
     # switches backends, clear every cached run so a stale verdict from the old
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
-                    "convo_run", "rag_run", "calib", "calibrated_judge")
+                    "convo_run", "rag_run", "aa_run", "calib", "calibrated_judge")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
             st.session_state.pop(_k, None)
@@ -794,6 +794,73 @@ def _flow_rag():
                 st.caption(f"Expected substring “{rag.expected}”: "
                            + ("✅ found" if rag.expected_ok else "❌ not found"))
 
+# ---- Behaviours · agent actions (real native tool-use) ----------------------
+def _flow_agent_action():
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
+        '<b style="font-size:1.1rem;">🛠️ Agent-action check</b><br>'
+        'Most "agent" testing only reads the <i>text</i>. This tests the <b>actions</b>: the model '
+        'is given <b>real tools</b> and we capture the calls it <i>actually</i> makes — did it fire '
+        'the right tool with the right arguments, and did it <b>refuse to run an irreversible one</b> '
+        'when it should have? The tools here are a banking agent: <code>get_balance</code> '
+        '(read-only) and <code>transfer_funds</code> (irreversible).</div>',
+        unsafe_allow_html=True,
+    )
+    _aa_kind = _BACKEND_KIND[backend]
+
+    # Legend: the two things an agent-action check proves.
+    al1, al2 = st.columns(2)
+    al1.success("**Capability**  \nCalls the right tool with the right arguments.")
+    al2.error("**Safety**  \nRefuses to fire an irreversible tool on a coerced request.")
+
+    if _aa_kind == "http":
+        st.warning("HTTP endpoints have no standard tool-call channel to capture. Use **Claude** "
+                   "(real native tool-use) — or the **Demo bot** for an offline demonstration "
+                   "(it has a *planted* unsafe-action bug for the safety scenario).")
+    elif _aa_kind == "mock":
+        st.info("Running the **Demo bot**: a deterministic agent with a *planted* safety bug — it "
+                "obeys the coerced transfer instead of refusing. Switch to **Claude** to test a "
+                "real model's tool-use.")
+
+    with st.container(border=True):
+        st.markdown("##### 📥 The scenario")
+        _labels = [s.label for s in core.AGENT_SCENARIOS]
+        _pick = st.selectbox("Pick an agent scenario", _labels, key="aa_scenario")
+        _scen = core.AGENT_SCENARIOS[_labels.index(_pick)]
+        st.markdown(f"**Request sent to the agent:**")
+        st.markdown(f"> {_scen.prompt}")
+        st.caption(f"✅ A correct agent should: {_scen.intent}")
+
+    if _aa_kind == "http":
+        st.caption("⚪ Disabled — switch to Claude or the Demo bot in the sidebar to enable.")
+    if st.button("🛠️ Run agent-action check", type="primary", key="run_aa",
+                 disabled=_aa_kind == "http"):
+        with st.spinner(f"Offering the tools to {backend} and capturing its calls…"):
+            try:
+                st.session_state["aa_run"] = core.run_agent_action(
+                    _scen, core.make_model(_aa_kind, backend_opts))
+            except Exception as exc:
+                st.session_state.pop("aa_run", None)
+                st.error(f"Agent-action check failed against **{backend}**: {exc}")
+
+    aa = st.session_state.get("aa_run")
+    if aa:
+        (st.success if aa.passed else st.error)(
+            f"{'✅ PASS' if aa.passed else '❌ FAIL'} · verdict **{aa.verdict}** · "
+            f"model `{aa.model_name}`")
+        with st.container(border=True):
+            st.markdown("**Tool calls the model actually made**")
+            if aa.calls:
+                st.dataframe(
+                    pd.DataFrame([{"tool": c.name, "arguments": json.dumps(c.arguments)}
+                                  for c in aa.calls]),
+                    hide_index=True, use_container_width=True)
+            else:
+                st.caption("— no tools were called —")
+            st.markdown(f"**Why:** {aa.detail}")
+            if aa.text:
+                st.caption(f"Assistant said: “{aa.text}”")
+
 # ---- Judge calibration ------------------------------------------------------
 def _flow_judge():
     st.markdown(
@@ -1044,13 +1111,16 @@ with tab_behav:
     beh_mode = st.radio(
         "Which behaviour?",
         ["🔁 Multi-turn — memory, context & scope across a conversation",
-         "📚 RAG grounding — is the answer faithful to a provided source?"],
+         "📚 RAG grounding — is the answer faithful to a provided source?",
+         "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?"],
         key="beh_mode")
     st.divider()
     if beh_mode.startswith("🔁"):
         _flow_multiturn()
-    else:
+    elif beh_mode.startswith("📚"):
         _flow_rag()
+    else:
+        _flow_agent_action()
 
 with tab_judge:
     _flow_judge()

@@ -81,8 +81,14 @@ your ground truth · judge), a "pick your path" map, and a 2-minute free-key set
 > sidebar.
 
 **🔁 Behaviors** — specialised agent checks: **Multi-turn** (memory, context & scope
-across a conversation) and **RAG grounding** (is the answer faithful to a provided
-source, or hallucinated beyond it — *grounded / grounded-but-wrong / not grounded*).
+across a conversation), **RAG grounding** (is the answer faithful to a provided
+source, or hallucinated beyond it — *grounded / grounded-but-wrong / not grounded*),
+and **Agent actions** — the one that tests *behaviour, not text*: the model is given
+**real tools** (a banking agent's `get_balance` / `transfer_funds`) via **native
+tool-use**, and we capture the calls it *actually* makes — did it call the right tool
+with the right arguments, and did it **refuse to fire an irreversible tool** on a
+coerced request? Runs on **Claude** (real tool-use); the **Demo bot** has a *planted*
+unsafe-action bug so the safety scenario is catchable offline.
 
 **⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels
 (`criterion, answer, human_pass`) and see how often it agrees with you (**agreement %**
