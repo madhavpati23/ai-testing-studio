@@ -42,53 +42,36 @@ Then open the URL it prints (usually http://localhost:8501).
 
 ## What you can do
 
-The UI is organised into eight working tabs (plus a "How it works" reference):
+One idea — **give an AI a verdict you can defend** — organised as a journey, not a
+pile of peer tabs. First, in the sidebar, pick the **model under test**: the offline
+**Demo bot** (a planted-bug dummy, free, no key) or a real model — **Claude** or
+**Groq (free)** / any HTTP endpoint — with **your own key** (kept in your session,
+never written to the server). Then:
 
-**🧪 Test a feature** — the main flow:
-1. **Pick the model under test** (sidebar): the offline **Demo bot** (a dummy with
-   planted bugs, for free demos + Practice), the **Claude API** (paste a key), or
-   **any HTTP endpoint** (**Groq** free + OpenAI-compatible presets built in).
-2. **Describe the feature** — a short phrase or a full user story. *(Advanced
-   options, hidden by default: declare what the AI can do so only fitting cases
-   are generated, and raise the coverage bar.)*
-3. **Generate** a **starter scaffold** of cases (id, category, severity,
-   validator) + a coverage check against the standard. The offline Demo bot fills
-   generic risk-category templates; **select a real backend (Groq/Claude) to have
-   the model design feature-specific cases** instead of the generic scaffold.
-4. **Run** (optional **runs-per-case** for non-determinism + **SLA in ms**) — view
-   the **report** inline with metric tiles (pass rate, verdict, avg latency,
-   flaky cases) and the verdict (**SHIP / NEEDS SIGN-OFF / BLOCK**). Download the
-   HTML/JSON report and the YAML suite.
-5. **🛡️ Deploy-readiness certification** — run a fixed, comprehensive battery
-   (~22 probes across every risk dimension) against the chosen bot, with a
-   per-dimension scorecard, the failing probes (and the bot's replies), and a
-   certification verdict. *Risk-based, not absolute — a strong general bar.*
+**👋 Start here** — the one idea (the *three roles*: model under test · designer /
+your ground truth · judge) and a "pick your path" map.
 
-**📋 Golden set** — upload your own **input → expected** CSV and run it against the
-selected model. The verdict is judged against **ground truth you defined**, not a
-generated guess — the most trustworthy run in the Studio. (Columns: `prompt`,
-`expected`, optional `validator`/`category`/`severity`; a template is downloadable
-in-app.)
+**🎯 Evaluate** — the core. One question, **three ways to answer it**:
+- **Against your ground truth** — upload an `input → expected` CSV; the verdict is
+  judged against truth *you* defined (the most trustworthy run).
+- **Across risk dimensions** — a fixed **deploy-readiness certification** (~22 probes:
+  injection, hallucination, bias, PII, …) with a per-dimension scorecard, the failing
+  probes, and a SHIP / NEEDS-SIGN-OFF / BLOCK verdict.
+- **From a feature description** — generate a draft suite (a real model designs
+  feature-specific cases; the Demo bot fills generic scaffolds), review, and run it
+  with optional **runs-per-case** (non-determinism / flaky detection) and an **SLA**.
 
-**🔁 Multi-turn** — script a conversation (one user turn per line) and check the
-**final reply**, to test an agent's **memory, context retention, and scope** across a
-dialogue — not just single-shot. The model carries context (native history on Claude;
-a running transcript on Groq/HTTP via `HttpModel.converse`).
+**🔁 Behaviors** — specialised agent checks: **Multi-turn** (memory, context & scope
+across a conversation) and **RAG grounding** (is the answer faithful to a provided
+source, or hallucinated beyond it — *grounded / grounded-but-wrong / not grounded*).
 
-**📚 RAG grounding** — paste a **context** + a **question**; the model answers from the
-context only and a **grounding judge** checks every claim is supported — catching RAG's
-worst failure (confidently adding facts not in the source). Verdict: *grounded /
-grounded-but-wrong / not grounded*.
+**⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels
+(`criterion, answer, human_pass`) and see how often it agrees with you (**agreement %**
+→ *trustworthy / use with caution / do not trust*). Backend-agnostic, so open-ended
+quality can be graded without a Claude key; it also grades `llm_judge` cases in a run.
 
-**⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels: upload
-`criterion, answer, human_pass` rows and see how often a model-judge agrees with you
-(**agreement %** → *trustworthy / use with caution / do not trust*). The judge is
-**backend-agnostic** (Groq/OpenAI/Claude), so open-ended quality can be graded without
-a Claude key — and it grades `llm_judge` cases in a run with the chosen model.
-
-**✍️ Prompt & instructions** — paste a **prompt** or an **agent's instructions**
-and get a quality score, a few concise pointers, and a concrete **suggested
-rewrite** (task-type aware; Claude does a fully tailored rewrite when available).
+**✍️ Prompt scorer** — a utility: paste a **prompt** or **agent instructions** and get
+a quality score, pointers, and a concrete **suggested rewrite**.
 
 **🎓 Practice** — learn AI testing hands-on: a randomised bank of **500+ probes
 across 19 skills** (injection, hallucination, bias, PII, over-refusal, …). Fire a

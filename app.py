@@ -180,18 +180,17 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-(tab_test, tab_golden, tab_agent, tab_rag, tab_judge, tab_prompt, tab_practice,
- tab_audit, tab_help) = st.tabs(
-    ["🧪 Test a feature", "📋 Golden set", "🔁 Multi-turn", "📚 RAG grounding", "⚖️ Judge",
-     "✍️ Prompt & instructions", "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
-)
 _AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "reports", "claude-audit-2026-06-18.md")
 
 # ============================================================================
-# TAB 1 — Test a feature (the main flow)
+# Flow functions — each renders one evaluation flow. They read module globals
+# (backend, backend_opts, …) set by the sidebar. The tab "spine" at the bottom
+# dispatches to them, so the UI reads as a journey, not a pile of peer tabs.
 # ============================================================================
-with tab_test:
+
+# ---- Evaluate · from a feature description (generate a draft suite + run) ----
+def _flow_feature():
     st.subheader("1 · Describe the feature")
     scenarios = core.load_scenarios()
     by_label = {f"{s.group} — {s.label}": s for s in scenarios}
@@ -394,8 +393,9 @@ with tab_test:
             )
             rc3.download_button("⬇️ Generated suite (YAML)", bundle, "suite.yaml", "text/yaml")
 
-    # ---- deploy-readiness certification battery -----------------------------
-    st.divider()
+
+# ---- Evaluate · across risk dimensions (deploy-readiness certification) ------
+def _flow_certification():
     st.subheader("🛡️ Deploy-readiness certification")
     st.caption(
         f"A fixed, comprehensive battery — **{len(core.CERTIFICATION_CASES)} probes** across "
@@ -475,10 +475,8 @@ with tab_test:
         cdl1.download_button("⬇️ Certification HTML", cert.html, "certification.html", "text/html")
         cdl2.download_button("⬇️ Certification JSON", cert.json, "certification.json", "application/json")
 
-# ============================================================================
-# TAB 2 — Golden set (test against YOUR ground truth)
-# ============================================================================
-with tab_golden:
+# ---- Evaluate · against your ground truth (golden set) ----------------------
+def _flow_golden():
     st.markdown(
         '<div class="pq-callout"><span class="pq-badge">TRUTH</span>'
         '<b style="font-size:1.1rem;">📋 Test against your own ground truth</b><br>'
@@ -551,10 +549,8 @@ with tab_golden:
         st.caption("No file yet — download the template, fill in your own prompts and expected "
                    "answers, and upload it. Tip: run it against **Groq/Claude**, not the Demo bot.")
 
-# ============================================================================
-# TAB 3 — Multi-turn (test an agent across a conversation)
-# ============================================================================
-with tab_agent:
+# ---- Behaviours · multi-turn conversation -----------------------------------
+def _flow_multiturn():
     st.markdown(
         '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
         '<b style="font-size:1.1rem;">🔁 Test across a conversation</b><br>'
@@ -607,10 +603,8 @@ with tab_agent:
         st.caption("The check ran on the final reply. To verify mid-conversation behaviour, end "
                    "the script on the turn you want to assert.")
 
-# ============================================================================
-# TAB 4 — RAG grounding (is the answer faithful to the provided context?)
-# ============================================================================
-with tab_rag:
+# ---- Behaviours · RAG grounding ---------------------------------------------
+def _flow_rag():
     st.markdown(
         '<div class="pq-callout"><span class="pq-badge">RAG</span>'
         '<b style="font-size:1.1rem;">📚 Grounding / faithfulness check</b><br>'
@@ -662,10 +656,8 @@ with tab_rag:
                    "contradicted facts (hallucination). GROUNDED BUT WRONG = faithful but missed the "
                    "expected answer.")
 
-# ============================================================================
-# TAB 5 — Judge (calibrate an LLM-as-judge against human labels)
-# ============================================================================
-with tab_judge:
+# ---- Judge calibration ------------------------------------------------------
+def _flow_judge():
     st.markdown(
         '<div class="pq-callout"><span class="pq-badge">JUDGE</span>'
         '<b style="font-size:1.1rem;">⚖️ Calibrate an LLM judge</b><br>'
@@ -734,10 +726,8 @@ with tab_judge:
         st.caption("No file yet — download the template, label each row with your own pass/fail "
                    "judgement, and upload it to measure how well the judge matches you.")
 
-# ============================================================================
-# TAB 6 — Prompt & instructions scorer
-# ============================================================================
-with tab_prompt:
+# ---- Prompt & instructions scorer (utility) ---------------------------------
+def _flow_prompt():
     st.markdown(
         '<div class="pq-callout"><span class="pq-badge">TOOL</span>'
         '<b style="font-size:1.1rem;">✍️ Score a prompt or agent instructions</b><br>'
@@ -794,10 +784,8 @@ with tab_prompt:
                     st.caption(blurb)
                     st.code(score.example, language="text")
 
-# ============================================================================
-# TAB 7 — Practice (guided, hands-on AI-testing drills)
-# ============================================================================
-with tab_practice:
+# ---- Practice (guided, hands-on AI-testing drills) --------------------------
+def _flow_practice():
     st.markdown(
         '<div class="pq-callout"><span class="pq-badge">LEARN</span>'
         '<b style="font-size:1.1rem;">🎓 Practice testing an AI</b><br>'
@@ -936,10 +924,8 @@ with tab_practice:
                 st.rerun()
 
 
-# ============================================================================
-# TAB 8 — Example audit (a real report produced with this methodology)
-# ============================================================================
-with tab_audit:
+# ---- Example audit ----------------------------------------------------------
+def _flow_audit():
     st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
                "against a live model, judged with explicit pass criteria.")
     try:
@@ -948,10 +934,8 @@ with tab_audit:
         st.info("Audit report file not found.")
 
 
-# ============================================================================
-# TAB 9 — How it works
-# ============================================================================
-with tab_help:
+# ---- How it works -----------------------------------------------------------
+def _flow_help():
     st.subheader("How it works")
 
     st.markdown("#### What AI testing actually needs")
@@ -985,21 +969,16 @@ with tab_help:
                "defines the real oracle. Defining 'correct' is the test design; this "
                "tool runs, gates, and reports it.")
 
-    st.markdown("#### What's in each tab")
+    st.markdown("#### The tabs")
     st.markdown(
-        "- **🧪 Test a feature** — generate + run a suite, plus a fixed **deploy-readiness "
-        "certification** battery across every risk dimension with a per-dimension scorecard.\n"
-        "- **📋 Golden set** — upload your own **input → expected** pairs and test against "
-        "**truth you defined** (the most trustworthy run — judged on real ground truth, not a guess).\n"
-        "- **🔁 Multi-turn** — script a conversation and check the final reply, to test an agent's "
-        "**memory, context retention, and scope** across turns (not just single-shot).\n"
-        "- **📚 RAG grounding** — give a context + question; a grounding judge checks the answer is "
-        "**faithful to the source** and didn't hallucinate beyond it.\n"
-        "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels and see how often it "
-        "agrees with you, before trusting it to grade open-ended quality.\n"
-        "- **✍️ Prompt & instructions** — score and rewrite a prompt or an agent's instructions.\n"
-        "- **🎓 Practice** — learn by doing: 500+ probes across 19 skills; fire one, judge it, "
-        "then reveal what an expert looks for (auto-scored against the Demo bot).\n"
+        "- **🎯 Evaluate** — the core. One question, three ways to answer it: against **your "
+        "ground truth** (most trustworthy), across **risk dimensions** (deploy-readiness "
+        "certification), or **from a feature description** (a draft suite to refine).\n"
+        "- **🔁 Behaviors** — specialised agent checks: **multi-turn** memory/scope, and **RAG "
+        "grounding** (faithfulness to a source).\n"
+        "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels before trusting it.\n"
+        "- **🎓 Practice** — 500+ hands-on drills to train the eye for these failures.\n"
+        "- **✍️ Prompt scorer** — a utility: score and rewrite a prompt or agent instructions.\n"
         "- **📄 Example audit** — a real adversarial audit that found a documented defect."
     )
     st.markdown("#### Risk categories covered")
@@ -1013,3 +992,89 @@ with tab_help:
     )
     st.caption("Performance/SLA is reported alongside, but does not change the verdict — speed and "
                "correctness are kept as separate signals.")
+
+
+# ---- Start here -------------------------------------------------------------
+def _flow_start_here():
+    st.subheader("👋 Welcome — give any AI a verdict you can defend")
+    st.markdown(
+        "Put a model or agent **under test** and get a **SHIP / NO-SHIP verdict** across the "
+        "dimensions that matter — judged against *truth*, not vibes."
+    )
+    st.info(
+        "**The one idea — three roles.** It's easy to mix these up, so here they are once:\n\n"
+        "1. **The model under test** — the AI you're judging (pick it in the sidebar).\n"
+        "2. **The designer / your ground truth** — where the test cases *come from* (you upload "
+        "them, or a model drafts them).\n"
+        "3. **The judge** — for open-ended quality, a model grades the answer — and you "
+        "*calibrate* that judge against your own labels before trusting it."
+    )
+    st.markdown("#### Pick your path")
+    pc1, pc2, pc3 = st.columns(3)
+    with pc1:
+        st.markdown("**🆓 Try it free**")
+        st.caption("Keep the **Demo bot** selected (no key). Open **Evaluate** or **Practice** "
+                   "to see the whole pipeline run instantly.")
+    with pc2:
+        st.markdown("**🔑 Test a real model**")
+        st.caption("In the sidebar pick **Claude** or **Groq (free)** and paste your key (it "
+                   "stays in your session). Then **Evaluate → against your ground truth**.")
+    with pc3:
+        st.markdown("**🎓 Learn the craft**")
+        st.caption("**Practice** has 500+ drills: fire a probe, judge the answer, reveal what "
+                   "an expert looks for.")
+    st.caption("New to this? Start with **🎯 Evaluate** on the Demo bot, then bring your own key "
+               "for a real verdict. The **ℹ️ How it works** tab explains the method.")
+
+
+# ============================================================================
+# The tab spine — a journey, dispatching to the flow functions above.
+# ============================================================================
+(tab_start, tab_eval, tab_behav, tab_judge, tab_practice,
+ tab_prompt, tab_audit, tab_help) = st.tabs(
+    ["👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
+     "🎓 Practice", "✍️ Prompt scorer", "📄 Example audit", "ℹ️ How it works"]
+)
+
+with tab_start:
+    _flow_start_here()
+
+with tab_eval:
+    st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
+    eval_mode = st.radio(
+        "How do you want to evaluate?",
+        ["📋 Against your ground truth — upload input → expected (most trustworthy)",
+         "🛡️ Across risk dimensions — a fixed deploy-readiness certification",
+         "🧪 From a feature description — generate a draft suite, then run it"],
+        key="eval_mode")
+    st.divider()
+    if eval_mode.startswith("📋"):
+        _flow_golden()
+    elif eval_mode.startswith("🛡️"):
+        _flow_certification()
+    else:
+        _flow_feature()
+
+with tab_behav:
+    st.markdown("**Specialised checks for agent behaviour** — beyond a single question.")
+    beh_mode = st.radio(
+        "Which behaviour?",
+        ["🔁 Multi-turn — memory, context & scope across a conversation",
+         "📚 RAG grounding — is the answer faithful to a provided source?"],
+        key="beh_mode")
+    st.divider()
+    if beh_mode.startswith("🔁"):
+        _flow_multiturn()
+    else:
+        _flow_rag()
+
+with tab_judge:
+    _flow_judge()
+with tab_practice:
+    _flow_practice()
+with tab_prompt:
+    _flow_prompt()
+with tab_audit:
+    _flow_audit()
+with tab_help:
+    _flow_help()
