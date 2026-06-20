@@ -123,7 +123,7 @@ with st.sidebar:
     backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint"]
     backend = st.radio("Backend", backends,
                        help="The Demo bot is a built-in offline dummy with planted bugs — for "
-                            "free demos and Practice, no key. Claude/HTTP test a real model with "
+                            "free demos, no key. Claude/HTTP test a real model with "
                             "your own key (used only for your session).")
     backend_opts: dict[str, str] = {}
     if backend != "Demo bot (offline)":
@@ -521,15 +521,17 @@ def _flow_certify():
             st.error(f"Could not read the CSV: {exc}")
 
     _THOROUGH = {
-        "Quick — ~22 checks, 1 run (fast smoke test)": ("quick", 1),
-        "Standard — ~48 checks, 1 run (recommended)": ("standard", 1),
-        "Thorough — ~48 checks, 3 runs each (most rigorous)": ("thorough", 3),
+        "Quick — ~22 checks, 1 run (fast smoke test)": ("quick", 1, 0),
+        "Standard — ~48 checks, 1 run (recommended)": ("standard", 1, 0),
+        "Thorough — ~48 checks, 3 runs each (most rigorous)": ("thorough", 3, 0),
+        "Deep — ~48 + 80 randomized stress probes (hardest to game)": ("deep", 1, 80),
     }
     tc1, tc2 = st.columns([2, 1])
     thoroughness = tc1.selectbox("Thoroughness", list(_THOROUGH), index=1, key="certify_level")
-    _level, _runs = _THOROUGH[thoroughness]
+    _level, _runs, _stress = _THOROUGH[thoroughness]
     tc2.caption("More checks + more runs = a more defensible grade, but more API calls "
-                "(mind free-tier rate limits).")
+                "(mind free-tier rate limits). **Deep** draws 80 fresh probes from a 500+ "
+                "bank, so no two Deep runs are identical.")
 
     if st.button("🏅 Certify this AI", type="primary", key="run_certify"):
         _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
@@ -539,7 +541,7 @@ def _flow_certify():
                 st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
                     golden_cases=gcases or None, judge=_cj,
-                    level=_level, repeat=_runs)
+                    level=_level, repeat=_runs, stress_n=_stress)
             except Exception as exc:
                 st.session_state.pop("certify", None)
                 st.error(f"Certification failed against **{backend}**: {exc}")
@@ -841,145 +843,6 @@ def _flow_judge():
         st.caption("No file yet — download the template, label each row with your own pass/fail "
                    "judgement, and upload it to measure how well the judge matches you.")
 
-# ---- Practice (guided, hands-on AI-testing drills) --------------------------
-def _flow_practice():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">LEARN</span>'
-        '<b style="font-size:1.1rem;">🎓 Practice testing an AI</b><br>'
-        'Pick a drill, fire the probe at the bot under test, judge the answer yourself '
-        '— then reveal what an expert tester looks for.</div>',
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "Tip: these probes are tuned so the **offline Demo bot** already fails them — so you "
-        "can practice catching real bugs with no key. Then switch to **Groq (free)** or "
-        "**Claude** in the sidebar and run the same probes against a real bot, where a "
-        "strong model should pass. (Real backends: run locally.)")
-
-    st.caption(f"Drawn at random from **{core.question_bank_size()}** practice questions "
-               f"across **{len(core.practice_exercises())}** skills — no two sessions are the same.")
-
-    st.session_state.setdefault("practice_score", {"correct": 0, "total": 0})
-    _practice_is_mock = _BACKEND_KIND[backend] == "mock"
-    if _practice_is_mock:
-        # The Demo bot has a known answer key, so we can auto-grade and keep score.
-        sccol1, sccol2 = st.columns([3, 1])
-        if sccol2.button("Reset score", key="practice_reset_score"):
-            st.session_state["practice_score"] = {"correct": 0, "total": 0}
-            for _k in [k for k in st.session_state if str(k).startswith("practice_scored_")]:
-                del st.session_state[_k]
-            st.rerun()
-        _sc = st.session_state["practice_score"]
-        _pct = round(100 * _sc["correct"] / _sc["total"]) if _sc["total"] else 0
-        sccol1.metric("🎯 Your score this session",
-                      f"{_sc['correct']} / {_sc['total']} correct",
-                      f"{_pct}%" if _sc["total"] else None)
-        sccol1.caption("Auto-graded because you're testing the **Demo bot** (it has a known answer key).")
-    else:
-        # A real bot has no answer key — scoring is off; the learner self-assesses.
-        st.info(f"🎯 **Self-assessed mode** — you're testing a real bot (`{backend}`), which has no "
-                "fixed answer key, so automatic scoring is off. Judge each answer yourself, then "
-                "**reveal** the expert analysis to check your call. Switch to the **Demo bot** backend "
-                "(sidebar) to get an auto-graded score.")
-
-    # Optional focus: narrow the pool to chosen skills / difficulties.
-    with st.expander("🎚️ Focus your session (optional) — pick skills or difficulty"):
-        _title_to_id = {f"{e.title}  ·  {core.difficulty(e.id)}": e.id
-                        for e in core.practice_exercises()}
-        _sel_titles = st.multiselect("Skills (leave empty for all 19)", list(_title_to_id),
-                                     key="practice_filter_skills")
-        _sel_diff = st.multiselect("Difficulty (leave empty for all)", core.DIFFICULTIES,
-                                   key="practice_filter_diff")
-        st.caption("Filters apply to the **next** question.")
-    _skill_ids = [_title_to_id[t] for t in _sel_titles] or None
-    _diffs = _sel_diff or None
-
-    # Draw the first question, or a fresh one on demand.
-    if "practice_q" not in st.session_state:
-        _ex0, _p0 = core.random_question(skills=_skill_ids, difficulties=_diffs)
-        st.session_state["practice_q"] = {"ex_id": _ex0.id, "probe": _p0, "n": 0}
-    if st.button("🎲 New random question", key="practice_next"):
-        _curr = st.session_state["practice_q"]["probe"]
-        _exn, _pn = core.random_question(avoid=_curr, skills=_skill_ids, difficulties=_diffs)
-        st.session_state["practice_q"] = {
-            "ex_id": _exn.id, "probe": _pn, "n": st.session_state["practice_q"]["n"] + 1}
-
-    q = st.session_state["practice_q"]
-    ex = core.exercise_by_id(q["ex_id"])
-    n = q["n"]
-
-    st.markdown(f"**Skill:** {ex.skill}  ·  category `{ex.category}`  ·  "
-                f"difficulty **{core.difficulty(ex.id)}**")
-    st.info(f"**Your task:** {ex.brief}")
-
-    probe_key = f"practice_probe_{n}"
-    st.session_state.setdefault(probe_key, q["probe"])
-    probe = st.text_area("Probe to send (edit it — crafting the probe is half the skill)",
-                         key=probe_key, height=90)
-
-    send = st.button("▶️ Send to the bot", type="primary",
-                     key=f"practice_send_{n}", disabled=not probe.strip())
-
-    if send:
-        with st.spinner("Asking the bot…"):
-            try:
-                model_name, answer = core.ask_once(
-                    probe, model=core.make_model(_BACKEND_KIND[backend], backend_opts))
-                st.session_state[f"practice_ans_{n}"] = (model_name, answer)
-                st.session_state.pop(f"practice_reveal_{n}", None)  # fresh answer -> re-judge
-            except Exception as exc:
-                st.session_state.pop(f"practice_ans_{n}", None)
-                st.error(f"The call failed against **{backend}**: {exc}")
-
-    got = st.session_state.get(f"practice_ans_{n}")
-    if not got:
-        st.caption("Send the probe to see the bot's answer, then record your verdict to "
-                   "reveal the expert analysis.")
-    else:
-        model_name, answer = got
-        with st.container(border=True):
-            st.markdown(f"**The bot replied**  ·  `{model_name}`")
-            st.markdown(f"> {answer}")
-
-        vcol1, vcol2, _ = st.columns([2.4, 1, 2])
-        verdict = vcol1.radio("Your verdict — did it pass or fail this probe?",
-                              ["It PASSED", "It FAILED", "Not sure"],
-                              key=f"practice_verdict_{n}", horizontal=True)
-        _is_mock = _BACKEND_KIND[backend] == "mock"
-        if vcol2.button("OK — reveal", type="primary", key=f"practice_ok_{n}"):
-            st.session_state[f"practice_reveal_{n}"] = True
-            if _is_mock and not st.session_state.get(f"practice_scored_{n}"):
-                _exp = core.expected_verdict(ex.id)
-                st.session_state["practice_score"]["total"] += 1
-                if verdict == _exp:
-                    st.session_state["practice_score"]["correct"] += 1
-                st.session_state[f"practice_scored_{n}"] = True
-
-        if st.session_state.get(f"practice_reveal_{n}"):
-            if _is_mock:
-                _exp = core.expected_verdict(ex.id)
-                if verdict == _exp:
-                    st.success(f"✅ Correct — the right call here is **{_exp}**.")
-                else:
-                    st.error(f"❌ Not quite — the right call is **{_exp}**. Here's why:")
-            else:
-                st.info("No auto-grade against a real bot (there's no answer key) — use the "
-                        "analysis below to check your own judgement.")
-            with st.container(border=True):
-                st.markdown("#### 🔎 Expert analysis")
-                st.caption(f"Your call: **{verdict}**")
-                st.markdown(f"**What to inspect:** {ex.look_for}")
-                st.markdown(f"**Pass / fail rule:** {ex.pass_criterion}")
-                st.markdown(f"**Why it matters:** {ex.why}")
-                st.markdown(f"**Common rookie mistake:** {ex.pitfall}")
-
-            if st.button("Next question →", type="primary", key=f"practice_nextq_{n}"):
-                _exn, _pn = core.random_question(
-                    avoid=st.session_state["practice_q"]["probe"],
-                    skills=_skill_ids, difficulties=_diffs)
-                st.session_state["practice_q"] = {"ex_id": _exn.id, "probe": _pn, "n": n + 1}
-                st.rerun()
-
 
 # ---- Example audit ----------------------------------------------------------
 def _flow_audit():
@@ -1021,8 +884,8 @@ def _flow_help():
 
     st.markdown("#### Step 3 — Certify (one click)")
     st.markdown(
-        "Open **🏅 Certify**, choose a thoroughness (Quick ~22 / Standard ~48 / Thorough ~48×3), "
-        "and click **Certify this AI**. Under the hood it:\n"
+        "Open **🏅 Certify**, choose a thoroughness (Quick ~22 / Standard ~48 / Thorough ~48×3 / "
+        "**Deep** ~48 + 80 randomized stress probes), and click **Certify this AI**. Under the hood it:\n"
         "1. **Builds the battery** — fixed probes across every risk dimension below.\n"
         "2. **Sends each probe to your AI** and collects the answer (with retry on rate limits).\n"
         "3. **Judges every answer** — a validator per probe (refusal regex, no-leak check, exact "
@@ -1091,9 +954,9 @@ def _flow_start_here():
         st.caption("In the sidebar pick **Groq (free)** or **Claude**, paste your key (3 steps "
                    "below; it stays in your session), then **Certify**.")
     with pc3:
-        st.markdown("**🎓 Learn the craft**")
-        st.caption("**Practice** has 500+ drills: fire a probe, judge the answer, reveal what "
-                   "an expert looks for.")
+        st.markdown("**🔬 Go deep**")
+        st.caption("Add your **ground truth** (📋 in Evaluate), **calibrate a judge** (⚖️), or pick "
+                   "**Deep** in Certify to draw 80 fresh probes from a 500+ bank — hardest to game.")
     st.markdown("#### Get a free Groq key (≈2 min)")
     st.markdown(
         "1. Go to **console.groq.com** → sign in → **API Keys** → **Create**.\n"
@@ -1107,10 +970,10 @@ def _flow_start_here():
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_certify, tab_start, tab_eval, tab_behav, tab_judge, tab_practice,
+(tab_certify, tab_start, tab_eval, tab_behav, tab_judge,
  tab_audit, tab_help) = st.tabs(
     ["🏅 Certify", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
-     "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
+     "📄 Example audit", "ℹ️ How it works"]
 )
 
 with tab_certify:
@@ -1152,8 +1015,6 @@ with tab_behav:
 
 with tab_judge:
     _flow_judge()
-with tab_practice:
-    _flow_practice()
 with tab_audit:
     _flow_audit()
 with tab_help:

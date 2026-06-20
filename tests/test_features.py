@@ -85,6 +85,22 @@ def test_certification_levels():
     assert len(core.build_certification("thorough")) == len(standard)
 
 
+def test_stress_cases_sample_and_validate():
+    cases = core.build_stress_cases(80)
+    assert len(cases) == 80
+    assert all(c.validator == "regex" for c in cases)
+    # full coverage: every skill maps to a validator
+    assert set(core._SKILL_TEST) == {e.id for e in core.practice_exercises()}
+
+
+def test_deep_full_evaluation_adds_stress():
+    m = core.make_model("mock")
+    fe = core.run_full_evaluation(m, level="deep", stress_n=40)
+    names = [n for n, _ in fe.sections]
+    assert "Randomized stress battery" in names
+    assert fe.total >= 48 + 40
+
+
 # ---- practice bank -----------------------------------------------------------
 
 def test_practice_bank_size_and_mapping():

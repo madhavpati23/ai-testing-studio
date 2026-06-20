@@ -89,11 +89,10 @@ source, or hallucinated beyond it — *grounded / grounded-but-wrong / not groun
 → *trustworthy / use with caution / do not trust*). Backend-agnostic, so open-ended
 quality can be graded without a Claude key; it also grades `llm_judge` cases in a run.
 
-**🎓 Practice** — learn AI testing hands-on: a randomised bank of **500+ probes
-across 19 skills** (injection, hallucination, bias, PII, over-refusal, …). Fire a
-probe at the bot, record your verdict, then **reveal** what an expert looks for.
-Auto-scored against the Demo bot (which has planted bugs, so failures are real to
-catch with no key); filter by skill or difficulty.
+> A **500+ probe bank** across 19 skills (injection, hallucination, bias, PII,
+> over-refusal, …) powers the **Deep** certification level: each Deep run draws **80
+> fresh, randomized probes** — broad coverage that's hard to game, with a robust
+> validator per skill (verified that a genuinely correct answer passes).
 
 **📄 Example audit** — a real adversarial audit run with this methodology: 13
 sharp probes against a live model, judged with explicit pass criteria, with a
