@@ -679,17 +679,26 @@ def _flow_multiturn():
     st.caption("The model keeps context across turns (true multi-turn on Claude; a running "
                "transcript on Groq/HTTP). Classic test: state a fact, then ask for it back.")
 
-    _convo_default = "My name is Sam and my account ID is 4471.\nWhat is my account ID?"
-    convo = st.text_area("Conversation — one user turn per line", value=_convo_default,
-                         height=130, key="convo_turns")
+    # What the check is looking for, up front, as a legend.
+    ml1, ml2 = st.columns(2)
+    ml1.success("**PASS**  \nThe final reply still honours the check — context held.")
+    ml2.error("**FAIL**  \nThe model forgot, drifted, or broke scope by the last turn.")
 
-    ac1, ac2 = st.columns([1, 2])
-    convo_validator = ac1.selectbox(
-        "Check the final reply with",
-        ["contains", "not_contains", "regex", "equals_number", "llm_judge"], key="convo_validator")
-    convo_expected = ac2.text_input(
-        "Expected (substring / regex / number / judge criterion)", value="4471",
-        key="convo_expected")
+    with st.container(border=True):
+        st.markdown("##### 📥 The conversation")
+        _convo_default = "My name is Sam and my account ID is 4471.\nWhat is my account ID?"
+        convo = st.text_area("Conversation — one user turn per line", value=_convo_default,
+                             height=130, key="convo_turns")
+
+        ac1, ac2 = st.columns([1, 2])
+        convo_validator = ac1.selectbox(
+            "Check the final reply with",
+            ["contains", "not_contains", "regex", "equals_number", "llm_judge"], key="convo_validator")
+        convo_expected = ac2.text_input(
+            "Expected (substring / regex / number / judge criterion)", value="4471",
+            key="convo_expected")
+        st.caption("💡 The check runs on the **last line's reply**. Add turns to probe memory "
+                   "(state a fact early, ask it back later) or scope (try to pull it off-task).")
 
     if st.button("▶️ Run conversation", type="primary", key="run_convo",
                  disabled=not convo.strip() or not convo_expected.strip()):
@@ -722,8 +731,6 @@ def _flow_multiturn():
         _cb = st.session_state.get("convo_judge_badge")
         if _cb:
             st.caption(f"⚖️ Graded by {_cb}.")
-        st.caption("The check ran on the final reply. To verify mid-conversation behaviour, end "
-                   "the script on the turn you want to assert.")
 
 # ---- Behaviours · RAG grounding ---------------------------------------------
 def _flow_rag():
