@@ -993,61 +993,76 @@ def _flow_audit():
 
 # ---- How it works -----------------------------------------------------------
 def _flow_help():
-    st.subheader("How it works")
+    st.subheader("How it works — from an AI to a certificate")
+    st.markdown("The whole journey, end to end. The short version: **point the Studio at an AI → "
+                "click Certify → it runs a battery of checks, judges each answer, and issues a "
+                "graded certificate.**")
 
-    st.markdown("#### What AI testing actually needs")
+    st.markdown("#### Step 1 — Have an AI you can test")
     st.markdown(
-        "Testing an AI comes down to two things — **not** a user story:\n\n"
-        "1. **An oracle** — a clear statement of what a *correct* answer is, so you "
-        "can judge pass/fail.\n"
-        "2. **The right inputs** — including the nasty ones: edge cases, ambiguous "
-        "phrasing, and adversarial probes (injection, jailbreak, hallucination bait)."
-    )
-    st.info(
-        "**Is a user story required? No.** If the AI implements a *defined feature* "
-        "(e.g. invoice approval), a story's acceptance criteria are a handy source of "
-        "the oracle. But much of the most valuable AI testing — **auditing a model's "
-        "behaviour, red-teaming, bias/safety** — has no story at all. The **Example "
-        "audit** tab is exactly that: a story-free behavioural audit that found a real "
-        "defect."
+        "You can certify any AI the Studio can *reach programmatically*:\n"
+        "- **The built-in Demo bot** — no key, certifies instantly (it has planted bugs, so it "
+        "scores low on purpose — good for trying the flow).\n"
+        "- **The Claude API** — paste an `ANTHROPIC_API_KEY`.\n"
+        "- **Any OpenAI-compatible / HTTP endpoint** — Groq (free), OpenAI, Together, a local "
+        "Ollama, or your own model server.\n\n"
+        "⚠️ A **web-only chatbot with no API** (e.g. a consumer chat page) can't be automated "
+        "here — test it by hand using the method in the **📄 Example audit** tab."
     )
 
-    st.markdown("#### The flow in this tool")
+    st.markdown("#### Step 2 — Connect it (sidebar)")
     st.markdown(
-        "1. **Describe** what's under test — a short phrase, a feature, or (optionally) "
-        "a full user story.\n"
-        "2. **Generate** a risk-based starter scaffold and check it against the "
-        "coverage standard.\n"
-        "3. **Run** it against the offline Demo bot, the Claude API, or any HTTP endpoint.\n"
-        "4. Get a **report** with pass-rate, severity, latency, and a ship / no-ship "
-        "**verdict**."
+        "In **Model under test**, pick the backend and paste your key if it's a real model. "
+        "**Your key stays in your browser session** — it's sent to the provider per request and "
+        "never written to the server, stored, or logged. No key? Leave it on the **Demo bot**."
     )
-    st.caption("The generated cases are a scaffold — a human (or the Claude backend) "
-               "defines the real oracle. Defining 'correct' is the test design; this "
-               "tool runs, gates, and reports it.")
+    st.caption("Free path: console.groq.com → create a key (gsk_…) → sidebar → HTTP endpoint → "
+               "Groq preset → paste it. See 👋 Start here for the 2-minute version.")
 
-    st.markdown("#### The tabs")
+    st.markdown("#### Step 3 — Certify (one click)")
     st.markdown(
-        "- **🎯 Evaluate** — the core. One question, three ways to answer it: against **your "
-        "ground truth** (most trustworthy), across **risk dimensions** (deploy-readiness "
-        "certification), or **from a feature description** (a draft suite to refine).\n"
-        "- **🔁 Behaviors** — specialised agent checks: **multi-turn** memory/scope, and **RAG "
-        "grounding** (faithfulness to a source).\n"
-        "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels before trusting it.\n"
-        "- **🎓 Practice** — 500+ hands-on drills to train the eye for these failures.\n"
-        "- **📄 Example audit** — a real adversarial audit that found a documented defect."
+        "Open **🏅 Certify**, choose a thoroughness (Quick ~22 / Standard ~48 / Thorough ~48×3), "
+        "and click **Certify this AI**. Under the hood it:\n"
+        "1. **Builds the battery** — fixed probes across every risk dimension below.\n"
+        "2. **Sends each probe to your AI** and collects the answer (with retry on rate limits).\n"
+        "3. **Judges every answer** — a validator per probe (refusal regex, no-leak check, exact "
+        "number, valid JSON…), and your **calibrated judge** for open-ended ones.\n"
+        "4. **Adds your golden set** if you uploaded one (your own input → expected truth).\n"
+        "5. **Pools the results** → a per-dimension scorecard and a severity-gated **verdict**.\n"
+        "6. **Grades** it (A–F + status) and **renders a downloadable certificate**."
     )
-    st.markdown("#### Risk categories covered")
+
+    st.markdown("#### Step 4 — Read & share the certificate")
+    st.markdown(
+        "You get a **letter grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT "
+        "CERTIFIED** status, the score, the model name, the **thoroughness level**, and a "
+        "per-dimension breakdown — **downloadable as a printable certificate.**"
+    )
+
+    st.markdown("#### Step 5 — Go deeper for a *real* verdict (optional)")
+    st.markdown(
+        "The default certificate is a strong general bar. To make it trustworthy for *your* use "
+        "case:\n"
+        "- **📋 Add your ground truth** (a golden-set CSV) — domain-specific truth, folded into "
+        "the certificate. *Biggest upgrade.*\n"
+        "- **⚖️ Calibrate the judge** — prove it agrees with humans, then it's reused everywhere.\n"
+        "- **🔁 Behaviors** — for agents: multi-turn memory and RAG grounding.\n"
+        "- **Thorough** level — re-tests each probe several times for consistency, not luck."
+    )
+
+    st.markdown("#### What the grade means")
+    st.markdown(
+        "- **CERTIFIED (A/B/C)** — no Critical or High safety/hallucination check failed.\n"
+        "- **CONDITIONALLY CERTIFIED** — only lower-severity issues; fix-then-ship.\n"
+        "- **NOT CERTIFIED** — a Critical or High safety/hallucination check failed; don't deploy "
+        "as-is (a blocker caps the grade at C no matter the score)."
+    )
+    st.caption("It's a **risk-based assessment at the chosen depth, not an absolute guarantee** — "
+               "honest by design. Speed/latency is reported alongside but never changes the grade.")
+
+    st.markdown("#### Risk dimensions covered")
     st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>' for c in core.categories()) + '</div>',
                 unsafe_allow_html=True)
-    st.markdown("#### The release verdict")
-    st.markdown(
-        "- **BLOCK** — any Critical case fails, or a High `safety`/`hallucination` case fails\n"
-        "- **NEEDS SIGN-OFF** — any other High case fails\n"
-        "- **SHIP** — no Critical/High failures remain"
-    )
-    st.caption("Performance/SLA is reported alongside, but does not change the verdict — speed and "
-               "correctness are kept as separate signals.")
 
 
 # ---- Start here -------------------------------------------------------------
