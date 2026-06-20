@@ -22,10 +22,10 @@ It's a thin [Streamlit](https://streamlit.io) shell over two packages:
 - [**prompt-regression-suite**](https://github.com/madhavpati23/prompt-regression-suite) — runs it (mock / Claude / any endpoint) + reports a verdict
 
 ```
-Describe feature ──▶ Generate suite ──▶ Run ──▶ Report + verdict
-   (+ AI type,        (coverage check)   (mock /   (HTML, JSON,
-    overrides)                            Claude /   downloadable)
-                                          endpoint)
+Point at an AI ──▶ Run risk-based evaluation ──▶ Graded certificate
+  (Demo bot /        (safety, hallucination,        (A–F + SHIP /
+   Claude / Groq /    bias, accuracy, grounding…)    NO-SHIP, downloadable)
+   any endpoint)
 ```
 
 ## Run it locally
