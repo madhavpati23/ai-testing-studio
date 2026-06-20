@@ -95,8 +95,8 @@ st.markdown(
 
 st.markdown(
     '<div class="hero"><h1>🧪 AI Evaluation <span class="accent">Studio</span></h1>'
-    '<p>Describe an AI feature → generate a risk-based test suite → run it → get a '
-    'report with a ship / no-ship verdict.</p></div>',
+    '<p>Point it at an AI → run a risk-based evaluation → get a graded certificate '
+    'with a ship / no-ship verdict.</p></div>',
     unsafe_allow_html=True,
 )
 
