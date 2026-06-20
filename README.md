@@ -54,7 +54,10 @@ never written to the server). Then:
 Runs the full evaluation across every risk dimension (plus your own ground truth if you
 add it) and issues a printable **Certificate of AI Evaluation** with a letter **grade
 (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the model
-name, the date, and a per-dimension breakdown. **No key? Certify the Demo bot instantly.**
+name, the date, the **thoroughness level**, and a per-dimension breakdown.
+Pick the depth: **Quick (~22 checks)** / **Standard (~48)** / **Thorough (~48 × 3 runs)** —
+and the certificate prints which level it was, so the grade is honestly contextualised.
+**No key? Certify the Demo bot instantly.**
 
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
 your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.

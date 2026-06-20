@@ -520,14 +520,26 @@ def _flow_certify():
         except Exception as exc:
             st.error(f"Could not read the CSV: {exc}")
 
+    _THOROUGH = {
+        "Quick — ~22 checks, 1 run (fast smoke test)": ("quick", 1),
+        "Standard — ~48 checks, 1 run (recommended)": ("standard", 1),
+        "Thorough — ~48 checks, 3 runs each (most rigorous)": ("thorough", 3),
+    }
+    tc1, tc2 = st.columns([2, 1])
+    thoroughness = tc1.selectbox("Thoroughness", list(_THOROUGH), index=1, key="certify_level")
+    _level, _runs = _THOROUGH[thoroughness]
+    tc2.caption("More checks + more runs = a more defensible grade, but more API calls "
+                "(mind free-tier rate limits).")
+
     if st.button("🏅 Certify this AI", type="primary", key="run_certify"):
         _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
         st.session_state["certify_badge"] = _cb
-        with st.spinner("Running the full evaluation across every dimension…"):
+        with st.spinner(f"Running the {_level} evaluation across every dimension…"):
             try:
                 st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
-                    golden_cases=gcases or None, judge=_cj)
+                    golden_cases=gcases or None, judge=_cj,
+                    level=_level, repeat=_runs)
             except Exception as exc:
                 st.session_state.pop("certify", None)
                 st.error(f"Certification failed against **{backend}**: {exc}")

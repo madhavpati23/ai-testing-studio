@@ -77,6 +77,14 @@ def test_certification_builds_and_is_valid():
     assert core.certification_dimensions() >= 8
 
 
+def test_certification_levels():
+    quick = core.build_certification("quick")
+    standard = core.build_certification("standard")
+    assert len(quick) == 22
+    assert len(standard) > len(quick)        # extended battery adds probes
+    assert len(core.build_certification("thorough")) == len(standard)
+
+
 # ---- practice bank -----------------------------------------------------------
 
 def test_practice_bank_size_and_mapping():
