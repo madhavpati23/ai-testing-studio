@@ -51,7 +51,10 @@ never written to the server). Then:
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
 your ground truth · judge) and a "pick your path" map.
 
-**🎯 Evaluate** — the core. One question, **three ways to answer it**:
+**🎯 Evaluate** — the core. One question, **four ways to answer it**:
+- **🏁 Full evaluation** — the integrated run: certification **plus your golden set**
+  against one model, pooled into **one** cross-dimension scorecard and verdict. This is
+  where the tabs work together — "is this model good?" answered in a single click.
 - **Against your ground truth** — upload an `input → expected` CSV; the verdict is
   judged against truth *you* defined (the most trustworthy run).
 - **Across risk dimensions** — a fixed **deploy-readiness certification** (~22 probes:
@@ -60,6 +63,11 @@ your ground truth · judge) and a "pick your path" map.
 - **From a feature description** — generate a draft suite (a real model designs
   feature-specific cases; the Demo bot fills generic scaffolds), review, and run it
   with optional **runs-per-case** (non-determinism / flaky detection) and an **SLA**.
+
+> **The tabs work together.** Calibrate a judge once (⚖️ Judge) and it's reused for
+> every `llm_judge` grading in Evaluate and Multi-turn — *calibrate once, trusted
+> everywhere* — and all tabs run against the one **model under test** you pick in the
+> sidebar.
 
 **🔁 Behaviors** — specialised agent checks: **Multi-turn** (memory, context & scope
 across a conversation) and **RAG grounding** (is the answer faithful to a provided

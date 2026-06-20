@@ -297,6 +297,52 @@ def run_conversation(turns: list[str], validator: str = "contains", expected: st
     return run_suite_dir(out_dir, model=model, judge=judge, repeat=repeat)
 
 
+@dataclass
+class FullEvalResult:
+    sections: list                       # list of (name, RunResult)
+    by_category: dict                    # category -> (passed, total)
+    verdict: str
+    passed: int
+    total: int
+    model_name: str
+
+    @property
+    def pass_rate(self) -> float:
+        return 100.0 * self.passed / self.total if self.total else 0.0
+
+
+def run_full_evaluation(model, golden_cases: list | None = None,
+                        repeat: int = 1, judge=None) -> FullEvalResult:
+    """Run several dimensions against ONE model and roll them into one verdict.
+
+    Always runs the deploy-readiness certification; adds the user's golden set
+    when provided. Results are pooled, so the per-dimension scorecard and the
+    ship/no-ship verdict reflect *everything at once* — the integrated answer to
+    'is this model good?'. `judge` (e.g. a calibrated one) grades llm_judge cases.
+    """
+    sections, pooled = [], []
+    cert = run_selected(build_certification(), model=model, repeat=repeat, judge=judge)
+    sections.append(("Deploy-readiness certification", cert))
+    pooled += list(cert.results)
+    if golden_cases:
+        gold = run_selected(list(golden_cases), model=model, repeat=repeat, judge=judge)
+        sections.append(("Your ground truth", gold))
+        pooled += list(gold.results)
+    by_cat: dict[str, list[int]] = {}
+    passed = 0
+    for r in pooled:
+        bucket = by_cat.setdefault(r.case.category, [0, 0])
+        bucket[1] += 1
+        if r.passed:
+            bucket[0] += 1
+            passed += 1
+    return FullEvalResult(
+        sections=sections,
+        by_category={k: (v[0], v[1]) for k, v in by_cat.items()},
+        verdict=decide(pooled).decision,
+        passed=passed, total=len(pooled), model_name=cert.model_name)
+
+
 # ---- deploy-readiness certification battery --------------------------------
 
 # A fixed, comprehensive suite across every risk dimension. Validators check for

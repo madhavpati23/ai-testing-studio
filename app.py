@@ -34,6 +34,22 @@ def _secret(name: str) -> str | None:
         return None
     return str(val) if val else None
 
+
+def _active_judge(kind: str, opts: dict):
+    """Prefer a judge you calibrated this session; otherwise build a fresh one.
+
+    This is what makes the tabs work together: calibrate a judge once (Judge tab)
+    and every llm_judge grading in Evaluate / Multi-turn uses *that* validated
+    judge. Returns (judge_callable, badge_text).
+    """
+    cj = st.session_state.get("calibrated_judge")
+    if cj and cj.get("fn") is not None:
+        return cj["fn"], (f"your **calibrated** judge `{cj.get('model_name', '?')}` "
+                          f"({cj['agreement']:.0f}% human agreement → {cj['verdict']})")
+    return core.make_judge(kind, opts), ("an **uncalibrated** judge — calibrate one in the "
+                                         "⚖️ Judge tab to validate it first")
+
+
 # HTTP-backend presets so common targets are one click (no typing).
 _HTTP_PRESETS = {
     "Custom": None,
@@ -336,8 +352,9 @@ def _flow_feature():
             with st.spinner(f"Running {len(kept_cases)} case(s)"
                             + (f" × {repeat_in} runs…" if repeat_in > 1 else "…")):
                 try:
-                    _judge = (core.make_judge(_BACKEND_KIND[backend], backend_opts)
-                              if _BACKEND_KIND[backend] != "mock" else None)
+                    _judge, _judge_badge = ((None, None) if _BACKEND_KIND[backend] == "mock"
+                                            else _active_judge(_BACKEND_KIND[backend], backend_opts))
+                    st.session_state["run_judge_badge"] = _judge_badge
                     st.session_state["run"] = core.run_selected(
                         kept_cases, sla_ms=sla_in or None,
                         repeat=int(repeat_in), pass_threshold=thr_pct / 100,
@@ -373,6 +390,9 @@ def _flow_feature():
             verdict_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
             getattr(st, verdict_style.get(run.verdict, "info"))(
                 f"Release verdict: **{run.verdict}**  ·  model: `{run.model_name}`")
+            _jbadge = st.session_state.get("run_judge_badge")
+            if _jbadge and any(r.case.validator == "llm_judge" for r in run.results):
+                st.caption(f"⚖️ Open-ended (`llm_judge`) cases were graded by {_jbadge}.")
             if str(run.model_name).startswith("mock"):
                 st.warning(
                     "**Demo bot — this verdict is illustrative, not a real evaluation.** "
@@ -474,6 +494,72 @@ def _flow_certification():
         cdl1, cdl2 = st.columns(2)
         cdl1.download_button("⬇️ Certification HTML", cert.html, "certification.html", "text/html")
         cdl2.download_button("⬇️ Certification JSON", cert.json, "certification.json", "application/json")
+
+# ---- Evaluate · full evaluation (all dimensions, one scorecard) -------------
+def _flow_full_eval():
+    st.subheader("🏁 Full evaluation — one verdict across dimensions")
+    st.caption("Runs the deploy-readiness certification **plus your golden set** (optional) "
+               "against the selected model and rolls them into **one** cross-dimension "
+               "scorecard and verdict. This is the integrated answer to 'is this model good?'.")
+    _kind = _BACKEND_KIND[backend]
+    if _kind == "mock":
+        st.warning("Pick a real backend (Claude / Groq) — the Demo bot's planted bugs fail much "
+                   "of this by design.")
+
+    up = st.file_uploader("Optional — add your golden set CSV (input → expected)",
+                          type=["csv"], key="fulleval_golden")
+    gcases = []
+    if up is not None:
+        try:
+            gcases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
+            if gerr:
+                st.warning("Some golden rows skipped:\n\n- " + "\n- ".join(gerr))
+            if gcases:
+                st.caption(f"Added **{len(gcases)}** ground-truth case(s) to the run.")
+        except Exception as exc:
+            st.error(f"Could not read the CSV: {exc}")
+
+    fc1, fc2 = st.columns([1.4, 1])
+    do_fe = fc1.button("🏁 Run full evaluation", type="primary", key="run_fulleval",
+                       disabled=_kind == "mock")
+    fe_repeat = fc2.number_input("Runs per case", min_value=1, max_value=10, value=1, step=1,
+                                 key="fulleval_repeat")
+    if do_fe:
+        _fjudge, _fbadge = ((None, None) if _kind == "mock"
+                            else _active_judge(_kind, backend_opts))
+        st.session_state["fulleval_badge"] = _fbadge
+        with st.spinner("Running certification + golden across the model…"):
+            try:
+                st.session_state["fulleval"] = core.run_full_evaluation(
+                    core.make_model(_kind, backend_opts),
+                    golden_cases=gcases or None, repeat=int(fe_repeat), judge=_fjudge)
+            except Exception as exc:
+                st.session_state.pop("fulleval", None)
+                st.error(f"Full evaluation failed against **{backend}**: {exc}")
+
+    fe = st.session_state.get("fulleval")
+    if fe:
+        fm1, fm2, fm3 = st.columns(3)
+        fm1.metric("Overall score", f"{fe.pass_rate:.0f}%")
+        fm2.metric("Passed", f"{fe.passed}/{fe.total}")
+        fm3.metric("Verdict", fe.verdict)
+        _fv = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
+        getattr(st, _fv.get(fe.verdict, "info"))(
+            f"Combined verdict across all dimensions: **{fe.verdict}**  ·  model `{fe.model_name}`")
+        _fb = st.session_state.get("fulleval_badge")
+        if _fb:
+            st.caption(f"⚖️ Open-ended cases graded by {_fb}.")
+        _rows = {"risk dimension": [], "passed": [], "status": []}
+        for c, (p, t) in sorted(fe.by_category.items()):
+            _rows["risk dimension"].append(c)
+            _rows["passed"].append(f"{p}/{t}")
+            _rows["status"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
+        st.markdown("**Combined scorecard by risk dimension**")
+        st.table(_rows)
+        for _name, _run in fe.sections:
+            with st.expander(f"{_name} — {_run.summary.passed}/{_run.summary.total} · {_run.verdict}"):
+                components.html(_run.html, height=420, scrolling=True)
+
 
 # ---- Evaluate · against your ground truth (golden set) ----------------------
 def _flow_golden():
@@ -580,8 +666,10 @@ def _flow_multiturn():
         with st.spinner(f"Running {len(_turns)} turn(s) against {backend}…"):
             try:
                 _kind = _BACKEND_KIND[backend]
-                _cjudge = (core.make_judge(_kind, backend_opts)
-                           if convo_validator == "llm_judge" and _kind != "mock" else None)
+                _cjudge, _cbadge = (None, None)
+                if convo_validator == "llm_judge" and _kind != "mock":
+                    _cjudge, _cbadge = _active_judge(_kind, backend_opts)
+                st.session_state["convo_judge_badge"] = _cbadge
                 st.session_state["convo_run"] = core.run_conversation(
                     _turns, validator=convo_validator, expected=convo_expected,
                     model=core.make_model(_kind, backend_opts), judge=_cjudge)
@@ -600,6 +688,9 @@ def _flow_multiturn():
             st.markdown(f"> {res.answer}")
             if not res.passed and res.detail:
                 st.caption(f"Why: {res.detail}")
+        _cb = st.session_state.get("convo_judge_badge")
+        if _cb:
+            st.caption(f"⚖️ Graded by {_cb}.")
         st.caption("The check ran on the final reply. To verify mid-conversation behaviour, end "
                    "the script on the turn you want to assert.")
 
@@ -698,9 +789,15 @@ def _flow_judge():
             with st.spinner(f"Grading {len(crows)} example(s) with {backend}…"):
                 try:
                     _jfn = core.make_judge(_judge_kind, backend_opts)
-                    st.session_state["calib"] = core.calibrate_judge(crows, _jfn)
+                    cal = core.calibrate_judge(crows, _jfn)
+                    st.session_state["calib"] = cal
+                    # Store the judge so every run can reuse it (the tabs work together).
+                    st.session_state["calibrated_judge"] = {
+                        "fn": _jfn, "agreement": cal.agreement, "verdict": cal.verdict,
+                        "model_name": getattr(_jfn, "model_name", backend)}
                 except Exception as exc:
                     st.session_state.pop("calib", None)
+                    st.session_state.pop("calibrated_judge", None)
                     st.error(f"Calibration failed against **{backend}**: {exc}")
 
         cal = st.session_state.get("calib")
@@ -713,6 +810,8 @@ def _flow_judge():
                 f"This judge agreed with your labels **{cal.agreement:.0f}%** of the time → "
                 f"**{cal.verdict}**. " + ("Safe to use for grading." if cal.verdict == "TRUSTWORTHY"
                 else "Disagreements below — tighten your criteria or pick a stronger judge."))
+            st.caption("✅ This calibrated judge is now used for **llm_judge** grading in Evaluate "
+                       "and Multi-turn — calibrate once, trusted everywhere.")
             st.markdown("**Where the judge landed (❌ = disagreed with your label)**")
             st.dataframe(
                 pd.DataFrame([{
@@ -1043,12 +1142,15 @@ with tab_eval:
     st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
     eval_mode = st.radio(
         "How do you want to evaluate?",
-        ["📋 Against your ground truth — upload input → expected (most trustworthy)",
+        ["🏁 Full evaluation — all dimensions + your ground truth, one scorecard",
+         "📋 Against your ground truth — upload input → expected (most trustworthy)",
          "🛡️ Across risk dimensions — a fixed deploy-readiness certification",
          "🧪 From a feature description — generate a draft suite, then run it"],
         key="eval_mode")
     st.divider()
-    if eval_mode.startswith("📋"):
+    if eval_mode.startswith("🏁"):
+        _flow_full_eval()
+    elif eval_mode.startswith("📋"):
         _flow_golden()
     elif eval_mode.startswith("🛡️"):
         _flow_certification()

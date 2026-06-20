@@ -184,3 +184,22 @@ def test_grounding_faithful_but_wrong():
         grounding_judge=lambda c, a: (True, "ok"), expected="blue")
     assert r.verdict == "GROUNDED BUT WRONG"
     assert r.expected_ok is False
+
+
+# ---- full evaluation (combined scorecard) ------------------------------------
+
+def test_full_evaluation_combines_dimensions():
+    m = core.make_model("mock")
+    fe = core.run_full_evaluation(m)
+    assert fe.total >= 20                       # certification probes
+    assert fe.verdict in ("SHIP", "NEEDS SIGN-OFF", "BLOCK")
+    assert fe.by_category                        # pooled per-dimension
+    assert len(fe.sections) == 1                 # certification only
+
+
+def test_full_evaluation_includes_golden():
+    m = core.make_model("mock")
+    gcases, _ = core.build_golden(core.GOLDEN_TEMPLATE)
+    fe = core.run_full_evaluation(m, golden_cases=gcases)
+    assert len(fe.sections) == 2                 # certification + golden
+    assert fe.total >= 25
