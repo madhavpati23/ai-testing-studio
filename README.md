@@ -86,9 +86,6 @@ source, or hallucinated beyond it — *grounded / grounded-but-wrong / not groun
 → *trustworthy / use with caution / do not trust*). Backend-agnostic, so open-ended
 quality can be graded without a Claude key; it also grades `llm_judge` cases in a run.
 
-**✍️ Prompt scorer** — a utility: paste a **prompt** or **agent instructions** and get
-a quality score, pointers, and a concrete **suggested rewrite**.
-
 **🎓 Practice** — learn AI testing hands-on: a randomised bank of **500+ probes
 across 19 skills** (injection, hallucination, bias, PII, over-refusal, …). Fire a
 probe at the bot, record your verdict, then **reveal** what an expert looks for.

@@ -101,13 +101,9 @@ st.markdown(
 )
 
 # ---- form state (shared across tabs) --------------------------------------
-for _key, _default in {"feature_input": "", "aitype_input": "(none)", "pq_text": "",
+for _key, _default in {"feature_input": "", "aitype_input": "(none)",
                        "ov_safety": 0, "ov_accuracy": 0, "ov_agent": 0}.items():
     st.session_state.setdefault(_key, _default)
-
-
-def _clear_pq():
-    st.session_state["pq_text"] = ""
 
 
 def _clear_feature():
@@ -833,64 +829,6 @@ def _flow_judge():
         st.caption("No file yet — download the template, label each row with your own pass/fail "
                    "judgement, and upload it to measure how well the judge matches you.")
 
-# ---- Prompt & instructions scorer (utility) ---------------------------------
-def _flow_prompt():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">TOOL</span>'
-        '<b style="font-size:1.1rem;">✍️ Score a prompt or agent instructions</b><br>'
-        'Get a quality score, a few quick pointers, and an example of how it could look '
-        '— no lecturing.</div>',
-        unsafe_allow_html=True,
-    )
-    pq_mode = st.radio("What are you scoring?", ["Prompt", "Agent instructions"],
-                       horizontal=True, key="pq_mode")
-    is_instr = pq_mode == "Agent instructions"
-    st.caption(("Paste an agent's instructions/config to check it defines role, tools, "
-                "permissions, refusal rules, and data sources.") if is_instr else
-               ("Paste a prompt to get a score, a couple of quick pointers, and an "
-                "example of how it could look."))
-    pq_text = st.text_area("Instructions to score" if is_instr else "Prompt to score",
-                           height=130, key="pq_text",
-                           placeholder=("Paste the agent's instructions…" if is_instr
-                                        else "Paste the prompt you wrote…"))
-    pq_llm = (not is_instr) and st.checkbox(
-        "Use Claude for the critique (needs a Claude key — select the Claude backend "
-        "or set ANTHROPIC_API_KEY in Secrets)")
-    _claude_key = backend_opts.get("api_key") or _secret("ANTHROPIC_API_KEY")
-
-    bc1, bc2, _ = st.columns([1, 1, 4])
-    do_score = bc1.button("Score this", type="primary", disabled=not pq_text.strip())
-    bc2.button("Clear", on_click=_clear_pq, disabled=not pq_text)
-
-    if do_score:
-        try:
-            score = (core.assess_instructions(pq_text) if is_instr
-                     else core.assess_prompt(pq_text, use_llm=pq_llm, api_key=_claude_key))
-        except Exception as exc:
-            st.error(f"Could not score with Claude: {exc}")
-        else:
-            tone = "success" if score.score >= 85 else "info" if score.score >= 65 else "warning"
-            getattr(st, tone)(f"**{score.score}/100 — {score.level}.** {score.summary}")
-            if score.strengths:
-                st.caption("Strengths: " + ", ".join(score.strengths))
-            for s in score.suggestions:
-                st.markdown(f"- {s}")
-            if score.example:
-                if is_instr:
-                    heading, blurb = "🧩 Suggested instructions template", \
-                        "Fill the slots and use this as the agent's instructions."
-                elif pq_llm:
-                    heading, blurb = "✍️ Rewritten prompt", \
-                        "A stronger version of your prompt — copy and use it."
-                else:
-                    heading, blurb = "✍️ Suggested rewrite", \
-                        ("A stronger, ready-to-use rewrite of your prompt. For one tailored to "
-                         "your exact content, use the Claude backend.")
-                with st.container(border=True):
-                    st.markdown(f"#### {heading}")
-                    st.caption(blurb)
-                    st.code(score.example, language="text")
-
 # ---- Practice (guided, hands-on AI-testing drills) --------------------------
 def _flow_practice():
     st.markdown(
@@ -1085,7 +1023,6 @@ def _flow_help():
         "grounding** (faithfulness to a source).\n"
         "- **⚖️ Judge** — calibrate an LLM-as-judge against your human labels before trusting it.\n"
         "- **🎓 Practice** — 500+ hands-on drills to train the eye for these failures.\n"
-        "- **✍️ Prompt scorer** — a utility: score and rewrite a prompt or agent instructions.\n"
         "- **📄 Example audit** — a real adversarial audit that found a documented defect."
     )
     st.markdown("#### Risk categories covered")
@@ -1144,9 +1081,9 @@ def _flow_start_here():
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
 (tab_certify, tab_start, tab_eval, tab_behav, tab_judge, tab_practice,
- tab_prompt, tab_audit, tab_help) = st.tabs(
+ tab_audit, tab_help) = st.tabs(
     ["🏅 Certify", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
-     "🎓 Practice", "✍️ Prompt scorer", "📄 Example audit", "ℹ️ How it works"]
+     "🎓 Practice", "📄 Example audit", "ℹ️ How it works"]
 )
 
 with tab_certify:
@@ -1190,8 +1127,6 @@ with tab_judge:
     _flow_judge()
 with tab_practice:
     _flow_practice()
-with tab_prompt:
-    _flow_prompt()
 with tab_audit:
     _flow_audit()
 with tab_help:

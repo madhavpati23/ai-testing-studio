@@ -53,7 +53,6 @@ from prompt_regression.gating import decide
 from prompt_regression.models import get_model
 from prompt_regression.runner import load_cases, run_suite, summarize
 from test_case_generator import coverage as gcov
-from test_case_generator import prompt_quality
 from test_case_generator.generators import get_generator, slugify
 from test_case_generator.schema import validate_all
 from test_case_generator.serialize import write_suite
@@ -93,18 +92,6 @@ def categories() -> list[str]:
     """The risk categories the suite covers (for display)."""
     from test_case_generator.taxonomy import TAXONOMY
     return list(TAXONOMY)
-
-
-# ---- prompt quality --------------------------------------------------------
-
-def assess_prompt(text: str, use_llm: bool = False, api_key: str | None = None):
-    """Score how well-written a prompt is (heuristic, or Claude if use_llm)."""
-    return prompt_quality.assess_llm(text, api_key=api_key) if use_llm else prompt_quality.assess(text)
-
-
-def assess_instructions(text: str):
-    """Score an agent's instructions/configuration (heuristic)."""
-    return prompt_quality.assess_instructions(text)
 
 
 # ---- generate --------------------------------------------------------------

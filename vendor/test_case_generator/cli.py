@@ -28,7 +28,6 @@ import sys
 import yaml
 
 from . import coverage as cov
-from . import prompt_quality
 from .config import load_config
 from .generators import get_generator
 from .schema import Case, validate_all
@@ -114,29 +113,6 @@ def _cmd_review(args) -> int:
     return 0
 
 
-def _cmd_assess_prompt(args) -> int:
-    text = args.text if args.text else open(args.file, encoding="utf-8").read()
-    if args.instructions:
-        score = prompt_quality.assess_instructions(text)
-    elif args.llm:
-        score = prompt_quality.assess_llm(text)
-    else:
-        score = prompt_quality.assess(text)
-    print(f"Prompt score : {score.score}/100  ({score.level})")
-    print(f"  {score.summary}")
-    if score.strengths:
-        print("  Strengths: " + ", ".join(score.strengths))
-    if score.suggestions:
-        print("  Consider:")
-        for s in score.suggestions:
-            print(f"   - {s}")
-    if score.example:
-        print("  Suggested rewrite:")
-        for line in score.example.splitlines():
-            print(f"    {line}")
-    return 0
-
-
 def _cmd_coverage(args) -> int:
     cases = _load_cases(args.prompts)
     if not cases:
@@ -180,15 +156,6 @@ def main(argv: list[str] | None = None) -> int:
     rev.add_argument("--prompts", default="prompts", help="suite directory of *.yaml")
     rev.add_argument("--strict", action="store_true", help="exit 2 if any case is unapproved")
     rev.set_defaults(func=_cmd_review)
-
-    ap = sub.add_parser("assess-prompt", help="score how well-written a prompt is")
-    apsrc = ap.add_mutually_exclusive_group(required=True)
-    apsrc.add_argument("--text", help="the prompt text to score")
-    apsrc.add_argument("--file", help="path to a file containing the prompt")
-    ap.add_argument("--llm", action="store_true", help="use Claude for the critique (needs API key)")
-    ap.add_argument("--instructions", action="store_true",
-                    help="score agent instructions (role/tools/permissions/...) instead of a prompt")
-    ap.set_defaults(func=_cmd_assess_prompt)
 
     args = parser.parse_args(argv)
     return args.func(args)
