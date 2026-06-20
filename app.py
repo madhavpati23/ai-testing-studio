@@ -125,6 +125,19 @@ with st.sidebar:
                        help="The Demo bot is a built-in offline dummy with planted bugs — for "
                             "free demos, no key. Claude/HTTP test a real model with "
                             "your own key (used only for your session).")
+
+    # Results belong to the backend they were produced against. When the user
+    # switches backends, clear every cached run so a stale verdict from the old
+    # model can't sit there looking current — and tell them why it vanished.
+    _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
+                    "convo_run", "rag_run", "calib", "calibrated_judge")
+    if st.session_state.get("_last_backend", backend) != backend:
+        for _k in _RESULT_KEYS:
+            st.session_state.pop(_k, None)
+        st.warning(f"Switched to **{backend}** — cleared earlier results. "
+                   "Re-run against the new backend.")
+    st.session_state["_last_backend"] = backend
+
     backend_opts: dict[str, str] = {}
     if backend != "Demo bot (offline)":
         st.caption("🔑 **Bring your own key.** It's kept only in *your* browser session and sent "
@@ -727,15 +740,27 @@ def _flow_rag():
         st.warning("Pick a **real backend** (Claude / Groq / OpenAI) — grounding needs a model to "
                    "answer and a model to grade faithfulness. The Demo bot can't.")
 
-    rag_context = st.text_area(
-        "Context (the retrieved source the answer must stick to)", height=160, key="rag_context",
-        value="Acme Cloud's Pro plan costs $49/month and includes 2 TB of storage and email "
-              "support. The Free plan includes 10 GB of storage and community support only.")
-    rrc1, rrc2 = st.columns([2, 1])
-    rag_question = rrc1.text_input("Question", value="How much does the Pro plan cost and what "
-                                   "support does it include?", key="rag_question")
-    rag_expected = rrc2.text_input("Expected (optional substring)", value="$49", key="rag_expected")
+    # What the three possible verdicts mean, up front, as a legend.
+    lc1, lc2, lc3 = st.columns(3)
+    lc1.success("**GROUNDED**  \nEvery claim is supported by the context.")
+    lc2.warning("**GROUNDED BUT WRONG**  \nFaithful, but missed the expected answer.")
+    lc3.error("**NOT GROUNDED**  \nAdded or contradicted facts — a hallucination.")
 
+    with st.container(border=True):
+        st.markdown("##### 📥 The retrieval")
+        rag_context = st.text_area(
+            "Context — the retrieved source the answer must stick to", height=160, key="rag_context",
+            value="Acme Cloud's Pro plan costs $49/month and includes 2 TB of storage and email "
+                  "support. The Free plan includes 10 GB of storage and community support only.")
+        rrc1, rrc2 = st.columns([2, 1])
+        rag_question = rrc1.text_input("Question", value="How much does the Pro plan cost and what "
+                                       "support does it include?", key="rag_question")
+        rag_expected = rrc2.text_input("Expected (optional substring)", value="$49", key="rag_expected")
+        st.caption("💡 To see a hallucination caught, ask something the context can't answer — "
+                   "e.g. *“What's the Enterprise plan price?”* — and watch for **NOT GROUNDED**.")
+
+    if _rag_kind == "mock":
+        st.caption("⚪ Disabled — connect a real backend (Claude / Groq / OpenAI) in the sidebar to enable.")
     if st.button("📚 Run grounding check", type="primary", key="run_rag",
                  disabled=_rag_kind == "mock" or not rag_context.strip() or not rag_question.strip()):
         with st.spinner(f"Answering from context + grading faithfulness with {backend}…"):
@@ -761,9 +786,6 @@ def _flow_rag():
             if rag.expected is not None:
                 st.caption(f"Expected substring “{rag.expected}”: "
                            + ("✅ found" if rag.expected_ok else "❌ not found"))
-        st.caption("GROUNDED = every claim is supported by the context. NOT GROUNDED = it added or "
-                   "contradicted facts (hallucination). GROUNDED BUT WRONG = faithful but missed the "
-                   "expected answer.")
 
 # ---- Judge calibration ------------------------------------------------------
 def _flow_judge():
@@ -785,13 +807,21 @@ def _flow_judge():
         st.caption(f"Judge model: **`{backend}`**. Use a strong model, ideally different from the "
                    "one under test (self-grading is biased).")
 
-    st.markdown(
-        "**CSV columns:** `criterion`, `answer`, `human_pass` (true/false) — your human "
-        "judgement of whether each answer satisfies the criterion."
-    )
-    st.download_button("⬇️ Download a calibration template", core.CALIBRATION_TEMPLATE,
-                       "judge-calibration-template.csv", "text/csv")
-    cup = st.file_uploader("Upload your labelled calibration CSV", type=["csv"], key="calib_csv")
+    # What the agreement score earns the judge, up front, as a legend.
+    jl1, jl2, jl3 = st.columns(3)
+    jl1.success("**TRUSTWORTHY**  \nHigh agreement — safe to grade with.")
+    jl2.warning("**USE WITH CAUTION**  \nDecent, but check the disagreements.")
+    jl3.error("**DO NOT TRUST**  \nToo far from you — tighten or change judge.")
+
+    with st.container(border=True):
+        st.markdown("##### 📥 Your labelled examples")
+        st.markdown(
+            "**CSV columns:** `criterion`, `answer`, `human_pass` (true/false) — your human "
+            "judgement of whether each answer satisfies the criterion."
+        )
+        st.download_button("⬇️ Download a calibration template", core.CALIBRATION_TEMPLATE,
+                           "judge-calibration-template.csv", "text/csv")
+        cup = st.file_uploader("Upload your labelled calibration CSV", type=["csv"], key="calib_csv")
     crows, cerrors = [], []
     if cup is not None:
         try:
@@ -802,6 +832,8 @@ def _flow_judge():
         st.warning("Skipped some rows:\n\n- " + "\n- ".join(cerrors))
     if crows:
         st.success(f"Loaded **{len(crows)}** labelled example(s).")
+        if _judge_kind == "mock":
+            st.caption("⚪ Disabled — connect a real backend (Claude / Groq / OpenAI) in the sidebar to enable.")
         if st.button("⚖️ Calibrate the judge", type="primary", key="run_calib",
                      disabled=_judge_kind == "mock"):
             with st.spinner(f"Grading {len(crows)} example(s) with {backend}…"):
