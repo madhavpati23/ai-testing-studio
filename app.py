@@ -495,70 +495,78 @@ def _flow_certification():
         cdl1.download_button("⬇️ Certification HTML", cert.html, "certification.html", "text/html")
         cdl2.download_button("⬇️ Certification JSON", cert.json, "certification.json", "application/json")
 
-# ---- Evaluate · full evaluation (all dimensions, one scorecard) -------------
-def _flow_full_eval():
-    st.subheader("🏁 Full evaluation — one verdict across dimensions")
-    st.caption("Runs the deploy-readiness certification **plus your golden set** (optional) "
-               "against the selected model and rolls them into **one** cross-dimension "
-               "scorecard and verdict. This is the integrated answer to 'is this model good?'.")
+# ---- Certify (the common-man front door: one click -> a certificate) --------
+def _flow_certify():
+    st.subheader("🏅 Certify an AI")
+    st.markdown("Run a full evaluation across every risk dimension and get a **shareable "
+                "certificate** — in one click.")
     _kind = _BACKEND_KIND[backend]
     if _kind == "mock":
-        st.warning("Pick a real backend (Claude / Groq) — the Demo bot's planted bugs fail much "
-                   "of this by design.")
+        st.info("You're set to the **Demo bot** — click below to certify it instantly, no key "
+                "needed. (It has planted bugs on purpose, so expect a low grade.) **To certify a "
+                "*real* AI**, pick **Claude** or **Groq (free)** in the sidebar — see "
+                "*👋 Start here* for the 3-step key setup.")
+    else:
+        st.caption(f"Certifying **{backend}** — your key stays in your session, never stored.")
 
-    up = st.file_uploader("Optional — add your golden set CSV (input → expected)",
-                          type=["csv"], key="fulleval_golden")
+    with st.expander("➕ Add your own ground truth (optional)"):
+        st.caption("Upload a CSV of `prompt, expected` answers you trust; they're folded into the "
+                   "certificate. Leave empty to certify on the standard battery alone.")
+        up = st.file_uploader("Golden set CSV", type=["csv"], key="certify_golden")
     gcases = []
     if up is not None:
         try:
             gcases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
             if gerr:
-                st.warning("Some golden rows skipped:\n\n- " + "\n- ".join(gerr))
+                st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerr))
             if gcases:
-                st.caption(f"Added **{len(gcases)}** ground-truth case(s) to the run.")
+                st.caption(f"Added **{len(gcases)}** of your own check(s).")
         except Exception as exc:
             st.error(f"Could not read the CSV: {exc}")
 
-    fc1, fc2 = st.columns([1.4, 1])
-    do_fe = fc1.button("🏁 Run full evaluation", type="primary", key="run_fulleval",
-                       disabled=_kind == "mock")
-    fe_repeat = fc2.number_input("Runs per case", min_value=1, max_value=10, value=1, step=1,
-                                 key="fulleval_repeat")
-    if do_fe:
-        _fjudge, _fbadge = ((None, None) if _kind == "mock"
-                            else _active_judge(_kind, backend_opts))
-        st.session_state["fulleval_badge"] = _fbadge
-        with st.spinner("Running certification + golden across the model…"):
+    if st.button("🏅 Certify this AI", type="primary", key="run_certify"):
+        _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
+        st.session_state["certify_badge"] = _cb
+        with st.spinner("Running the full evaluation across every dimension…"):
             try:
-                st.session_state["fulleval"] = core.run_full_evaluation(
+                st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
-                    golden_cases=gcases or None, repeat=int(fe_repeat), judge=_fjudge)
+                    golden_cases=gcases or None, judge=_cj)
             except Exception as exc:
-                st.session_state.pop("fulleval", None)
-                st.error(f"Full evaluation failed against **{backend}**: {exc}")
+                st.session_state.pop("certify", None)
+                st.error(f"Certification failed against **{backend}**: {exc}")
 
-    fe = st.session_state.get("fulleval")
+    fe = st.session_state.get("certify")
     if fe:
-        fm1, fm2, fm3 = st.columns(3)
-        fm1.metric("Overall score", f"{fe.pass_rate:.0f}%")
-        fm2.metric("Passed", f"{fe.passed}/{fe.total}")
-        fm3.metric("Verdict", fe.verdict)
-        _fv = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
-        getattr(st, _fv.get(fe.verdict, "info"))(
-            f"Combined verdict across all dimensions: **{fe.verdict}**  ·  model `{fe.model_name}`")
-        _fb = st.session_state.get("fulleval_badge")
-        if _fb:
-            st.caption(f"⚖️ Open-ended cases graded by {_fb}.")
-        _rows = {"risk dimension": [], "passed": [], "status": []}
-        for c, (p, t) in sorted(fe.by_category.items()):
-            _rows["risk dimension"].append(c)
-            _rows["passed"].append(f"{p}/{t}")
-            _rows["status"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
-        st.markdown("**Combined scorecard by risk dimension**")
-        st.table(_rows)
-        for _name, _run in fe.sections:
-            with st.expander(f"{_name} — {_run.summary.passed}/{_run.summary.total} · {_run.verdict}"):
-                components.html(_run.html, height=420, scrolling=True)
+        letter, status = core.certification_grade(fe.pass_rate, fe.verdict)
+        gm1, gm2, gm3 = st.columns(3)
+        gm1.metric("Grade", letter)
+        gm2.metric("Status", status)
+        gm3.metric("Score", f"{fe.pass_rate:.0f}%")
+        _sv = {"CERTIFIED": "success", "CONDITIONALLY CERTIFIED": "warning", "NOT CERTIFIED": "error"}
+        getattr(st, _sv.get(status, "info"))(
+            f"**{status} — Grade {letter}** · {fe.passed}/{fe.total} checks passed · "
+            f"model `{fe.model_name}`")
+        _cb2 = st.session_state.get("certify_badge")
+        if _cb2:
+            st.caption(f"⚖️ Open-ended cases graded by {_cb2}.")
+
+        cert_html = core.render_certificate(fe)
+        st.download_button("⬇️ Download the certificate", cert_html,
+                           "ai-evaluation-certificate.html", "text/html", type="primary")
+        st.markdown("**Your certificate**")
+        components.html(cert_html, height=560, scrolling=True)
+
+        with st.expander("See the full breakdown (which checks, and what failed)"):
+            _rows = {"risk dimension": [], "passed": [], "result": []}
+            for c, (p, t) in sorted(fe.by_category.items()):
+                _rows["risk dimension"].append(c)
+                _rows["passed"].append(f"{p}/{t}")
+                _rows["result"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
+            st.table(_rows)
+            for _name, _run in fe.sections:
+                st.markdown(f"**{_name}** — {_run.summary.passed}/{_run.summary.total} · {_run.verdict}")
+                components.html(_run.html, height=360, scrolling=True)
 
 
 # ---- Evaluate · against your ground truth (golden set) ----------------------
@@ -1111,46 +1119,54 @@ def _flow_start_here():
     st.markdown("#### Pick your path")
     pc1, pc2, pc3 = st.columns(3)
     with pc1:
-        st.markdown("**🆓 Try it free**")
-        st.caption("Keep the **Demo bot** selected (no key). Open **Evaluate** or **Practice** "
-                   "to see the whole pipeline run instantly.")
+        st.markdown("**🏅 Just certify an AI**")
+        st.caption("Go to **🏅 Certify** → click **Certify this AI**. With the **Demo bot** it "
+                   "works instantly, no key. You get a **grade + a downloadable certificate**.")
     with pc2:
-        st.markdown("**🔑 Test a real model**")
-        st.caption("In the sidebar pick **Claude** or **Groq (free)** and paste your key (it "
-                   "stays in your session). Then **Evaluate → against your ground truth**.")
+        st.markdown("**🔑 Certify a real AI**")
+        st.caption("In the sidebar pick **Groq (free)** or **Claude**, paste your key (3 steps "
+                   "below; it stays in your session), then **Certify**.")
     with pc3:
         st.markdown("**🎓 Learn the craft**")
         st.caption("**Practice** has 500+ drills: fire a probe, judge the answer, reveal what "
                    "an expert looks for.")
-    st.caption("New to this? Start with **🎯 Evaluate** on the Demo bot, then bring your own key "
-               "for a real verdict. The **ℹ️ How it works** tab explains the method.")
+    st.markdown("#### Get a free Groq key (≈2 min)")
+    st.markdown(
+        "1. Go to **console.groq.com** → sign in → **API Keys** → **Create**.\n"
+        "2. Copy the key (starts `gsk_`).\n"
+        "3. Sidebar → **HTTP endpoint** → preset **Groq** → paste it in the Authorization header."
+    )
+    st.caption("Then open **🏅 Certify** and click the button. The **ℹ️ How it works** tab "
+               "explains the method behind the grade.")
 
 
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_start, tab_eval, tab_behav, tab_judge, tab_practice,
+(tab_certify, tab_start, tab_eval, tab_behav, tab_judge, tab_practice,
  tab_prompt, tab_audit, tab_help) = st.tabs(
-    ["👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
+    ["🏅 Certify", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
      "🎓 Practice", "✍️ Prompt scorer", "📄 Example audit", "ℹ️ How it works"]
 )
+
+with tab_certify:
+    _flow_certify()
 
 with tab_start:
     _flow_start_here()
 
 with tab_eval:
     st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
+    st.caption("For a one-click grade + certificate, use the **🏅 Certify** tab. These modes are "
+               "for testing a specific dimension on its own.")
     eval_mode = st.radio(
         "How do you want to evaluate?",
-        ["🏁 Full evaluation — all dimensions + your ground truth, one scorecard",
-         "📋 Against your ground truth — upload input → expected (most trustworthy)",
+        ["📋 Against your ground truth — upload input → expected (most trustworthy)",
          "🛡️ Across risk dimensions — a fixed deploy-readiness certification",
          "🧪 From a feature description — generate a draft suite, then run it"],
         key="eval_mode")
     st.divider()
-    if eval_mode.startswith("🏁"):
-        _flow_full_eval()
-    elif eval_mode.startswith("📋"):
+    if eval_mode.startswith("📋"):
         _flow_golden()
     elif eval_mode.startswith("🛡️"):
         _flow_certification()

@@ -2,9 +2,11 @@
 
 *(formerly "AI Testing Studio" — the repo/URL keep the old slug)*
 
-A browser UI that makes the whole AI-testing toolchain usable by anyone — no
-terminal required. Describe a feature → generate a risk-based test suite → run it
-against a model → get a report with a **ship / no-ship verdict**.
+A browser UI that lets **anyone certify an AI** — no terminal, no setup. Point it at a
+model, click **Certify**, and get a **grade (A–F) and a downloadable certificate** across
+every risk dimension (safety, hallucination, bias, accuracy, grounding, …). Power users
+get the full toolchain underneath: ground-truth evals, a calibrated judge, multi-turn and
+RAG checks.
 
 ▶️ **Live demo** (offline Demo bot, no signup): https://ai-testing-studio-jsrj4bqyatgfc7jzz8qzgz.streamlit.app/
 
@@ -48,8 +50,14 @@ pile of peer tabs. First, in the sidebar, pick the **model under test**: the off
 **Groq (free)** / any HTTP endpoint — with **your own key** (kept in your session,
 never written to the server). Then:
 
+**🏅 Certify** *(the front door)* — **one click → a grade + a downloadable certificate.**
+Runs the full evaluation across every risk dimension (plus your own ground truth if you
+add it) and issues a printable **Certificate of AI Evaluation** with a letter **grade
+(A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the model
+name, the date, and a per-dimension breakdown. **No key? Certify the Demo bot instantly.**
+
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
-your ground truth · judge) and a "pick your path" map.
+your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.
 
 **🎯 Evaluate** — the core. One question, **four ways to answer it**:
 - **🏁 Full evaluation** — the integrated run: certification **plus your golden set**

@@ -203,3 +203,22 @@ def test_full_evaluation_includes_golden():
     fe = core.run_full_evaluation(m, golden_cases=gcases)
     assert len(fe.sections) == 2                 # certification + golden
     assert fe.total >= 25
+
+
+# ---- certificate -------------------------------------------------------------
+
+def test_certification_grade_mapping():
+    assert core.certification_grade(98, "SHIP") == ("A", "CERTIFIED")
+    assert core.certification_grade(90, "NEEDS SIGN-OFF") == ("B", "CONDITIONALLY CERTIFIED")
+    # a BLOCK can never earn an A/B no matter the score
+    assert core.certification_grade(99, "BLOCK")[0] == "C"
+    assert core.certification_grade(99, "BLOCK")[1] == "NOT CERTIFIED"
+    assert core.certification_grade(30, "BLOCK") == ("F", "NOT CERTIFIED")
+
+
+def test_render_certificate_is_html():
+    fe = core.run_full_evaluation(core.make_model("mock"))
+    html = core.render_certificate(fe)
+    assert html.lower().startswith("<!doctype")
+    assert "Certificate of AI Evaluation" in html
+    assert fe.model_name in html
