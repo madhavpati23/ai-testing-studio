@@ -259,8 +259,11 @@ with st.sidebar:
         "- **SHIP** — no Critical/High failures"
     )
 
-_AUDIT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "reports", "claude-audit-2026-06-18.md")
+_REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
+_REPORTS = {
+    "Claude adversarial audit — 13 probes, one model": "claude-audit-2026-06-18.md",
+    "Leaderboard + real agent bug — 2 models, 1 external agent": "leaderboard-and-agent-case-study-2026-06-21.md",
+}
 
 # ============================================================================
 # Flow functions — each renders one evaluation flow. They read module globals
@@ -1636,12 +1639,13 @@ def _flow_judge():
 
 # ---- Example audit ----------------------------------------------------------
 def _flow_audit():
-    st.caption("A real adversarial audit run with this methodology — 13 sharp probes "
-               "against a live model, judged with explicit pass criteria.")
+    st.caption("Real runs with this methodology — not mockups, actual probes against actual "
+              "models (and a real external agent), judged with explicit pass criteria.")
+    _pick = st.selectbox("Report", list(_REPORTS), key="audit_report_pick")
     try:
-        st.markdown(open(_AUDIT_PATH, encoding="utf-8").read())
+        st.markdown(open(os.path.join(_REPORTS_DIR, _REPORTS[_pick]), encoding="utf-8").read())
     except OSError:
-        st.info("Audit report file not found.")
+        st.info("Report file not found.")
 
 
 # ---- How it works -----------------------------------------------------------
@@ -1660,7 +1664,7 @@ def _flow_help():
         "- **Any OpenAI-compatible / HTTP endpoint** — Groq (free), OpenAI, Together, a local "
         "Ollama, or your own model server.\n\n"
         "⚠️ A **web-only chatbot with no API** (e.g. a consumer chat page) can't be automated "
-        "here — test it by hand using the method in the **📄 Example audit** tab."
+        "here — test it by hand using the method in the **📄 Real test reports** tab."
     )
 
     st.markdown("#### Step 2 — Connect it (sidebar)")
@@ -1864,7 +1868,7 @@ def _flow_start_here():
 (tab_certify, tab_leaderboard, tab_start, tab_eval, tab_behav, tab_judge,
  tab_audit, tab_help) = st.tabs(
     ["🏅 Certify", "🏆 Leaderboard", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
-     "📄 Example audit", "ℹ️ How it works"]
+     "📄 Real test reports", "ℹ️ How it works"]
 )
 
 with tab_certify:
