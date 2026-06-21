@@ -1547,6 +1547,91 @@ def _flow_help():
     st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>' for c in core.categories()) + '</div>',
                 unsafe_allow_html=True)
 
+    st.markdown("#### 📖 Glossary — every term on this site, defined")
+    _GLOSSARY = {
+        "The basics": {
+            "Probe / check / case": "One question or scenario sent to the AI, with a rule for "
+                "what a correct answer looks like. The smallest unit everything else is built from.",
+            "Battery": "A fixed *set* of probes covering many risk dimensions at once — like a "
+                "blood test panel, not one blood test. The certification battery is "
+                "~22 (Quick) to ~48 (Standard/Thorough) probes.",
+            "Validator": "The rule that decides PASS/FAIL for one probe's answer — e.g. *contains* "
+                "a substring, matches a *regex*, *equals* a number, is valid *JSON*, or is graded "
+                "by an **LLM judge** for open-ended quality.",
+            "Severity": "How bad a failure is: **critical** > **high** > **medium** > **low**. "
+                "Severity (not just pass/fail count) decides the verdict — one critical failure "
+                "matters more than ten low ones.",
+            "Pass rate": "Percent of probes that passed — the score behind the letter grade.",
+        },
+        "Truth & judging": {
+            "Golden set / ground truth": "Your own `prompt → expected answer` pairs — *truth you "
+                "defined*, not a generic bar. The single biggest upgrade to a certificate's "
+                "trustworthiness for your specific use case.",
+            "LLM-as-judge": "Using a model to grade an open-ended answer (e.g. \"does this refusal "
+                "actually refuse?\") because a keyword check is too brittle for nuanced quality.",
+            "Calibrate (a judge)": "Test the judge against examples *you* (a human) already labelled "
+                "pass/fail, and measure how often it agrees with you — **agreement %** — before "
+                "trusting it to grade anything. An uncalibrated judge is just an unverified guess.",
+            "Coverage": "Whether the probes actually span every risk dimension that matters, not "
+                "just a lot of probes in one area.",
+        },
+        "The verdict": {
+            "Verdict (SHIP / NEEDS SIGN-OFF / BLOCK)": "The release decision, gated by severity: "
+                "**BLOCK** = a critical failure (or a high safety/hallucination failure); "
+                "**NEEDS SIGN-OFF** = a lesser high failure; **SHIP** = neither.",
+            "Grade (A–F) / status": "The common-man translation of the verdict + score into a "
+                "letter and a CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED status. "
+                "A BLOCK verdict caps the grade at C no matter how high the score is.",
+            "Flaky": "Passed *some* runs and failed *others* on the exact same probe — proof the "
+                "model is inconsistent, not reliably safe. Treated as NEEDS SIGN-OFF, never a "
+                "clean SHIP, even if most runs passed.",
+            "Reliability / repeat N times": "Re-running the same check several times because LLMs "
+                "are non-deterministic — a single PASS proves much less than a 9/10 or 10/10.",
+        },
+        "RAG & conversation": {
+            "Grounding": "Whether every claim in an answer is actually supported by the retrieved "
+                "source — the opposite of hallucination. **GROUNDED** = faithful; **NOT GROUNDED** "
+                "= invented or contradicted facts; **GROUNDED BUT WRONG** = faithful but missed the "
+                "right answer; **GROUNDED BUT OVERCONFIDENT** = sources disagreed and it silently "
+                "picked one instead of saying so.",
+            "Distractor document": "An irrelevant retrieved document mixed in on purpose, to test "
+                "whether it pulls the model toward a wrong answer.",
+            "Checkpoint (multi-turn)": "A check pinned to *one specific turn* in a conversation, so "
+                "a problem on turn 1 can't hide behind a clean-looking reply on turn 5.",
+        },
+        "Agents": {
+            "Agent action": "A check on what an agent *does*, not just what it says — captures the "
+                "real tool call(s) it makes via native tool-use, not a self-reported description.",
+            "Agent loop / multi-step": "A *chain* of agent decisions — call a tool, see the result, "
+                "decide the next step, repeat — because real agentic bugs often live in step two, "
+                "not the first decision (e.g. transferring money without checking the balance first).",
+            "Precondition": "Something an agent must verify *before* taking an action — the classic "
+                "miss is acting on an assumption instead of checking it first.",
+            "must_call / must_not_call / order / max_arg": "The four rule types an agent-loop check "
+                "is built from: a tool *must* be called, must *never* be called, must be called "
+                "*before* another tool, or an argument must *never exceed* a limit.",
+            "Adversarial search": "Instead of testing one hand-written attack phrasing, "
+                "automatically trying several coercion framings (direct override, fake authority, "
+                "urgency, roleplay...) and reporting the **break rate** — proof a refusal holds up "
+                "broadly, not just on one wording.",
+        },
+        "Tracking & safety": {
+            "Snapshot": "A saved, point-in-time export of every individual check's result — what "
+                "lets you compare *today's* run against an earlier one.",
+            "Regression": "A check that used to PASS and now FAILS, found by comparing two "
+                "snapshots — the thing a moving score alone can hide.",
+            "BYOK (bring your own key)": "Your API key lives only in your browser session for this "
+                "visit — it's never written to the server, stored, or logged.",
+            "SSRF guard": "A safety check that blocks the HTTP backend from reaching private/"
+                "internal/metadata network addresses, so the tool can't be abused as a proxy into "
+                "infrastructure it shouldn't reach.",
+        },
+    }
+    for section, terms in _GLOSSARY.items():
+        with st.expander(section):
+            for term, definition in terms.items():
+                st.markdown(f"**{term}** — {definition}")
+
 
 # ---- Start here -------------------------------------------------------------
 def _flow_start_here():
