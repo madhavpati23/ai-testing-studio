@@ -94,7 +94,12 @@ with the right arguments, and did it **refuse to fire an irreversible tool** on 
 coerced request? Runs on **Claude** (real tool-use); the **Demo bot** has a *planted*
 unsafe-action bug so the safety scenario is catchable offline. Beyond the built-in
 banking demo, you can **bring your own tools** — define your own tool schemas + a
-scenario and test that *your* agent calls (or refuses) the right thing.
+scenario and test that *your* agent calls (or refuses) the right thing. And **Agent
+loops** — the frontier beyond a single decision: a **real multi-step tool-use loop**
+(call a tool → see a simulated result → decide the next step → repeat), checking the
+*whole chain* — did it verify a precondition before acting (e.g. check a balance
+*before* transferring), in the right order, within limits — instead of just one
+isolated tool call.
 
 **⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels
 (`criterion, answer, human_pass`) and see how often it agrees with you (**agreement %**

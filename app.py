@@ -130,7 +130,7 @@ with st.sidebar:
     # switches backends, clear every cached run so a stale verdict from the old
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
-                    "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run",
+                    "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "al_run",
                     "calib", "calibrated_judge")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
@@ -1091,6 +1091,81 @@ def _flow_agent_action():
             if aa.text:
                 st.caption(f"Assistant said: “{aa.text}”")
 
+# ---- Behaviours · multi-step agent loops -------------------------------------
+def _flow_agent_loop():
+    st.markdown(
+        '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
+        '<b style="font-size:1.1rem;">🔗 Multi-step agent loop</b><br>'
+        'Agent actions (above) capture <b>one</b> decision. Most real agentic failures live in the '
+        '<b>chain</b>: an agent calls the right first tool, then misuses the result on step two — e.g. '
+        'transferring more money than the balance it just read. This runs a <b>real multi-step loop</b> '
+        '(call a tool → see a simulated result → decide the next step) and checks the whole sequence: '
+        'did it verify a precondition, in the right order, within limits?</div>',
+        unsafe_allow_html=True,
+    )
+    _al_kind = _BACKEND_KIND[backend]
+
+    al1, al2 = st.columns(2)
+    al1.success("**SHIP**  \nEvery step in the chain respected the rules.")
+    al2.error("**BLOCK**  \nIt skipped a precondition or exceeded a limit somewhere in the chain.")
+
+    if _al_kind in ("http", "mock"):
+        st.warning("Real multi-step loops need **native tool-use** — only **Claude** runs the "
+                   "actual back-and-forth. The **Demo bot** simulates the *planted* precondition "
+                   "bug below in one shot (no real loop) so you can see the failure mode offline; "
+                   "HTTP endpoints aren't supported.")
+
+    with st.container(border=True):
+        st.markdown("##### 📥 The scenario")
+        _labels = [s.label for s in core.AGENT_LOOP_SCENARIOS]
+        _pick = st.selectbox("Pick a scenario", _labels, key="al_scenario")
+        _scen = core.AGENT_LOOP_SCENARIOS[_labels.index(_pick)]
+        st.markdown("**Request sent to the agent:**")
+        st.markdown(f"> {_scen.prompt}")
+        st.caption(f"✅ A correct agent should: {_scen.intent}")
+        st.markdown("**Simulated tool results it will see (these don't really happen):**")
+        st.json(_scen.tool_stubs)
+
+    if st.button("🔗 Run agent loop", type="primary", key="run_al", disabled=_al_kind == "http"):
+        with st.spinner(f"Running the multi-step loop against {backend}…"):
+            try:
+                st.session_state["al_run"] = core.run_agent_loop(
+                    _scen, core.make_model(_al_kind, backend_opts))
+            except Exception as exc:
+                st.session_state.pop("al_run", None)
+                st.error(f"Agent-loop check failed against **{backend}**: {exc}")
+
+    al = st.session_state.get("al_run")
+    if al:
+        (st.success if al.passed else st.error)(
+            f"{'✅ PASS' if al.passed else '❌ FAIL'} · verdict **{al.verdict}** · "
+            f"model `{al.model_name}`")
+        with st.container(border=True):
+            st.markdown("**Every tool call made across the whole chain, in order**")
+            if al.calls:
+                st.dataframe(
+                    pd.DataFrame([{"step": i + 1, "tool": c.name, "arguments": json.dumps(c.arguments)}
+                                  for i, c in enumerate(al.calls)]),
+                    hide_index=True, use_container_width=True)
+            else:
+                st.caption("— no tools were called —")
+        with st.container(border=True):
+            st.markdown("**Checks against the whole sequence**")
+            st.dataframe(
+                pd.DataFrame([{
+                    "✓": "✅" if c.passed else "❌",
+                    "check": c.check.kind,
+                    "detail": ({"must_call": f"must call {c.check.tool}",
+                               "must_not_call": f"must NOT call {c.check.tool}",
+                               "order": f"{c.check.tool} before {c.check.other_tool}",
+                               "max_arg": f"{c.check.tool}.{c.check.arg} ≤ {c.check.limit}"}
+                              [c.check.kind]),
+                    "why": c.detail or "—",
+                } for c in al.checks]),
+                hide_index=True, use_container_width=True)
+            if al.text:
+                st.caption(f"Assistant's final answer: “{al.text}”")
+
 # ---- Judge calibration ------------------------------------------------------
 def _flow_judge():
     st.markdown(
@@ -1342,15 +1417,18 @@ with tab_behav:
         "Which behaviour?",
         ["🔁 Multi-turn — memory, context & scope across a conversation",
          "📚 RAG grounding — is the answer faithful to a provided source?",
-         "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?"],
+         "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?",
+         "🔗 Agent loops — does it verify a precondition before acting, across multiple steps?"],
         key="beh_mode")
     st.divider()
     if beh_mode.startswith("🔁"):
         _flow_multiturn()
     elif beh_mode.startswith("📚"):
         _flow_rag()
-    else:
+    elif beh_mode.startswith("🛠️"):
         _flow_agent_action()
+    else:
+        _flow_agent_loop()
 
 with tab_judge:
     _flow_judge()

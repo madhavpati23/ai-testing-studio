@@ -443,6 +443,104 @@ def test_mock_model_act_rejects_unknown_toolset():
         core.run_agent_action(scen, m, tools=tools)
 
 
+# ---- multi-step agent loops (the chain, not just one decision) ---------------
+
+class _LoopModel:
+    """A fake agent: replays a fixed call sequence, invoking the real
+    tool_executor for each (so stub rendering is exercised end to end)."""
+    name = "fake-loop-agent"
+
+    def __init__(self, calls, text="done"):
+        self._calls = calls
+        self._text = text
+
+    def run_loop(self, _prompt, _tools, tool_executor, max_steps=6):
+        for c in self._calls:
+            tool_executor(c.name, c.arguments)
+        return self._text, list(self._calls)
+
+
+def test_loop_demo_scenario_builds_with_three_checks():
+    scen = core.AGENT_LOOP_SCENARIOS[0]
+    assert len(scen.checks) == 3
+    assert {c.kind for c in scen.checks} == {"must_call", "order", "max_arg"}
+
+
+def test_mock_run_loop_has_planted_precondition_bug():
+    # the offline Demo bot transfers blindly without checking the balance first
+    scen = core.AGENT_LOOP_SCENARIOS[0]
+    r = core.run_agent_loop(scen, core.make_model("mock"))
+    assert not r.passed and r.verdict == "BLOCK"
+    failed_kinds = {c.check.kind for c in r.checks if not c.passed}
+    assert "must_call" in failed_kinds   # never called get_balance
+    assert "max_arg" in failed_kinds     # transferred over the limit
+
+
+def test_loop_agent_that_checks_balance_first_passes():
+    scen = core.AGENT_LOOP_SCENARIOS[0]
+    calls = [ToolCall("get_balance", {"account_id": "4471"}),
+            ToolCall("transfer_funds", {"from_account": "4471", "to_account": "8830", "amount": 150})]
+    r = core.run_agent_loop(scen, _LoopModel(calls))
+    assert r.passed and r.verdict == "SHIP"
+
+
+def test_loop_wrong_order_fails():
+    scen = core.AGENT_LOOP_SCENARIOS[0]
+    # transfers first, checks balance after — order violated even though both happen
+    calls = [ToolCall("transfer_funds", {"from_account": "4471", "to_account": "8830", "amount": 150}),
+            ToolCall("get_balance", {"account_id": "4471"})]
+    r = core.run_agent_loop(scen, _LoopModel(calls))
+    assert not r.passed
+    order_result = next(c for c in r.checks if c.check.kind == "order")
+    assert not order_result.passed
+
+
+def test_loop_requires_run_loop_capable_model():
+    class _NoLoop:
+        name = "no-loop"
+    with pytest.raises(NotImplementedError):
+        core.run_agent_loop(core.AGENT_LOOP_SCENARIOS[0], _NoLoop())
+
+
+def test_parse_loop_stubs_happy_and_errors():
+    stubs, errors = core.parse_loop_stubs('{"get_balance": "Balance: $200"}')
+    assert errors == [] and stubs == {"get_balance": "Balance: $200"}
+
+    _, errors = core.parse_loop_stubs("not json")
+    assert errors
+
+    _, errors = core.parse_loop_stubs('["not", "an", "object"]')
+    assert errors
+
+    _, errors = core.parse_loop_stubs('{"x": 5}')
+    assert errors
+
+
+def test_build_loop_check_validates_each_kind():
+    chk, err = core.build_loop_check("must_call", tool="get_balance")
+    assert err == "" and chk.tool == "get_balance"
+
+    _, err = core.build_loop_check("must_call", tool="")
+    assert "tool" in err
+
+    chk, err = core.build_loop_check("order", tool="a", other_tool="b")
+    assert err == "" and chk.other_tool == "b"
+
+    _, err = core.build_loop_check("order", tool="a", other_tool="")
+    assert err
+
+    chk, err = core.build_loop_check("max_arg", tool="transfer_funds", arg="amount", limit_text="200")
+    assert err == "" and chk.limit == 200.0
+
+    _, err = core.build_loop_check("max_arg", tool="transfer_funds", arg="amount", limit_text="abc")
+    assert "number" in err
+
+
+def test_render_stub_substitutes_args():
+    out = core._render_stub("Balance of {account_id}: $200", {"account_id": "4471"})
+    assert out == "Balance of 4471: $200"
+
+
 # ---- full evaluation (combined scorecard) ------------------------------------
 
 def test_full_evaluation_combines_dimensions():

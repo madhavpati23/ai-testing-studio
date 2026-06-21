@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 
 @dataclass
@@ -56,6 +56,22 @@ class Model(Protocol):
         said mid-conversation. This exposes the full reply-per-turn sequence so
         a check can assert on turn 2 of 5, not only the end — e.g. catching
         scope drift that later turns paper over.
+        """
+        ...
+
+    def run_loop(self, prompt: str, tools: list[dict],
+                 tool_executor: Callable[[str, dict], str], max_steps: int = 6
+                 ) -> tuple[str, list[ToolCall]]:
+        """Run a real multi-step agent loop: call a tool, feed back its result,
+        let the model decide the next action, repeat until it stops calling
+        tools (or max_steps).
+
+        `act()` only ever captures ONE decision. Real agentic failures live in
+        the chain — an agent can call the right first tool, then misuse the
+        result on step two (e.g. transfer more than the balance it just read).
+        `tool_executor(name, args) -> result text` simulates each tool so the
+        loop can actually run without real side effects. Returns the final
+        text plus EVERY tool call made across all steps, in order.
         """
         ...
 
@@ -263,6 +279,28 @@ class MockModel:
 
         return "I'm not sure which action to take here.", []
 
+    def run_loop(self, prompt: str, tools: list[dict], tool_executor, max_steps: int = 6
+                 ) -> tuple[str, list[ToolCall]]:
+        """Deterministic agent with a planted PRECONDITION bug: it transfers the
+        full requested amount immediately, without ever checking the balance
+        first — the real-world failure of acting on an unverified assumption.
+        """
+        names = {t.get("name") for t in tools}
+        if not names & {"get_balance", "transfer_funds"}:
+            raise NotImplementedError(
+                "The Demo bot only knows the built-in banking tools (get_balance, "
+                "transfer_funds) — it can't improvise a custom toolset. Use the "
+                "Claude backend to test your own tools.")
+        q = prompt.lower()
+        accounts = re.findall(r"account\s+(\d+)", q)
+        amount_raw = re.search(r"\$\s*([\d,.]+)", prompt)
+        amount = float(amount_raw.group(1).replace(",", "")) if amount_raw else 0.0
+        frm = accounts[0] if len(accounts) > 0 else ""
+        to = accounts[1] if len(accounts) > 1 else ""
+        call = ToolCall("transfer_funds", {"from_account": frm, "to_account": to, "amount": amount})
+        tool_executor("transfer_funds", call.arguments)   # BUG: never calls get_balance first
+        return "Transfer complete.", [call]
+
 
 class ClaudeModel:
     """Adapter for the real Claude API via the official Anthropic SDK.
@@ -323,6 +361,34 @@ class ClaudeModel:
         calls = [ToolCall(b.name, dict(b.input))
                  for b in response.content if b.type == "tool_use"]
         return text, calls
+
+    def run_loop(self, prompt: str, tools: list[dict], tool_executor: Callable[[str, dict], str],
+                 max_steps: int = 6) -> tuple[str, list[ToolCall]]:
+        """A real multi-step tool-use loop: call a tool, feed its result back as
+        a tool_result, let the model decide the next step, repeat until it stops
+        calling tools or `max_steps` is hit. Captures every call across all steps.
+        """
+        messages: list[dict] = [{"role": "user", "content": prompt}]
+        all_calls: list[ToolCall] = []
+        text = ""
+        for _ in range(max_steps):
+            response = self._client.messages.create(
+                model=self.name, max_tokens=self._max_tokens, tools=tools, messages=messages)
+            text = "".join(b.text for b in response.content if b.type == "text").strip()
+            tool_uses = [b for b in response.content if b.type == "tool_use"]
+            if not tool_uses:
+                break
+            messages.append({"role": "assistant", "content": response.content})
+            results = []
+            for b in tool_uses:
+                args = dict(b.input)
+                all_calls.append(ToolCall(b.name, args))
+                results.append({"type": "tool_result", "tool_use_id": b.id,
+                                "content": tool_executor(b.name, args)})
+            messages.append({"role": "user", "content": results})
+        else:
+            text = text or "(max steps reached without a final answer)"
+        return text, all_calls
 
 
 def _dig(data: Any, path: str) -> Any:
@@ -493,6 +559,13 @@ class HttpModel:
             "Agent-action checks need native tool-use — use the Claude backend "
             "(or the Demo bot for an offline demonstration). A generic HTTP "
             "endpoint has no standard tool-call channel to capture.")
+
+    def run_loop(self, prompt: str, tools: list[dict], tool_executor, max_steps: int = 6
+                 ) -> tuple[str, list[ToolCall]]:
+        """Not supported, same reason as act(): no native tool-use channel."""
+        raise NotImplementedError(
+            "Multi-step agent loops need native tool-use — use the Claude backend "
+            "(or the Demo bot for an offline demonstration).")
 
 
 def _truthy(value: str | None) -> bool:
