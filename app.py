@@ -736,6 +736,15 @@ def _flow_leaderboard():
     st.caption("⚠️ Each contestant runs a full certification — mind API costs/rate limits with "
               "more than 1-2 real backends. Use **Demo bot** slots to try this for free.")
 
+    if st.button("🔄 Reset leaderboard", key="reset_leaderboard"):
+        st.session_state.pop("leaderboard", None)
+        for i in range(_LB_SLOTS):
+            for prefix in ("lb_on_", "lb_name_", "lb_kind_", "lb_preset_", "lb_url_",
+                           "lb_headers_", "lb_body_", "lb_resp_", "lb_aurl_", "lb_aheaders_",
+                           "lb_claude_key_"):
+                st.session_state.pop(f"{prefix}{i}", None)
+        st.rerun()
+
     contestants = []
     for i in range(_LB_SLOTS):
         with st.expander(f"Contestant {i + 1}" + (" (Demo bot)" if i == 0 else ""), expanded=i < 2):
