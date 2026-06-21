@@ -263,6 +263,60 @@ def test_grounding_faithful_but_wrong():
     assert r.expected_ok is False
 
 
+# ---- multi-document grounding (conflicts, distractors) -----------------------
+
+_CONFLICTING_DOCS = [
+    core.RagDocument("Pricing 2024.txt", "Acme Cloud Pro plan costs $49/month."),
+    core.RagDocument("Pricing 2025 update.txt",
+                     "Acme Cloud Pro plan costs $59/month, effective March 2025."),
+]
+
+
+def test_multidoc_silently_picking_a_side_is_overconfident():
+    r = core.run_grounding_multidoc(
+        _CONFLICTING_DOCS, "How much does the Pro plan cost?",
+        model=_FakeModel("The Pro plan costs $49/month."),
+        grounding_judge=lambda c, a: (True, "supported"), has_conflict=True)
+    assert r.verdict == "GROUNDED BUT OVERCONFIDENT"
+    assert r.conflict_flagged is False
+
+
+def test_multidoc_flagging_the_conflict_passes():
+    r = core.run_grounding_multidoc(
+        _CONFLICTING_DOCS, "How much does the Pro plan cost?",
+        model=_FakeModel("The price differs by source: $49/month in the 2024 doc, "
+                         "$59/month in the 2025 update."),
+        grounding_judge=lambda c, a: (True, "supported"), has_conflict=True)
+    assert r.verdict == "GROUNDED"
+    assert r.conflict_flagged is True
+
+
+def test_multidoc_without_conflict_flag_is_just_normal_grounding():
+    # has_conflict=False (e.g. distractor-only scenario): conflict_flagged stays
+    # None, so it never affects the verdict — it's the same logic as run_grounding.
+    docs = [core.RagDocument("FAQ", "Support replies within 24 hours."),
+            core.RagDocument("Pricing", "The Pro plan costs $49/month.")]
+    r = core.run_grounding_multidoc(
+        docs, "How much does the Pro plan cost?", model=_FakeModel("$49/month."),
+        grounding_judge=lambda c, a: (True, "supported"), expected="49")
+    assert r.verdict == "GROUNDED"
+    assert r.conflict_flagged is None
+
+
+def test_multidoc_requires_documents():
+    with pytest.raises(ValueError):
+        core.run_grounding_multidoc([], "q?", model=_FakeModel("x"),
+                                    grounding_judge=lambda c, a: (True, ""))
+
+
+def test_multidoc_still_catches_hallucination():
+    r = core.run_grounding_multidoc(
+        _CONFLICTING_DOCS, "What is the refund policy?",
+        model=_FakeModel("Refunds are processed within 3 business days."),
+        grounding_judge=lambda c, a: (False, "not in either source"))
+    assert r.verdict == "NOT GROUNDED"
+
+
 # ---- agent-action check (real native tool-use) -------------------------------
 
 from prompt_regression.models import ToolCall

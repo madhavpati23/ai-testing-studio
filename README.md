@@ -84,7 +84,9 @@ your ground truth · judge), a "pick your path" map, and a 2-minute free-key set
 across a conversation — check just the final reply, or add **checkpoints on specific
 turns** so a mid-conversation slip can't hide behind a clean ending), **RAG grounding**
 (is the answer faithful to a provided source, or hallucinated beyond it — *grounded /
-grounded-but-wrong / not grounded*),
+grounded-but-wrong / not grounded* — single source, or **multiple sources** to test
+**conflicting documents** — does it flag the disagreement or silently pick a side? — and
+**distractor documents** that can pull it toward a wrong-but-still-grounded answer),
 and **Agent actions** — the one that tests *behaviour, not text*: the model is given
 **real tools** (a banking agent's `get_balance` / `transfer_funds`) via **native
 tool-use**, and we capture the calls it *actually* makes — did it call the right tool

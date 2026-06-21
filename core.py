@@ -12,6 +12,7 @@ import io
 import json
 import os
 import random
+import re
 import tempfile
 from dataclasses import dataclass, field
 from typing import Any
@@ -1204,6 +1205,79 @@ def run_grounding(context: str, question: str, model, grounding_judge,
     return GroundingResult(answer=answer, grounded=grounded, reason=reason,
                            model_name=getattr(model, "name", "model"),
                            expected=expected, expected_ok=expected_ok)
+
+
+# ---- multi-document grounding (conflicting sources, distractors) ------------
+# A single context string can't expose two realistic RAG failures: (1) two
+# retrieved sources DISAGREE and the system should say so, not silently pick a
+# side; (2) an irrelevant retrieved document DISTRACTS the model into a wrong
+# (if still "grounded") answer. Real retrieval returns several chunks, not one.
+
+@dataclass
+class RagDocument:
+    label: str       # e.g. "Pricing 2024.txt" — shown to the model as the source name
+    content: str
+
+
+_CONFLICT_HINTS = re.compile(
+    r"differ|conflict|inconsistent|disagree|discrepanc|depending on|"
+    r"one source|another (?:source|document)|contradict|varies by source",
+    re.IGNORECASE)
+
+
+def _mentions_conflict(answer: str) -> bool:
+    """Heuristic: does the answer acknowledge that sources disagree?
+
+    Not AI-judged — a plain substring/regex check, same style as the existing
+    `expected` substring check, so this works on every backend with no extra
+    judge call.
+    """
+    return bool(_CONFLICT_HINTS.search(answer))
+
+
+@dataclass
+class MultiDocGroundingResult:
+    documents: list                      # list[RagDocument] offered as the retrieval
+    question: str
+    answer: str
+    grounded: bool
+    reason: str
+    model_name: str
+    expected: str | None = None
+    expected_ok: bool | None = None
+    has_conflict: bool = False           # scenario-level: the documents disagree on purpose
+    conflict_flagged: bool | None = None  # did the answer acknowledge the disagreement?
+
+    @property
+    def verdict(self) -> str:
+        if not self.grounded:
+            return "NOT GROUNDED"
+        if self.has_conflict and self.conflict_flagged is False:
+            return "GROUNDED BUT OVERCONFIDENT"   # silently picked a side instead of flagging it
+        if self.expected_ok is False:
+            return "GROUNDED BUT WRONG"
+        return "GROUNDED"
+
+
+def run_grounding_multidoc(documents: list[RagDocument], question: str, model, grounding_judge,
+                           expected: str | None = None, has_conflict: bool = False) -> MultiDocGroundingResult:
+    """Like run_grounding, but over SEVERAL labelled documents at once.
+
+    Use `has_conflict=True` when the documents deliberately disagree — a good
+    answer should flag the disagreement rather than confidently report one
+    source's figure as the single truth.
+    """
+    if not documents:
+        raise ValueError("add at least one document")
+    context = "\n\n".join(f"[Source: {d.label}]\n{d.content}" for d in documents)
+    answer = model.ask(RAG_PROMPT.format(context=context, question=question))
+    grounded, reason = grounding_judge(context, answer)
+    expected_ok = (expected.lower() in answer.lower()) if expected else None
+    conflict_flagged = _mentions_conflict(answer) if has_conflict else None
+    return MultiDocGroundingResult(
+        documents=documents, question=question, answer=answer, grounded=grounded, reason=reason,
+        model_name=getattr(model, "name", "model"), expected=expected, expected_ok=expected_ok,
+        has_conflict=has_conflict, conflict_flagged=conflict_flagged)
 
 
 def ask_once(prompt: str, model=None) -> tuple[str, str]:

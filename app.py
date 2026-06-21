@@ -130,7 +130,8 @@ with st.sidebar:
     # switches backends, clear every cached run so a stale verdict from the old
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
-                    "convo_run", "convo_trace", "rag_run", "aa_run", "calib", "calibrated_judge")
+                    "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run",
+                    "calib", "calibrated_judge")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
             st.session_state.pop(_k, None)
@@ -841,52 +842,124 @@ def _flow_rag():
         st.warning("Pick a **real backend** (Claude / Groq / OpenAI) — grounding needs a model to "
                    "answer and a model to grade faithfulness. The Demo bot can't.")
 
-    # What the three possible verdicts mean, up front, as a legend.
-    lc1, lc2, lc3 = st.columns(3)
-    lc1.success("**GROUNDED**  \nEvery claim is supported by the context.")
+    # What the verdicts mean, up front, as a legend.
+    lc1, lc2, lc3, lc4 = st.columns(4)
+    lc1.success("**GROUNDED**  \nEvery claim is supported by the source(s).")
     lc2.warning("**GROUNDED BUT WRONG**  \nFaithful, but missed the expected answer.")
     lc3.error("**NOT GROUNDED**  \nAdded or contradicted facts — a hallucination.")
+    lc4.warning("**OVERCONFIDENT**  \nSources disagree; it picked one without saying so.")
 
-    with st.container(border=True):
-        st.markdown("##### 📥 The retrieval")
-        rag_context = st.text_area(
-            "Context — the retrieved source the answer must stick to", height=160, key="rag_context",
-            value="Acme Cloud's Pro plan costs $49/month and includes 2 TB of storage and email "
-                  "support. The Free plan includes 10 GB of storage and community support only.")
-        rrc1, rrc2 = st.columns([2, 1])
-        rag_question = rrc1.text_input("Question", value="How much does the Pro plan cost and what "
-                                       "support does it include?", key="rag_question")
-        rag_expected = rrc2.text_input("Expected (optional substring)", value="$49", key="rag_expected")
-        st.caption("💡 To see a hallucination caught, ask something the context can't answer — "
-                   "e.g. *“What's the Enterprise plan price?”* — and watch for **NOT GROUNDED**.")
+    rag_source = st.radio(
+        "Sources",
+        ["📄 Single source — classic faithfulness check",
+         "📑 Multiple sources — conflicting or distracting documents"],
+        key="rag_source", horizontal=True)
 
-    if _rag_kind == "mock":
-        st.caption("⚪ Disabled — connect a real backend (Claude / Groq / OpenAI) in the sidebar to enable.")
-    if st.button("📚 Run grounding check", type="primary", key="run_rag",
-                 disabled=_rag_kind == "mock" or not rag_context.strip() or not rag_question.strip()):
-        with st.spinner(f"Answering from context + grading faithfulness with {backend}…"):
-            try:
-                st.session_state["rag_run"] = core.run_grounding(
-                    rag_context, rag_question,
-                    model=core.make_model(_rag_kind, backend_opts),
-                    grounding_judge=core.make_grounding_judge(_rag_kind, backend_opts),
-                    expected=rag_expected.strip() or None)
-            except Exception as exc:
-                st.session_state.pop("rag_run", None)
-                st.error(f"Grounding check failed against **{backend}**: {exc}")
-
-    rag = st.session_state.get("rag_run")
-    if rag:
-        _rv = {"GROUNDED": "success", "GROUNDED BUT WRONG": "warning", "NOT GROUNDED": "error"}
-        getattr(st, _rv.get(rag.verdict, "info"))(
-            f"**{rag.verdict}** · model `{rag.model_name}`")
+    if rag_source.startswith("📄"):
         with st.container(border=True):
-            st.markdown("**The model's answer**")
-            st.markdown(f"> {rag.answer}")
-            st.caption(f"Faithfulness judge: {rag.reason}")
-            if rag.expected is not None:
-                st.caption(f"Expected substring “{rag.expected}”: "
-                           + ("✅ found" if rag.expected_ok else "❌ not found"))
+            st.markdown("##### 📥 The retrieval")
+            rag_context = st.text_area(
+                "Context — the retrieved source the answer must stick to", height=160, key="rag_context",
+                value="Acme Cloud's Pro plan costs $49/month and includes 2 TB of storage and email "
+                      "support. The Free plan includes 10 GB of storage and community support only.")
+            rrc1, rrc2 = st.columns([2, 1])
+            rag_question = rrc1.text_input("Question", value="How much does the Pro plan cost and what "
+                                           "support does it include?", key="rag_question")
+            rag_expected = rrc2.text_input("Expected (optional substring)", value="$49", key="rag_expected")
+            st.caption("💡 To see a hallucination caught, ask something the context can't answer — "
+                       "e.g. *“What's the Enterprise plan price?”* — and watch for **NOT GROUNDED**.")
+
+        if _rag_kind == "mock":
+            st.caption("⚪ Disabled — connect a real backend (Claude / Groq / OpenAI) in the sidebar to enable.")
+        if st.button("📚 Run grounding check", type="primary", key="run_rag",
+                     disabled=_rag_kind == "mock" or not rag_context.strip() or not rag_question.strip()):
+            with st.spinner(f"Answering from context + grading faithfulness with {backend}…"):
+                try:
+                    st.session_state["rag_run"] = core.run_grounding(
+                        rag_context, rag_question,
+                        model=core.make_model(_rag_kind, backend_opts),
+                        grounding_judge=core.make_grounding_judge(_rag_kind, backend_opts),
+                        expected=rag_expected.strip() or None)
+                    st.session_state.pop("rag_multi_run", None)
+                except Exception as exc:
+                    st.session_state.pop("rag_run", None)
+                    st.error(f"Grounding check failed against **{backend}**: {exc}")
+
+        rag = st.session_state.get("rag_run")
+        if rag:
+            _rv = {"GROUNDED": "success", "GROUNDED BUT WRONG": "warning", "NOT GROUNDED": "error"}
+            getattr(st, _rv.get(rag.verdict, "info"))(
+                f"**{rag.verdict}** · model `{rag.model_name}`")
+            with st.container(border=True):
+                st.markdown("**The model's answer**")
+                st.markdown(f"> {rag.answer}")
+                st.caption(f"Faithfulness judge: {rag.reason}")
+                if rag.expected is not None:
+                    st.caption(f"Expected substring “{rag.expected}”: "
+                              + ("✅ found" if rag.expected_ok else "❌ not found"))
+
+    else:
+        if _rag_kind == "mock":
+            st.warning("Pick a **real backend** — multi-source grounding needs a model to answer "
+                       "and a model to grade faithfulness. The Demo bot can't.")
+
+        with st.container(border=True):
+            st.markdown("##### 📥 Your documents — label + content per row")
+            st.caption("Make two rows **disagree** to test conflict-handling, or add an irrelevant "
+                       "row to test whether it distracts the model from the right answer.")
+            _default_docs = pd.DataFrame([
+                {"label": "Pricing 2024.txt", "content": "Acme Cloud Pro plan costs $49/month."},
+                {"label": "Pricing 2025 update.txt",
+                 "content": "Acme Cloud Pro plan costs $59/month, effective March 2025."},
+                {"label": "Support FAQ.txt", "content": "Support replies within 24 hours on all plans."},
+            ])
+            docs_df = st.data_editor(_default_docs, num_rows="dynamic", key="rag_docs",
+                                     use_container_width=True)
+            rrc1, rrc2 = st.columns([2, 1])
+            rag_m_question = rrc1.text_input("Question", value="How much does the Pro plan cost?",
+                                             key="rag_m_question")
+            rag_m_expected = rrc2.text_input("Expected (optional substring)", value="",
+                                             key="rag_m_expected")
+            rag_has_conflict = st.checkbox(
+                "These documents deliberately **disagree** — a good answer should flag it, not "
+                "silently pick a side", value=True, key="rag_has_conflict")
+
+        if st.button("📚 Run multi-source grounding check", type="primary", key="run_rag_multi",
+                     disabled=_rag_kind == "mock" or docs_df.empty or not rag_m_question.strip()):
+            _docs = [core.RagDocument(str(r["label"]), str(r["content"]))
+                    for _, r in docs_df.dropna().iterrows()]
+            with st.spinner(f"Answering from {len(_docs)} document(s) + grading with {backend}…"):
+                try:
+                    st.session_state["rag_multi_run"] = core.run_grounding_multidoc(
+                        _docs, rag_m_question,
+                        model=core.make_model(_rag_kind, backend_opts),
+                        grounding_judge=core.make_grounding_judge(_rag_kind, backend_opts),
+                        expected=rag_m_expected.strip() or None, has_conflict=rag_has_conflict)
+                    st.session_state.pop("rag_run", None)
+                except Exception as exc:
+                    st.session_state.pop("rag_multi_run", None)
+                    st.error(f"Multi-source grounding check failed against **{backend}**: {exc}")
+
+        rag_m = st.session_state.get("rag_multi_run")
+        if rag_m:
+            _rv = {"GROUNDED": "success", "GROUNDED BUT WRONG": "warning",
+                  "GROUNDED BUT OVERCONFIDENT": "warning", "NOT GROUNDED": "error"}
+            getattr(st, _rv.get(rag_m.verdict, "info"))(
+                f"**{rag_m.verdict}** · model `{rag_m.model_name}`")
+            with st.container(border=True):
+                st.markdown("**Documents offered**")
+                st.dataframe(pd.DataFrame([{"source": d.label, "content": d.content}
+                                          for d in rag_m.documents]),
+                            hide_index=True, use_container_width=True)
+                st.markdown("**The model's answer**")
+                st.markdown(f"> {rag_m.answer}")
+                st.caption(f"Faithfulness judge: {rag_m.reason}")
+                if rag_m.has_conflict:
+                    st.caption("Conflict acknowledged in the answer: "
+                              + ("✅ yes" if rag_m.conflict_flagged else "❌ no — picked a side silently"))
+                if rag_m.expected is not None:
+                    st.caption(f"Expected substring “{rag_m.expected}”: "
+                              + ("✅ found" if rag_m.expected_ok else "❌ not found"))
 
 # ---- Behaviours · agent actions (real native tool-use) ----------------------
 def _flow_agent_action():
