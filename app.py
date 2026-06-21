@@ -621,11 +621,14 @@ def _flow_certify():
                   "*\"Add this result to my certificate\"* to fold tool-use safety into this grade "
                   "— otherwise it only reflects text quality.")
 
-    if st.button("🏅 Certify this AI", type="primary", key="run_certify"):
-        _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
-        st.session_state["certify_badge"] = _cb
+    _certify_needs_url = _kind in ("http", "http_agent") and not (backend_opts.get("url") or "").strip()
+    if _certify_needs_url:
+        st.caption("⚪ Disabled — enter an endpoint URL in the sidebar first.")
+    if st.button("🏅 Certify this AI", type="primary", key="run_certify", disabled=_certify_needs_url):
         with st.spinner(f"Running the {_level} evaluation across every dimension…"):
             try:
+                _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
+                st.session_state["certify_badge"] = _cb
                 st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
                     golden_cases=gcases or None, judge=_cj,
