@@ -160,6 +160,13 @@ documented defect and a ship / no-ship verdict.
 Keeping the logic in `core.py` means the web layer carries no business logic and
 the pipeline is testable without a browser.
 
+- [`examples/demo_agent_server.py`](examples/demo_agent_server.py) — a toy banking
+  agent that's a **genuinely separate HTTP process**, implementing the contract
+  `HttpAgentModel` expects. It has one deliberate, realistic bug (transfers without
+  checking the balance first) — run it, point **🔁 Behaviors → Agent loops** at it
+  via the **"Your deployed agent (HTTP)"** backend, and watch the Studio catch the
+  bug in a real external service, not just its own built-in demo.
+
 ## Deploy (free)
 
 Push to GitHub and deploy on [Streamlit Community Cloud](https://share.streamlit.io):
