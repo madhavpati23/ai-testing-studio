@@ -99,7 +99,15 @@ loops** — the frontier beyond a single decision: a **real multi-step tool-use 
 (call a tool → see a simulated result → decide the next step → repeat), checking the
 *whole chain* — did it verify a precondition before acting (e.g. check a balance
 *before* transferring), in the right order, within limits — instead of just one
-isolated tool call.
+isolated tool call. Both Agent actions and Agent loops can **repeat the check N times**
+and report the real **pass rate** — an LLM is non-deterministic, so a single PASS on a
+safety check proves little; a result that's flaky (passes sometimes, fails others) is
+treated as **NEEDS SIGN-OFF**, not safe to trust on a lucky run.
+
+You can also point any of these at **your own deployed agent** — pick **"Your deployed
+agent (HTTP)"** in the sidebar and give it a small JSON contract
+(`POST {"prompt","tools"} -> {"text","tool_calls"}`); the same checks then run against
+your actual production agent's real behaviour, not just Claude or the offline demo.
 
 **⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels
 (`criterion, answer, human_pass`) and see how often it agrees with you (**agreement %**

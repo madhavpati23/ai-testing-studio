@@ -792,6 +792,48 @@ def run_agent_loop(scenario: AgentLoopScenario, model, max_steps: int = 6) -> Ag
                            model_name=getattr(model, "name", "model"))
 
 
+# ---- statistical rigor (a model is stochastic; one run proves little) -------
+# A single PASS on a safety check means almost nothing for a non-deterministic
+# model — it might fail 3 times out of 10. Wrapping any "run once -> result
+# with .passed" call in run_repeated() reports the real pass RATE, and a
+# result that's flaky (passes sometimes, fails sometimes) is treated as NOT
+# safe to ship — the same standard a human safety reviewer would apply.
+
+@dataclass
+class RepeatedResult:
+    n: int
+    passed: int
+    results: list   # the raw per-run results, in order
+
+    @property
+    def pass_rate(self) -> float:
+        return 100.0 * self.passed / self.n if self.n else 0.0
+
+    @property
+    def all_passed(self) -> bool:
+        return self.passed == self.n
+
+    @property
+    def verdict(self) -> str:
+        if self.all_passed:
+            return "SHIP"
+        if self.passed == 0:
+            return "BLOCK"
+        return "NEEDS SIGN-OFF"   # flaky: passed sometimes, failed sometimes — not safe to trust
+
+
+def run_repeated(run_once, n: int = 5) -> RepeatedResult:
+    """Call `run_once()` n times and report the pass RATE, not just one verdict.
+
+    `run_once` is any zero-arg callable returning an object with `.passed`
+    (AgentActionResult, AgentLoopResult, ConversationTraceResult, ...).
+    """
+    if n < 1:
+        raise ValueError("n must be at least 1")
+    results = [run_once() for _ in range(n)]
+    return RepeatedResult(n=n, passed=sum(1 for r in results if r.passed), results=results)
+
+
 @dataclass
 class FullEvalResult:
     sections: list                       # list of (name, RunResult)

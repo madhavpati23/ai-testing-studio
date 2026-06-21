@@ -1004,6 +1004,12 @@ def _flow_agent_action():
          "🧪 Your own agent — define your own tools and scenario"],
         key="aa_source", horizontal=True)
 
+    aa_reps = st.number_input(
+        "Reliability — repeat this check N times", min_value=1, max_value=10, value=1,
+        key="aa_reps",
+        help="LLMs are non-deterministic. A safety check that passes once might fail 3 times "
+             "out of 10 — repeat it to see the real pass rate, not a lucky single run.")
+
     if aa_source.startswith("📦"):
         if _aa_kind == "http":
             st.warning("HTTP endpoints have no standard tool-call channel to capture. Use "
@@ -1032,10 +1038,12 @@ def _flow_agent_action():
             st.caption("⚪ Disabled — switch to Claude or the Demo bot in the sidebar to enable.")
         if st.button("🛠️ Run agent-action check", type="primary", key="run_aa",
                      disabled=_aa_builtin_disabled):
-            with st.spinner(f"Offering the tools to {backend} and capturing its calls…"):
+            with st.spinner(f"Offering the tools to {backend} and capturing its calls "
+                            f"({aa_reps}×)…"):
                 try:
-                    st.session_state["aa_run"] = core.run_agent_action(
-                        _scen, core.make_model(_aa_kind, backend_opts))
+                    _model = core.make_model(_aa_kind, backend_opts)
+                    st.session_state["aa_run"] = core.run_repeated(
+                        lambda: core.run_agent_action(_scen, _model), n=int(aa_reps))
                 except Exception as exc:
                     st.session_state.pop("aa_run", None)
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
@@ -1093,21 +1101,37 @@ def _flow_agent_action():
             st.caption(f"⚪ Disabled — {_scen_err}.")
         if st.button("🛠️ Run agent-action check", type="primary", key="run_aa_custom",
                      disabled=_scen is None or not _aa_custom_ok):
-            with st.spinner(f"Offering your tools to {backend} and capturing its calls…"):
+            with st.spinner(f"Offering your tools to {backend} and capturing its calls "
+                            f"({aa_reps}×)…"):
                 try:
-                    st.session_state["aa_run"] = core.run_agent_action(
-                        _scen, core.make_model(_aa_kind, backend_opts), tools=tools)
+                    _model = core.make_model(_aa_kind, backend_opts)
+                    st.session_state["aa_run"] = core.run_repeated(
+                        lambda: core.run_agent_action(_scen, _model, tools=tools), n=int(aa_reps))
                 except Exception as exc:
                     st.session_state.pop("aa_run", None)
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
 
-    aa = st.session_state.get("aa_run")
-    if aa:
-        (st.success if aa.passed else st.error)(
-            f"{'✅ PASS' if aa.passed else '❌ FAIL'} · verdict **{aa.verdict}** · "
-            f"model `{aa.model_name}`")
+    aa_rep = st.session_state.get("aa_run")
+    if aa_rep:
+        if aa_rep.n > 1:
+            (st.success if aa_rep.all_passed else st.error)(
+                f"**{aa_rep.passed}/{aa_rep.n} passed ({aa_rep.pass_rate:.0f}%)** · "
+                f"verdict **{aa_rep.verdict}** · model `{aa_rep.results[0].model_name}`")
+            if not aa_rep.all_passed and aa_rep.passed > 0:
+                st.caption("⚠️ **Flaky** — passed some runs, failed others. Not safe to trust a "
+                          "single lucky pass.")
+            st.dataframe(
+                pd.DataFrame([{"run": i + 1, "✓": "✅" if r.passed else "❌", "why": r.detail}
+                             for i, r in enumerate(aa_rep.results)]),
+                hide_index=True, use_container_width=True)
+        else:
+            _r0 = aa_rep.results[0]
+            (st.success if _r0.passed else st.error)(
+                f"{'✅ PASS' if _r0.passed else '❌ FAIL'} · verdict **{_r0.verdict}** · "
+                f"model `{_r0.model_name}`")
+        aa = aa_rep.results[0]
         with st.container(border=True):
-            st.markdown("**Tool calls the model actually made**")
+            st.markdown("**Tool calls the model actually made**" + (" (run 1)" if aa_rep.n > 1 else ""))
             if aa.calls:
                 st.dataframe(
                     pd.DataFrame([{"tool": c.name, "arguments": json.dumps(c.arguments)}
@@ -1161,22 +1185,44 @@ def _flow_agent_loop():
         st.markdown("**Simulated tool results it will see (these don't really happen):**")
         st.json(_scen.tool_stubs)
 
+    al_reps = st.number_input(
+        "Reliability — repeat this check N times", min_value=1, max_value=10, value=1,
+        key="al_reps",
+        help="LLMs are non-deterministic. Repeat the loop to see the real pass rate, not a "
+             "lucky single run.")
+
     if st.button("🔗 Run agent loop", type="primary", key="run_al", disabled=_al_kind == "http"):
-        with st.spinner(f"Running the multi-step loop against {backend}…"):
+        with st.spinner(f"Running the multi-step loop against {backend} ({al_reps}×)…"):
             try:
-                st.session_state["al_run"] = core.run_agent_loop(
-                    _scen, core.make_model(_al_kind, backend_opts))
+                _model = core.make_model(_al_kind, backend_opts)
+                st.session_state["al_run"] = core.run_repeated(
+                    lambda: core.run_agent_loop(_scen, _model), n=int(al_reps))
             except Exception as exc:
                 st.session_state.pop("al_run", None)
                 st.error(f"Agent-loop check failed against **{backend}**: {exc}")
 
-    al = st.session_state.get("al_run")
-    if al:
-        (st.success if al.passed else st.error)(
-            f"{'✅ PASS' if al.passed else '❌ FAIL'} · verdict **{al.verdict}** · "
-            f"model `{al.model_name}`")
+    al_rep = st.session_state.get("al_run")
+    if al_rep:
+        if al_rep.n > 1:
+            (st.success if al_rep.all_passed else st.error)(
+                f"**{al_rep.passed}/{al_rep.n} passed ({al_rep.pass_rate:.0f}%)** · "
+                f"verdict **{al_rep.verdict}** · model `{al_rep.results[0].model_name}`")
+            if not al_rep.all_passed and al_rep.passed > 0:
+                st.caption("⚠️ **Flaky** — passed some runs, failed others. Not safe to trust a "
+                          "single lucky pass.")
+            st.dataframe(
+                pd.DataFrame([{"run": i + 1, "✓": "✅" if r.passed else "❌"}
+                             for i, r in enumerate(al_rep.results)]),
+                hide_index=True, use_container_width=True)
+        else:
+            _r0 = al_rep.results[0]
+            (st.success if _r0.passed else st.error)(
+                f"{'✅ PASS' if _r0.passed else '❌ FAIL'} · verdict **{_r0.verdict}** · "
+                f"model `{_r0.model_name}`")
+        al = al_rep.results[0]
         with st.container(border=True):
-            st.markdown("**Every tool call made across the whole chain, in order**")
+            st.markdown("**Every tool call made across the whole chain, in order**"
+                       + (" (run 1)" if al_rep.n > 1 else ""))
             if al.calls:
                 st.dataframe(
                     pd.DataFrame([{"step": i + 1, "tool": c.name, "arguments": json.dumps(c.arguments)}

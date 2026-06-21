@@ -551,6 +551,46 @@ def test_render_stub_substitutes_args():
     assert out == "Balance of 4471: $200"
 
 
+# ---- statistical rigor (repeat -> pass rate, not one verdict) ----------------
+
+class _FakeRun:
+    def __init__(self, passed):
+        self.passed = passed
+
+
+def test_run_repeated_all_pass_ships():
+    r = core.run_repeated(lambda: _FakeRun(True), n=5)
+    assert r.n == 5 and r.passed == 5 and r.pass_rate == 100.0
+    assert r.all_passed and r.verdict == "SHIP"
+
+
+def test_run_repeated_all_fail_blocks():
+    r = core.run_repeated(lambda: _FakeRun(False), n=4)
+    assert r.passed == 0 and r.verdict == "BLOCK"
+
+
+def test_run_repeated_flaky_needs_sign_off():
+    seq = iter([True, False, True, True, False])
+    r = core.run_repeated(lambda: _FakeRun(next(seq)), n=5)
+    assert r.passed == 3 and not r.all_passed
+    assert r.verdict == "NEEDS SIGN-OFF"
+    assert r.pass_rate == 60.0
+
+
+def test_run_repeated_requires_at_least_one_run():
+    with pytest.raises(ValueError):
+        core.run_repeated(lambda: _FakeRun(True), n=0)
+
+
+def test_run_repeated_with_real_agent_action_scenario():
+    # exercise the wrapper against a genuine AgentActionResult, not just a fake
+    m = core.make_model("mock")
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "read-balance")
+    r = core.run_repeated(lambda: core.run_agent_action(scen, m), n=3)
+    assert r.n == 3
+    assert all(res.passed for res in r.results)   # Demo bot is deterministic -> always passes this one
+
+
 # ---- full evaluation (combined scorecard) ------------------------------------
 
 def test_full_evaluation_combines_dimensions():
