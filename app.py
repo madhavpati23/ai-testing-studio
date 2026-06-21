@@ -751,16 +751,39 @@ def _flow_leaderboard():
                 opts["api_key"] = _sk or st.text_input(
                     "ANTHROPIC_API_KEY", type="password", key=f"lb_claude_key_{i}")
             elif kind == "http":
+                for _k, _d in {f"lb_url_{i}": "", f"lb_body_{i}": '{"prompt": {PROMPT}}',
+                               f"lb_resp_{i}": "output", f"lb_headers_{i}": ""}.items():
+                    st.session_state.setdefault(_k, _d)
+
+                def _apply_lb_preset(i=i):
+                    p = _HTTP_PRESETS.get(st.session_state.get(f"lb_preset_{i}"))
+                    if p:
+                        st.session_state[f"lb_url_{i}"] = p["url"]
+                        st.session_state[f"lb_body_{i}"] = p["body"]
+                        st.session_state[f"lb_resp_{i}"] = p["response_path"]
+                        st.session_state[f"lb_headers_{i}"] = p["headers"]
+
+                st.selectbox("Preset", list(_HTTP_PRESETS), key=f"lb_preset_{i}",
+                            on_change=_apply_lb_preset)
                 lc1, lc2 = st.columns(2)
                 opts["url"] = lc1.text_input("Endpoint URL", key=f"lb_url_{i}",
                                              placeholder="https://api.example.com/chat")
                 opts["headers"] = lc2.text_input(
                     "Headers (JSON)", key=f"lb_headers_{i}",
                     placeholder='{"Authorization": "Bearer ..."}')
-                opts["body"] = st.text_input("Body template", value='{"prompt": {PROMPT}}',
-                                             key=f"lb_body_{i}")
-                opts["response_path"] = st.text_input("Response path", value="output",
-                                                      key=f"lb_resp_{i}")
+                opts["body"] = st.text_input("Body template", key=f"lb_body_{i}")
+                opts["response_path"] = st.text_input("Response path", key=f"lb_resp_{i}")
+
+                _preset_name = st.session_state.get(f"lb_preset_{i}", "")
+                _secret_name = ("GROQ_API_KEY" if _preset_name.startswith("Groq")
+                                else "OPENAI_API_KEY" if _preset_name.startswith("OpenAI") else None)
+                _hk = _secret(_secret_name) if _secret_name else None
+                if _hk:
+                    opts["headers"] = json.dumps({"Authorization": f"Bearer {_hk}"})
+                    st.caption(f"🔐 Using **{_secret_name}** from Secrets for the Authorization header.")
+                elif _preset_name.startswith("Groq"):
+                    st.caption("Free key: console.groq.com → API Keys → create one (starts `gsk_`) "
+                              "and paste it into the Authorization header above.")
                 opts["block_private"] = True
             elif kind == "http_agent":
                 opts["url"] = st.text_input("Agent endpoint URL", key=f"lb_aurl_{i}",
