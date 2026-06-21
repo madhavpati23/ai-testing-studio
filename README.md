@@ -68,6 +68,14 @@ same severity gating. An agent that answers every question correctly but transfe
 money without checking the balance first does **not** earn a clean certificate just
 because its text is good.
 
+**🏆 Leaderboard** — Certify answers *"is this model good?"*; this answers *"which of
+these is best, and where exactly do they differ?"* Configure up to 4 contestants (any
+mix of Demo bot / Claude / HTTP / your deployed agent), run the **same** certification
+battery against all of them, and get a ranked comparison — grade, status, score, verdict
+— plus a per-model breakdown. One bad/misconfigured contestant is isolated to its own
+**ERROR** row rather than failing the whole run. Download the result as a **Markdown
+table** (drop straight into a write-up or post) or **JSON** (archive the run).
+
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
 your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.
 

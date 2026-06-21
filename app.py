@@ -723,6 +723,97 @@ def _flow_certify():
                     st.error(f"Could not compare snapshots: {exc}")
 
 
+# ---- Leaderboard (the same battery, several models, one comparison) --------
+_LB_SLOTS = 4
+_LB_BACKENDS = ["Demo bot (offline)", "Claude API", "HTTP endpoint", "Your deployed agent (HTTP)"]
+
+
+def _flow_leaderboard():
+    st.subheader("🏆 Leaderboard — the same battery, several models")
+    st.markdown("Certify answers *\"is this model good?\"* This answers *\"which of these is "
+                "best, and where exactly do they differ?\"* — run the **same** certification "
+                "battery against several backends in one go, ranked side by side.")
+    st.caption("⚠️ Each contestant runs a full certification — mind API costs/rate limits with "
+              "more than 1-2 real backends. Use **Demo bot** slots to try this for free.")
+
+    contestants = []
+    for i in range(_LB_SLOTS):
+        with st.expander(f"Contestant {i + 1}" + (" (Demo bot)" if i == 0 else ""), expanded=i < 2):
+            included = st.checkbox("Include in this run", value=(i < 2), key=f"lb_on_{i}")
+            if not included:
+                continue
+            name = st.text_input("Label", value=f"Model {i + 1}", key=f"lb_name_{i}")
+            kind_label = st.selectbox("Backend", _LB_BACKENDS, key=f"lb_kind_{i}")
+            kind = _BACKEND_KIND[kind_label]
+            opts = {}
+            if kind == "claude":
+                _sk = _secret("ANTHROPIC_API_KEY")
+                opts["api_key"] = _sk or st.text_input(
+                    "ANTHROPIC_API_KEY", type="password", key=f"lb_claude_key_{i}")
+            elif kind == "http":
+                lc1, lc2 = st.columns(2)
+                opts["url"] = lc1.text_input("Endpoint URL", key=f"lb_url_{i}",
+                                             placeholder="https://api.example.com/chat")
+                opts["headers"] = lc2.text_input(
+                    "Headers (JSON)", key=f"lb_headers_{i}",
+                    placeholder='{"Authorization": "Bearer ..."}')
+                opts["body"] = st.text_input("Body template", value='{"prompt": {PROMPT}}',
+                                             key=f"lb_body_{i}")
+                opts["response_path"] = st.text_input("Response path", value="output",
+                                                      key=f"lb_resp_{i}")
+                opts["block_private"] = True
+            elif kind == "http_agent":
+                opts["url"] = st.text_input("Agent endpoint URL", key=f"lb_aurl_{i}",
+                                            placeholder="https://my-agent.example.com/run")
+                opts["headers"] = st.text_input("Headers (JSON)", key=f"lb_aheaders_{i}",
+                                                placeholder='{"Authorization": "Bearer ..."}')
+                opts["block_private"] = True
+            contestants.append((name.strip() or f"Model {i + 1}", kind, opts))
+
+    lt1, lt2 = st.columns([2, 1])
+    _lb_level_label = lt1.selectbox(
+        "Thoroughness", ["Quick — ~22 checks (recommended for a leaderboard)", "Standard — ~48 checks"],
+        key="lb_level")
+    _lb_level = "quick" if _lb_level_label.startswith("Quick") else "standard"
+    lt2.caption("Quick keeps a multi-model run fast and cheap.")
+
+    if st.button("🏆 Run the leaderboard", type="primary", key="run_leaderboard",
+                 disabled=len(contestants) < 2):
+        with st.spinner(f"Certifying {len(contestants)} contestant(s) at {_lb_level} level…"):
+            st.session_state["leaderboard"] = core.run_leaderboard(contestants, level=_lb_level)
+
+    if len(contestants) < 2:
+        st.caption("⚪ Disabled — include at least 2 contestants to compare.")
+
+    entries = st.session_state.get("leaderboard")
+    if entries:
+        ranked = core.rank_leaderboard(entries)
+        st.markdown("#### Results")
+        st.dataframe(
+            pd.DataFrame([{
+                "rank": i + 1 if e.fe else "—",
+                "model": e.label,
+                "grade": e.grade,
+                "status": e.status,
+                "score": f"{e.fe.pass_rate:.0f}%" if e.fe else "—",
+                "verdict": e.fe.verdict if e.fe else e.error,
+            } for i, e in enumerate(ranked)]),
+            hide_index=True, use_container_width=True)
+
+        for e in ranked:
+            if e.fe:
+                with st.expander(f"{e.label} — breakdown"):
+                    st.table({c: f"{p}/{t}" for c, (p, t) in sorted(e.fe.by_category.items())})
+
+        ld1, ld2 = st.columns(2)
+        ld1.download_button("⬇️ Markdown table (for a write-up or post)",
+                            core.render_leaderboard_markdown(entries),
+                            "leaderboard.md", "text/markdown")
+        ld2.download_button("⬇️ JSON (archive this run)",
+                            core.export_leaderboard_json(entries),
+                            "leaderboard.json", "application/json")
+
+
 # ---- Evaluate · against your ground truth (golden set) ----------------------
 def _flow_golden():
     st.markdown(
@@ -1726,14 +1817,17 @@ def _flow_start_here():
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_certify, tab_start, tab_eval, tab_behav, tab_judge,
+(tab_certify, tab_leaderboard, tab_start, tab_eval, tab_behav, tab_judge,
  tab_audit, tab_help) = st.tabs(
-    ["🏅 Certify", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
+    ["🏅 Certify", "🏆 Leaderboard", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
      "📄 Example audit", "ℹ️ How it works"]
 )
 
 with tab_certify:
     _flow_certify()
+
+with tab_leaderboard:
+    _flow_leaderboard()
 
 with tab_start:
     _flow_start_here()

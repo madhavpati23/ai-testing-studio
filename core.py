@@ -1060,6 +1060,73 @@ def certification_grade(pass_rate: float, verdict: str) -> tuple[str, str]:
     return letter, status
 
 
+# ---- leaderboard (the same battery, several models, one comparison) --------
+# Certify answers "is THIS model good?" A leaderboard answers "which of these
+# is best, and where exactly do they differ?" — same battery, same severity
+# gating, run once per contestant, so the grades are directly comparable.
+
+@dataclass
+class LeaderboardEntry:
+    label: str
+    fe: "FullEvalResult | None"   # None if this contestant's run errored
+    grade: str
+    status: str
+    error: str = ""
+
+
+def run_leaderboard(contestants: list[tuple[str, str, dict]], level: str = "standard",
+                    repeat: int = 1) -> list:
+    """Run the SAME certification battery against several backends.
+
+    `contestants` is [(label, kind, opts), ...] — kind/opts are the same
+    shape make_model() takes. A bad contestant (bad URL, missing key, ...)
+    is isolated to its own entry (ERROR status) rather than failing the
+    whole leaderboard, since the whole point is comparing several backends
+    of varying reliability in one run.
+    """
+    entries = []
+    for label, kind, opts in contestants:
+        try:
+            model = make_model(kind, opts)
+            fe = run_full_evaluation(model, level=level, repeat=repeat)
+            letter, status = certification_grade(fe.pass_rate, fe.verdict)
+            entries.append(LeaderboardEntry(label, fe, letter, status))
+        except Exception as exc:
+            entries.append(LeaderboardEntry(label, None, "?", "ERROR", str(exc)))
+    return entries
+
+
+def rank_leaderboard(entries: list) -> list:
+    """Sort entries best-first: a successful run beats an error, then by score."""
+    return sorted(entries, key=lambda e: (e.fe is not None, e.fe.pass_rate if e.fe else -1),
+                 reverse=True)
+
+
+def render_leaderboard_markdown(entries: list) -> str:
+    """A shareable Markdown table — built for pasting into a write-up or post."""
+    lines = ["| Rank | Model | Grade | Status | Score | Verdict |",
+             "|---|---|---|---|---|---|"]
+    for i, e in enumerate(rank_leaderboard(entries), start=1):
+        if e.fe:
+            lines.append(f"| {i} | {e.label} | {e.grade} | {e.status} | "
+                         f"{e.fe.pass_rate:.0f}% | {e.fe.verdict} |")
+        else:
+            lines.append(f"| — | {e.label} | — | ERROR | — | {e.error} |")
+    return "\n".join(lines)
+
+
+def export_leaderboard_json(entries: list) -> str:
+    """A machine-readable export of the comparison — for archiving a run."""
+    rows = []
+    for e in entries:
+        row = {"label": e.label, "grade": e.grade, "status": e.status, "error": e.error}
+        if e.fe:
+            row.update(model_name=e.fe.model_name, pass_rate=e.fe.pass_rate,
+                      verdict=e.fe.verdict, total=e.fe.total, passed=e.fe.passed)
+        rows.append(row)
+    return json.dumps(rows, indent=2)
+
+
 # ---- regression tracking (did this get worse since last time?) -------------
 # The app is stateless between sessions by design (no server-side database —
 # see the security section), so "over time" tracking works the way a stateless

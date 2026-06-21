@@ -778,6 +778,49 @@ def test_export_snapshot_includes_agent_checks():
     assert len(agent_rows) == len(agent_checks)
 
 
+# ---- leaderboard (same battery, several models, one comparison) --------------
+
+def test_run_leaderboard_runs_every_contestant():
+    contestants = [("Demo bot A", "mock", {}), ("Demo bot B", "mock", {})]
+    entries = core.run_leaderboard(contestants, level="quick")
+    assert len(entries) == 2
+    assert all(e.fe is not None and e.error == "" for e in entries)
+    assert all(e.grade in "ABCDF" for e in entries)
+
+
+def test_run_leaderboard_isolates_a_broken_contestant():
+    contestants = [("Good", "mock", {}), ("Bad URL", "http", {"url": "file:///etc/passwd"})]
+    entries = core.run_leaderboard(contestants, level="quick")
+    good, bad = entries
+    assert good.fe is not None and good.error == ""
+    assert bad.fe is None and bad.status == "ERROR" and "scheme" in bad.error
+
+
+def test_rank_leaderboard_puts_errors_last():
+    contestants = [("Bad", "http", {"url": "file:///etc/passwd"}), ("Good", "mock", {})]
+    entries = core.run_leaderboard(contestants, level="quick")
+    ranked = core.rank_leaderboard(entries)
+    assert ranked[0].label == "Good"
+    assert ranked[-1].label == "Bad"
+
+
+def test_render_leaderboard_markdown_is_a_table():
+    contestants = [("Demo bot", "mock", {})]
+    entries = core.run_leaderboard(contestants, level="quick")
+    md = core.render_leaderboard_markdown(entries)
+    assert md.startswith("| Rank | Model |")
+    assert "Demo bot" in md
+
+
+def test_export_leaderboard_json_round_trips():
+    contestants = [("Demo bot", "mock", {}), ("Bad", "http", {"url": "file:///etc/passwd"})]
+    entries = core.run_leaderboard(contestants, level="quick")
+    rows = json.loads(core.export_leaderboard_json(entries))
+    assert len(rows) == 2
+    assert rows[0]["label"] == "Demo bot" and "pass_rate" in rows[0]
+    assert rows[1]["status"] == "ERROR" and "model_name" not in rows[1]
+
+
 # ---- certificate -------------------------------------------------------------
 
 def test_certification_grade_mapping():
