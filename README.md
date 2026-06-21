@@ -57,7 +57,9 @@ add it) and issues a printable **Certificate of AI Evaluation** with a letter **
 name, the date, the **thoroughness level**, and a per-dimension breakdown.
 Pick the depth: **Quick (~22 checks)** / **Standard (~48)** / **Thorough (~48 × 3 runs)** —
 and the certificate prints which level it was, so the grade is honestly contextualised.
-**No key? Certify the Demo bot instantly.**
+**No key? Certify the Demo bot instantly.** Download a **snapshot** (JSON) alongside
+the certificate, and after a later prompt/model change, **compare two snapshots** to see
+exactly which checks regressed or improved — not just whether the score moved.
 
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
 your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.
@@ -164,7 +166,12 @@ public deploy (it's a no-op for keys now, but documents intent).
   (e.g. Ollama). Only `http`/`https` schemes are allowed (no `file://`).
 - **Rate-limit resilient** — transient `429`/`503` are retried with backoff
   (honouring `Retry-After`).
-- All YAML is parsed with `safe_load`; there is no `eval`/`exec`/`subprocess`.
+- **"Your deployed agent" has real side effects** — unlike every other backend, it
+  calls *your* actual agent endpoint, so any tool it runs really executes. Point it
+  at a staging/test agent, not production data, unless that's the deliberate intent.
+- All YAML is parsed with `safe_load`; there is no `eval`/`exec`/`subprocess`. Stub
+  response templates (Agent loops) use plain `{key}` substitution, not Python's
+  `str.format`/`eval` — no format-string or code-injection surface.
 
 ## License
 

@@ -1003,6 +1003,59 @@ def certification_grade(pass_rate: float, verdict: str) -> tuple[str, str]:
     return letter, status
 
 
+# ---- regression tracking (did this get worse since last time?) -------------
+# The app is stateless between sessions by design (no server-side database —
+# see the security section), so "over time" tracking works the way a stateless
+# tool honestly can: export a snapshot of a certification run, and later
+# compare two snapshots (e.g. before/after a prompt or model change) to see
+# exactly which checks flipped, not just whether the overall score moved.
+
+def export_snapshot(fe: "FullEvalResult") -> str:
+    """Serialize a FullEvalResult to JSON: enough to compare against a later run."""
+    letter, status = certification_grade(fe.pass_rate, fe.verdict)
+    checks = []
+    for section_name, run in fe.sections:
+        for r in run.results:
+            checks.append({"section": section_name, "id": r.case.id, "category": r.case.category,
+                          "severity": r.case.severity, "passed": r.passed})
+    return json.dumps({
+        "model_name": fe.model_name, "level": fe.level, "runs": fe.runs,
+        "pass_rate": fe.pass_rate, "verdict": fe.verdict, "grade": letter, "status": status,
+        "checks": checks,
+    }, indent=2)
+
+
+@dataclass
+class RegressionDiff:
+    before: dict
+    after: dict
+    newly_failed: list    # check ids that passed before, fail now — REGRESSIONS
+    newly_passed: list    # check ids that failed before, pass now — improvements
+    unchanged_failed: list  # failed in both — pre-existing, not new
+
+    @property
+    def has_regressions(self) -> bool:
+        return bool(self.newly_failed)
+
+
+def compare_snapshots(before_text: str, after_text: str) -> RegressionDiff:
+    """Diff two export_snapshot() JSON strings: what flipped, not just the score.
+
+    Matches checks by `id` — a check present in only one snapshot (e.g. the
+    battery changed) is ignored rather than mis-reported as a flip.
+    """
+    before = json.loads(before_text)
+    after = json.loads(after_text)
+    before_by_id = {c["id"]: c["passed"] for c in before.get("checks", [])}
+    after_by_id = {c["id"]: c["passed"] for c in after.get("checks", [])}
+    common = set(before_by_id) & set(after_by_id)
+    newly_failed = sorted(i for i in common if before_by_id[i] and not after_by_id[i])
+    newly_passed = sorted(i for i in common if not before_by_id[i] and after_by_id[i])
+    unchanged_failed = sorted(i for i in common if not before_by_id[i] and not after_by_id[i])
+    return RegressionDiff(before=before, after=after, newly_failed=newly_failed,
+                          newly_passed=newly_passed, unchanged_failed=unchanged_failed)
+
+
 def render_certificate(fe: "FullEvalResult", issued_to: str = "", date: str | None = None) -> str:
     """A clean, printable HTML certificate for a Full evaluation result."""
     import datetime

@@ -3,6 +3,7 @@ session-scoped models (BYOK), golden-set parsing, the certification battery,
 and the practice question bank.
 """
 
+import json
 import os
 
 import pytest
@@ -671,3 +672,55 @@ def test_render_certificate_is_html():
     assert html.lower().startswith("<!doctype")
     assert "Certificate of AI Evaluation" in html
     assert fe.model_name in html
+
+
+# ---- regression tracking (snapshot export + compare) --------------------------
+
+def test_export_snapshot_has_every_check():
+    fe = core.run_full_evaluation(core.make_model("mock"), level="quick")
+    snap = json.loads(core.export_snapshot(fe))
+    assert len(snap["checks"]) == fe.total
+    assert snap["model_name"] == fe.model_name
+    assert snap["grade"] in "ABCDF"
+
+
+def test_compare_snapshots_identical_runs_show_no_regressions():
+    fe = core.run_full_evaluation(core.make_model("mock"), level="quick")
+    snap = core.export_snapshot(fe)
+    diff = core.compare_snapshots(snap, snap)
+    assert not diff.has_regressions
+    assert diff.newly_failed == [] and diff.newly_passed == []
+
+
+def test_compare_snapshots_detects_a_regression():
+    fe = core.run_full_evaluation(core.make_model("mock"), level="quick")
+    before = json.loads(core.export_snapshot(fe))
+    after = json.loads(core.export_snapshot(fe))
+    flipped = next(c["id"] for c in after["checks"] if c["passed"])
+    for c in after["checks"]:
+        if c["id"] == flipped:
+            c["passed"] = False
+    diff = core.compare_snapshots(json.dumps(before), json.dumps(after))
+    assert diff.has_regressions
+    assert flipped in diff.newly_failed
+    assert flipped not in diff.newly_passed
+
+
+def test_compare_snapshots_detects_an_improvement():
+    fe = core.run_full_evaluation(core.make_model("mock"), level="quick")
+    before = json.loads(core.export_snapshot(fe))
+    after = json.loads(core.export_snapshot(fe))
+    flipped = next(c["id"] for c in after["checks"] if not c["passed"])
+    for c in after["checks"]:
+        if c["id"] == flipped:
+            c["passed"] = True
+    diff = core.compare_snapshots(json.dumps(before), json.dumps(after))
+    assert not diff.has_regressions
+    assert flipped in diff.newly_passed
+
+
+def test_compare_snapshots_ignores_checks_only_in_one_run():
+    before = json.dumps({"checks": [{"id": "a", "passed": True}, {"id": "b", "passed": True}]})
+    after = json.dumps({"checks": [{"id": "a", "passed": False}, {"id": "c", "passed": True}]})
+    diff = core.compare_snapshots(before, after)
+    assert diff.newly_failed == ["a"]   # "b" and "c" aren't in both runs -> not compared

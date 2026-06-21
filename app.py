@@ -594,8 +594,15 @@ def _flow_certify():
             st.caption(f"⚖️ Open-ended cases graded by {_cb2}.")
 
         cert_html = core.render_certificate(fe)
-        st.download_button("⬇️ Download the certificate", cert_html,
-                           "ai-evaluation-certificate.html", "text/html", type="primary")
+        cert_snapshot = core.export_snapshot(fe)
+        cdl1, cdl2 = st.columns(2)
+        cdl1.download_button("⬇️ Download the certificate", cert_html,
+                             "ai-evaluation-certificate.html", "text/html", type="primary")
+        cdl2.download_button("⬇️ Download a snapshot (for regression tracking)", cert_snapshot,
+                             "ai-evaluation-snapshot.json", "application/json",
+                             help="Save this, then re-certify later (after a prompt/model change) "
+                                  "and compare the two snapshots below to see exactly which checks "
+                                  "regressed — not just whether the score moved.")
         st.markdown("**Your certificate**")
         components.html(cert_html, height=560, scrolling=True)
 
@@ -609,6 +616,39 @@ def _flow_certify():
             for _name, _run in fe.sections:
                 st.markdown(f"**{_name}** — {_run.summary.passed}/{_run.summary.total} · {_run.verdict}")
                 components.html(_run.html, height=360, scrolling=True)
+
+        with st.expander("📈 Compare to a previous snapshot — did anything regress?"):
+            st.caption("Upload an older snapshot (the **baseline**) and a newer one (e.g. after "
+                      "changing a prompt or switching models) to see exactly which checks flipped "
+                      "from pass to fail — a score moving from 90% to 88% hides whether that's one "
+                      "new Critical failure or three trivial ones.")
+            cmp1, cmp2 = st.columns(2)
+            before_file = cmp1.file_uploader("Baseline snapshot (older)", type=["json"], key="cmp_before")
+            after_file = cmp2.file_uploader("New snapshot (newer) — defaults to the run above",
+                                            type=["json"], key="cmp_after")
+            if before_file is not None:
+                try:
+                    _before_text = before_file.getvalue().decode("utf-8")
+                    _after_text = (after_file.getvalue().decode("utf-8")
+                                  if after_file is not None else cert_snapshot)
+                    diff = core.compare_snapshots(_before_text, _after_text)
+                    db1, db2, db3 = st.columns(3)
+                    db1.metric("Before → after grade",
+                              f"{diff.before.get('grade', '?')} → {diff.after.get('grade', '?')}")
+                    db2.metric("Regressions", len(diff.newly_failed))
+                    db3.metric("Improvements", len(diff.newly_passed))
+                    if diff.has_regressions:
+                        st.error(f"**{len(diff.newly_failed)} check(s) regressed** — passed in the "
+                                f"baseline, now failing: " + ", ".join(diff.newly_failed))
+                    else:
+                        st.success("No regressions — nothing that passed before now fails.")
+                    if diff.newly_passed:
+                        st.caption("✅ Improved: " + ", ".join(diff.newly_passed))
+                    if diff.unchanged_failed:
+                        st.caption(f"⚪ Still failing in both (pre-existing, not new): "
+                                  + ", ".join(diff.unchanged_failed))
+                except Exception as exc:
+                    st.error(f"Could not compare snapshots: {exc}")
 
 
 # ---- Evaluate · against your ground truth (golden set) ----------------------
