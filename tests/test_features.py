@@ -655,6 +655,82 @@ def test_full_evaluation_includes_golden():
     assert fe.total >= 25
 
 
+# ---- folding agent checks into the certificate (closing the seam) ------------
+
+def test_agent_action_checks_single_result():
+    m = core.make_model("mock")
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "read-balance")
+    result = core.run_agent_action(scen, m)
+    checks = core.agent_action_checks(result, scen)
+    assert len(checks) == 1
+    assert checks[0].case.id == f"agent-action::{scen.id}"
+    assert checks[0].case.severity == scen.severity
+    assert checks[0].passed == result.passed
+
+
+def test_agent_action_checks_repeated_only_passes_if_all_runs_passed():
+    m = core.make_model("mock")
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "read-balance")
+    rep = core.run_repeated(lambda: core.run_agent_action(scen, m), n=3)
+    checks = core.agent_action_checks(rep, scen)
+    assert checks[0].passed == rep.all_passed
+
+
+def test_agent_loop_checks_one_per_rule():
+    m = core.make_model("mock")
+    scen = core.AGENT_LOOP_SCENARIOS[0]
+    result = core.run_agent_loop(scen, m)
+    checks = core.agent_loop_checks(result, scen)
+    assert len(checks) == len(scen.checks)
+    # the Demo bot's planted bug: must_call and max_arg fail, order is vacuously true
+    by_kind = {c.case.id.split(":")[-2]: c.passed for c in checks}
+    assert by_kind["must_call"] is False
+    assert by_kind["max_arg"] is False
+
+
+def test_adversarial_search_checks_one_per_scored_attempt():
+    m = core.make_model("mock")
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "coerced-transfer")
+    result = core.run_adversarial_search(scen, m)
+    checks = core.adversarial_search_checks(result)
+    assert len(checks) == len(result.scored)
+    assert all(not c.passed for c in checks)   # every framing broke the planted bug
+
+
+def test_folding_agent_checks_can_flip_an_otherwise_clean_verdict():
+    # The whole point: a model with perfect text answers should NOT get a clean
+    # verdict if its agent behaviour has a critical, provable safety bug.
+    from prompt_regression.gating import decide
+    text_only = [core._agent_result("text-1", "accuracy", "medium", True, "ok")]
+    assert decide(text_only).decision == "SHIP"
+
+    m = core.make_model("mock")
+    loop_scen = core.AGENT_LOOP_SCENARIOS[0]
+    loop_result = core.run_agent_loop(loop_scen, m)
+    agent_checks = core.agent_loop_checks(loop_result, loop_scen)
+    pooled = text_only + agent_checks
+    assert decide(pooled).decision == "BLOCK"   # same text quality, now the bug surfaces
+
+
+def test_run_full_evaluation_accepts_agent_checks():
+    m = core.make_model("mock")
+    loop_scen = core.AGENT_LOOP_SCENARIOS[0]
+    agent_checks = core.agent_loop_checks(core.run_agent_loop(loop_scen, m), loop_scen)
+    fe = core.run_full_evaluation(m, level="quick", agent_checks=agent_checks)
+    assert fe.agent_checks == agent_checks
+    assert fe.total == 22 + len(agent_checks)   # quick battery + folded-in agent checks
+
+
+def test_export_snapshot_includes_agent_checks():
+    m = core.make_model("mock")
+    loop_scen = core.AGENT_LOOP_SCENARIOS[0]
+    agent_checks = core.agent_loop_checks(core.run_agent_loop(loop_scen, m), loop_scen)
+    fe = core.run_full_evaluation(m, level="quick", agent_checks=agent_checks)
+    snap = json.loads(core.export_snapshot(fe))
+    agent_rows = [c for c in snap["checks"] if c["section"] == "Agent checks"]
+    assert len(agent_rows) == len(agent_checks)
+
+
 # ---- certificate -------------------------------------------------------------
 
 def test_certification_grade_mapping():

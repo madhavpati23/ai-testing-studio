@@ -50,6 +50,30 @@ def _active_judge(kind: str, opts: dict):
                                          "⚖️ Judge tab to validate it first")
 
 
+def _queue_agent_checks(checks: list, source_label: str) -> None:
+    """Queue agent-action/loop/red-team checks to fold into the next certificate.
+
+    Without this, the one-click grade only ever reflects text quality — an
+    agent could earn "Grade A" while a live tool-misuse bug sits unflagged in
+    a different tab. Certify reads this queue and pools it into the verdict.
+    """
+    queue = st.session_state.setdefault("certify_agent_checks", [])
+    queue.extend(checks)
+    st.session_state.setdefault("certify_agent_check_sources", []).append(
+        (source_label, len(checks)))
+
+
+def _agent_checks_queue_caption() -> str:
+    queue = st.session_state.get("certify_agent_checks", [])
+    if not queue:
+        return ""
+    sources = st.session_state.get("certify_agent_check_sources", [])
+    failing = sum(1 for c in queue if not c.passed)
+    parts = ", ".join(f"{label} (+{n})" for label, n in sources)
+    return (f"📥 **{len(queue)} agent check(s) queued for the certificate** ({failing} currently "
+           f"failing) — from: {parts}")
+
+
 # HTTP-backend presets so common targets are one click (no typing).
 _HTTP_PRESETS = {
     "Custom": None,
@@ -132,7 +156,8 @@ with st.sidebar:
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
                     "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "aa_search",
-                    "al_run", "calib", "calibrated_judge")
+                    "al_run", "calib", "calibrated_judge",
+                    "certify_agent_checks", "certify_agent_check_sources")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
             st.session_state.pop(_k, None)
@@ -565,6 +590,19 @@ def _flow_certify():
                 "(mind free-tier rate limits). **Deep** draws 80 fresh probes from a 500+ "
                 "bank, so no two Deep runs are identical.")
 
+    _aq_caption = _agent_checks_queue_caption()
+    if _aq_caption:
+        st.info(_aq_caption + "  \nWithout these, the grade only reflects text quality — an agent "
+               "can misuse a real tool and still earn a clean certificate.")
+        if st.button("🗑️ Clear queued agent checks", key="clear_agent_checks"):
+            st.session_state["certify_agent_checks"] = []
+            st.session_state["certify_agent_check_sources"] = []
+            st.rerun()
+    else:
+        st.caption("💡 Run a check in **🔁 Behaviors → Agent actions / Agent loops** and click "
+                  "*\"Add this result to my certificate\"* to fold tool-use safety into this grade "
+                  "— otherwise it only reflects text quality.")
+
     if st.button("🏅 Certify this AI", type="primary", key="run_certify"):
         _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
         st.session_state["certify_badge"] = _cb
@@ -573,7 +611,8 @@ def _flow_certify():
                 st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
                     golden_cases=gcases or None, judge=_cj,
-                    level=_level, repeat=_runs, stress_n=_stress)
+                    level=_level, repeat=_runs, stress_n=_stress,
+                    agent_checks=st.session_state.get("certify_agent_checks") or None)
             except Exception as exc:
                 st.session_state.pop("certify", None)
                 st.error(f"Certification failed against **{backend}**: {exc}")
@@ -616,6 +655,14 @@ def _flow_certify():
             for _name, _run in fe.sections:
                 st.markdown(f"**{_name}** — {_run.summary.passed}/{_run.summary.total} · {_run.verdict}")
                 components.html(_run.html, height=360, scrolling=True)
+            if fe.agent_checks:
+                _ac_passed = sum(1 for c in fe.agent_checks if c.passed)
+                st.markdown(f"**Agent checks (folded in)** — {_ac_passed}/{len(fe.agent_checks)}")
+                st.dataframe(
+                    pd.DataFrame([{"id": c.case.id, "severity": c.case.severity,
+                                  "✓": "✅" if c.passed else "❌", "detail": c.detail}
+                                 for c in fe.agent_checks]),
+                    hide_index=True, use_container_width=True)
 
         with st.expander("📈 Compare to a previous snapshot — did anything regress?"):
             st.caption("Upload an older snapshot (the **baseline**) and a newer one (e.g. after "
@@ -1118,6 +1165,10 @@ def _flow_agent_action():
                         "detail": a.error or (a.result.detail if a.result else ""),
                     } for a in aa_search.attempts]),
                     hide_index=True, use_container_width=True)
+                if aa_search.scored and st.button("📥 Add this result to my certificate", key="queue_aa_search"):
+                    _queue_agent_checks(core.adversarial_search_checks(aa_search),
+                                       f"Adversarial search: {_scen.label}")
+                    st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
     else:
         _aa_custom_ok = _aa_kind in ("claude", "http_agent")
@@ -1213,6 +1264,9 @@ def _flow_agent_action():
             st.markdown(f"**Why:** {aa.detail}")
             if aa.text:
                 st.caption(f"Assistant said: “{aa.text}”")
+        if st.button("📥 Add this result to my certificate", key="queue_aa"):
+            _queue_agent_checks(core.agent_action_checks(aa_rep, _scen), f"Agent action: {_scen.label}")
+            st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
 # ---- Behaviours · multi-step agent loops -------------------------------------
 def _flow_agent_loop():
@@ -1317,6 +1371,9 @@ def _flow_agent_loop():
                 hide_index=True, use_container_width=True)
             if al.text:
                 st.caption(f"Assistant's final answer: “{al.text}”")
+        if st.button("📥 Add this result to my certificate", key="queue_al"):
+            _queue_agent_checks(core.agent_loop_checks(al_rep, _scen), f"Agent loop: {_scen.label}")
+            st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
 # ---- Judge calibration ------------------------------------------------------
 def _flow_judge():

@@ -52,7 +52,7 @@ def load_scenarios(path: str = _SCENARIOS_PATH) -> list[Scenario]:
 from prompt_regression import report as prr
 from prompt_regression.gating import decide
 from prompt_regression.models import get_model
-from prompt_regression.runner import load_cases, run_suite, summarize
+from prompt_regression.runner import Case as _Case, Result as _Result, load_cases, run_suite, summarize
 from test_case_generator import coverage as gcov
 from test_case_generator.generators import get_generator, slugify
 from test_case_generator.schema import validate_all
@@ -925,6 +925,56 @@ def run_repeated(run_once, n: int = 5) -> RepeatedResult:
     return RepeatedResult(n=n, passed=sum(1 for r in results if r.passed), results=results)
 
 
+# ---- folding agent-action / agent-loop checks into the certificate ----------
+# Without this, the one-click certificate only ever reflects TEXT quality —
+# an agent could earn "Grade A — CERTIFIED" while a live, provable tool-misuse
+# bug (transfers without checking balance, breaks under a roleplay framing)
+# sits unflagged in a different tab. These converters turn an agent-action /
+# agent-loop / adversarial-search outcome into the SAME `Result` shape the
+# certification battery uses, so they pool into the one grade/verdict/snapshot
+# through the existing, already-tested gating logic — not a parallel system.
+
+def _agent_result(check_id: str, category: str, severity: str, passed: bool, detail: str) -> _Result:
+    case = _Case(id=check_id, category=category, prompt="", validator="contains", args={}, severity=severity)
+    return _Result(case=case, answer=detail, passed=passed, detail=detail)
+
+
+def agent_action_checks(result, scenario: AgentScenario) -> list:
+    """One Result for an AgentActionResult (or a RepeatedResult of them) —
+    reliability counts: a flaky repeated run only "passes" if EVERY run did."""
+    if isinstance(result, RepeatedResult):
+        passed, detail = result.all_passed, (
+            f"{result.passed}/{result.n} runs passed ({result.pass_rate:.0f}%)")
+    else:
+        passed, detail = result.passed, result.detail
+    return [_agent_result(f"agent-action::{scenario.id}", "agent", scenario.severity, passed, detail)]
+
+
+def agent_loop_checks(result, scenario: "AgentLoopScenario") -> list:
+    """One Result PER rule in the loop scenario (must_call/order/max_arg, ...),
+    so a regression snapshot shows exactly which rule broke, not just the
+    scenario as a whole. A RepeatedResult folds in only if every run agreed."""
+    if isinstance(result, RepeatedResult):
+        per_check_passed = [all(r.checks[i].passed for r in result.results)
+                            for i in range(len(scenario.checks))]
+        details = [f"passed {sum(r.checks[i].passed for r in result.results)}/{result.n} runs"
+                  for i in range(len(scenario.checks))]
+    else:
+        per_check_passed = [c.passed for c in result.checks]
+        details = [c.detail or "ok" for c in result.checks]
+    return [_agent_result(f"agent-loop::{scenario.id}::{chk.kind}:{chk.tool}", "agent",
+                          scenario.severity, ok, detail)
+            for chk, ok, detail in zip(scenario.checks, per_check_passed, details)]
+
+
+def adversarial_search_checks(result: AdversarialSearchResult) -> list:
+    """One Result per scored mutation attempt — a robust refusal across every
+    framing earns one pass per framing; a single break is one failed check."""
+    return [_agent_result(f"adversarial::{result.scenario.id}::{a.label}", "red_team",
+                          result.scenario.severity, a.result.passed, a.result.detail)
+            for a in result.attempts if a.result is not None]
+
+
 @dataclass
 class FullEvalResult:
     sections: list                       # list of (name, RunResult)
@@ -935,6 +985,7 @@ class FullEvalResult:
     model_name: str
     level: str = "standard"              # quick | standard | thorough
     runs: int = 1                        # runs per check
+    agent_checks: list = field(default_factory=list)   # list[Result] — folded-in agent checks
 
     @property
     def pass_rate(self) -> float:
@@ -943,13 +994,16 @@ class FullEvalResult:
 
 def run_full_evaluation(model, golden_cases: list | None = None,
                         repeat: int = 1, judge=None, level: str = "standard",
-                        stress_n: int = 0) -> FullEvalResult:
+                        stress_n: int = 0, agent_checks: list | None = None) -> FullEvalResult:
     """Run several dimensions against ONE model and roll them into one verdict.
 
     Runs the deploy-readiness certification at the chosen `level` (quick/standard/
     thorough/deep), optionally adds `stress_n` randomized probes from the bank
-    (the Deep level), and adds the user's golden set when provided. Results are
-    pooled. `judge` (e.g. a calibrated one) grades llm_judge cases.
+    (the Deep level), and adds the user's golden set when provided. `agent_checks`
+    (built via agent_action_checks/agent_loop_checks/adversarial_search_checks)
+    folds in agent-action/loop/red-team outcomes — so an agent that misuses a
+    tool can't earn a clean certificate just because its text answers are good.
+    Results are pooled. `judge` (e.g. a calibrated one) grades llm_judge cases.
     """
     sections, pooled = [], []
     cert = run_selected(build_certification(level), model=model, repeat=repeat, judge=judge)
@@ -963,6 +1017,8 @@ def run_full_evaluation(model, golden_cases: list | None = None,
         gold = run_selected(list(golden_cases), model=model, repeat=repeat, judge=judge)
         sections.append(("Your ground truth", gold))
         pooled += list(gold.results)
+    agent_checks = list(agent_checks or [])
+    pooled += agent_checks
     by_cat: dict[str, list[int]] = {}
     passed = 0
     for r in pooled:
@@ -976,7 +1032,7 @@ def run_full_evaluation(model, golden_cases: list | None = None,
         by_category={k: (v[0], v[1]) for k, v in by_cat.items()},
         verdict=decide(pooled).decision,
         passed=passed, total=len(pooled), model_name=cert.model_name,
-        level=level, runs=repeat)
+        level=level, runs=repeat, agent_checks=agent_checks)
 
 
 def certification_grade(pass_rate: float, verdict: str) -> tuple[str, str]:
@@ -1018,6 +1074,9 @@ def export_snapshot(fe: "FullEvalResult") -> str:
         for r in run.results:
             checks.append({"section": section_name, "id": r.case.id, "category": r.case.category,
                           "severity": r.case.severity, "passed": r.passed})
+    for r in fe.agent_checks:
+        checks.append({"section": "Agent checks", "id": r.case.id, "category": r.case.category,
+                      "severity": r.case.severity, "passed": r.passed})
     return json.dumps({
         "model_name": fe.model_name, "level": fe.level, "runs": fe.runs,
         "pass_rate": fe.pass_rate, "verdict": fe.verdict, "grade": letter, "status": status,

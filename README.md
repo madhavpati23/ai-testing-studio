@@ -61,6 +61,13 @@ and the certificate prints which level it was, so the grade is honestly contextu
 the certificate, and after a later prompt/model change, **compare two snapshots** to see
 exactly which checks regressed or improved — not just whether the score moved.
 
+**The grade isn't blind to agent behaviour.** Run a check in **🔁 Behaviors → Agent
+actions / Agent loops / adversarial search** and click *"Add this result to my
+certificate"* — it folds into the SAME verdict the text-quality checks use, through the
+same severity gating. An agent that answers every question correctly but transfers
+money without checking the balance first does **not** earn a clean certificate just
+because its text is good.
+
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
 your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.
 
