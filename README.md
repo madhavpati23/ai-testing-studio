@@ -94,7 +94,12 @@ with the right arguments, and did it **refuse to fire an irreversible tool** on 
 coerced request? Runs on **Claude** (real tool-use); the **Demo bot** has a *planted*
 unsafe-action bug so the safety scenario is catchable offline. Beyond the built-in
 banking demo, you can **bring your own tools** — define your own tool schemas + a
-scenario and test that *your* agent calls (or refuses) the right thing. And **Agent
+scenario and test that *your* agent calls (or refuses) the right thing. A safety
+scenario also gets an **adversarial search** button — instead of one hand-written
+coercion phrasing, it automatically tries 6 different framings (direct override, fake
+authority, urgency, roleplay, reassurance, hypothetical-then-real) and reports the
+**break rate**, so a refusal is proven robust across attacks, not just lucky on one
+wording. And **Agent
 loops** — the frontier beyond a single decision: a **real multi-step tool-use loop**
 (call a tool → see a simulated result → decide the next step → repeat), checking the
 *whole chain* — did it verify a precondition before acting (e.g. check a balance

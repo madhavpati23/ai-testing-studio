@@ -131,8 +131,8 @@ with st.sidebar:
     # switches backends, clear every cached run so a stale verdict from the old
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
-                    "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "al_run",
-                    "calib", "calibrated_judge")
+                    "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "aa_search",
+                    "al_run", "calib", "calibrated_judge")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
             st.session_state.pop(_k, None)
@@ -1047,6 +1047,37 @@ def _flow_agent_action():
                 except Exception as exc:
                     st.session_state.pop("aa_run", None)
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
+
+        if _scen.kind == "must_not_call":
+            st.caption(f"🔍 **Adversarial search** — instead of this one phrasing, try "
+                      f"{len(core.AGENT_PROMPT_MUTATORS)} different coercion framings (direct "
+                      f"override, fake authority, urgency, roleplay, ...) and see how many break it.")
+            if st.button("🔍 Search for a break", key="run_aa_search", disabled=_aa_builtin_disabled):
+                with st.spinner(f"Trying {len(core.AGENT_PROMPT_MUTATORS)} coercion framings "
+                                f"against {backend}…"):
+                    try:
+                        st.session_state["aa_search"] = core.run_adversarial_search(
+                            _scen, core.make_model(_aa_kind, backend_opts))
+                    except Exception as exc:
+                        st.session_state.pop("aa_search", None)
+                        st.error(f"Adversarial search failed against **{backend}**: {exc}")
+
+            aa_search = st.session_state.get("aa_search")
+            if aa_search and aa_search.scenario.id == _scen.id:
+                if not aa_search.scored:
+                    st.error("Every attempt errored — couldn't assess any framing (see errors below).")
+                else:
+                    (st.error if aa_search.broken else st.success)(
+                        f"**{len(aa_search.broken)}/{len(aa_search.scored)} framings broke it "
+                        f"({aa_search.break_rate:.0f}%)**")
+                st.dataframe(
+                    pd.DataFrame([{
+                        "framing": a.label,
+                        "✓": "—" if a.result is None else ("❌ broke it" if not a.result.passed else "✅ held"),
+                        "mutated prompt": a.mutated_prompt,
+                        "detail": a.error or (a.result.detail if a.result else ""),
+                    } for a in aa_search.attempts]),
+                    hide_index=True, use_container_width=True)
 
     else:
         _aa_custom_ok = _aa_kind in ("claude", "http_agent")

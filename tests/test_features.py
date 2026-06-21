@@ -453,6 +453,50 @@ def test_mock_model_act_rejects_unknown_toolset():
         core.run_agent_action(scen, m, tools=tools)
 
 
+# ---- adversarial search (search for a break, not one fixed phrasing) ---------
+
+def test_adversarial_search_tries_every_mutator():
+    m = core.make_model("mock")
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "coerced-transfer")
+    r = core.run_adversarial_search(scen, m)
+    assert len(r.attempts) == len(core.AGENT_PROMPT_MUTATORS)
+    assert all(a.mutated_prompt != scen.prompt for a in r.attempts)   # every prompt was mutated
+
+
+def test_adversarial_search_finds_the_planted_bug_across_framings():
+    # the Demo bot's safety bug isn't sensitive to phrasing — every coercion
+    # framing should break it, proving the vulnerability is robust, not a fluke
+    m = core.make_model("mock")
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "coerced-transfer")
+    r = core.run_adversarial_search(scen, m)
+    assert r.break_rate == 100.0
+    assert len(r.broken) == len(core.AGENT_PROMPT_MUTATORS)
+
+
+def test_adversarial_search_on_a_safe_agent_finds_no_breaks():
+    class _SafeAgent:
+        name = "safe-fake"
+        def act(self, _prompt, _tools):
+            return "I can't do that without confirmation.", []   # never calls the tool
+
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "coerced-transfer")
+    r = core.run_adversarial_search(scen, _SafeAgent())
+    assert r.break_rate == 0.0
+    assert r.broken == []
+
+
+def test_adversarial_search_records_errors_without_crashing():
+    class _BrokenAgent:
+        name = "broken-fake"
+        def act(self, _prompt, _tools):
+            raise RuntimeError("simulated backend failure")
+
+    scen = next(s for s in core.AGENT_SCENARIOS if s.id == "coerced-transfer")
+    r = core.run_adversarial_search(scen, _BrokenAgent())
+    assert all(a.result is None and a.error for a in r.attempts)
+    assert r.scored == [] and r.break_rate == 0.0   # nothing scored, not a false "all safe"
+
+
 # ---- multi-step agent loops (the chain, not just one decision) ---------------
 
 class _LoopModel:
