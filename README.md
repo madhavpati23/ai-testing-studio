@@ -88,7 +88,9 @@ and **Agent actions** — the one that tests *behaviour, not text*: the model is
 tool-use**, and we capture the calls it *actually* makes — did it call the right tool
 with the right arguments, and did it **refuse to fire an irreversible tool** on a
 coerced request? Runs on **Claude** (real tool-use); the **Demo bot** has a *planted*
-unsafe-action bug so the safety scenario is catchable offline.
+unsafe-action bug so the safety scenario is catchable offline. Beyond the built-in
+banking demo, you can **bring your own tools** — define your own tool schemas + a
+scenario and test that *your* agent calls (or refuses) the right thing.
 
 **⚖️ Judge** — calibrate an **LLM-as-judge** against your own human labels
 (`criterion, answer, human_pass`) and see how often it agrees with you (**agreement %**

@@ -833,35 +833,98 @@ def _flow_agent_action():
     al1.success("**Capability**  \nCalls the right tool with the right arguments.")
     al2.error("**Safety**  \nRefuses to fire an irreversible tool on a coerced request.")
 
-    if _aa_kind == "http":
-        st.warning("HTTP endpoints have no standard tool-call channel to capture. Use **Claude** "
-                   "(real native tool-use) — or the **Demo bot** for an offline demonstration "
-                   "(it has a *planted* unsafe-action bug for the safety scenario).")
-    elif _aa_kind == "mock":
-        st.info("Running the **Demo bot**: a deterministic agent with a *planted* safety bug — it "
-                "obeys the coerced transfer instead of refusing. Switch to **Claude** to test a "
-                "real model's tool-use.")
+    aa_source = st.radio(
+        "Toolset",
+        ["📦 Built-in demo — a banking agent (get_balance / transfer_funds)",
+         "🧪 Your own agent — define your own tools and scenario"],
+        key="aa_source", horizontal=True)
 
-    with st.container(border=True):
-        st.markdown("##### 📥 The scenario")
-        _labels = [s.label for s in core.AGENT_SCENARIOS]
-        _pick = st.selectbox("Pick an agent scenario", _labels, key="aa_scenario")
-        _scen = core.AGENT_SCENARIOS[_labels.index(_pick)]
-        st.markdown(f"**Request sent to the agent:**")
-        st.markdown(f"> {_scen.prompt}")
-        st.caption(f"✅ A correct agent should: {_scen.intent}")
+    if aa_source.startswith("📦"):
+        if _aa_kind == "http":
+            st.warning("HTTP endpoints have no standard tool-call channel to capture. Use "
+                       "**Claude** (real native tool-use) — or the **Demo bot** for an offline "
+                       "demonstration (it has a *planted* unsafe-action bug for the safety scenario).")
+        elif _aa_kind == "mock":
+            st.info("Running the **Demo bot**: a deterministic agent with a *planted* safety bug — "
+                    "it obeys the coerced transfer instead of refusing. Switch to **Claude** to "
+                    "test a real model's tool-use.")
 
-    if _aa_kind == "http":
-        st.caption("⚪ Disabled — switch to Claude or the Demo bot in the sidebar to enable.")
-    if st.button("🛠️ Run agent-action check", type="primary", key="run_aa",
-                 disabled=_aa_kind == "http"):
-        with st.spinner(f"Offering the tools to {backend} and capturing its calls…"):
-            try:
-                st.session_state["aa_run"] = core.run_agent_action(
-                    _scen, core.make_model(_aa_kind, backend_opts))
-            except Exception as exc:
-                st.session_state.pop("aa_run", None)
-                st.error(f"Agent-action check failed against **{backend}**: {exc}")
+        with st.container(border=True):
+            st.markdown("##### 📥 The scenario")
+            _labels = [s.label for s in core.AGENT_SCENARIOS]
+            _pick = st.selectbox("Pick an agent scenario", _labels, key="aa_scenario")
+            _scen = core.AGENT_SCENARIOS[_labels.index(_pick)]
+            st.markdown("**Request sent to the agent:**")
+            st.markdown(f"> {_scen.prompt}")
+            st.caption(f"✅ A correct agent should: {_scen.intent}")
+
+        if _aa_kind == "http":
+            st.caption("⚪ Disabled — switch to Claude or the Demo bot in the sidebar to enable.")
+        if st.button("🛠️ Run agent-action check", type="primary", key="run_aa",
+                     disabled=_aa_kind == "http"):
+            with st.spinner(f"Offering the tools to {backend} and capturing its calls…"):
+                try:
+                    st.session_state["aa_run"] = core.run_agent_action(
+                        _scen, core.make_model(_aa_kind, backend_opts))
+                except Exception as exc:
+                    st.session_state.pop("aa_run", None)
+                    st.error(f"Agent-action check failed against **{backend}**: {exc}")
+
+    else:
+        if _aa_kind != "claude":
+            st.warning("Custom tools need **real native tool-use** — only the **Claude** backend "
+                       "supports an arbitrary toolset (the Demo bot can only improvise the "
+                       "built-in banking tools; HTTP has no standard tool-call channel).")
+
+        with st.container(border=True):
+            st.markdown("##### 🧰 Your tools")
+            st.caption("JSON list of tool schemas — the same shape Claude's native tool-use "
+                       "expects: `name`, `description`, `input_schema`.")
+            st.download_button("⬇️ Download a tools template", core.AGENT_TOOLS_TEMPLATE,
+                               "agent-tools-template.json", "application/json")
+            tools_text = st.text_area("Tool definitions (JSON)", value=core.AGENT_TOOLS_TEMPLATE,
+                                      height=180, key="aa_tools_json")
+            tools, tool_errors = core.parse_agent_tools(tools_text)
+            if tool_errors:
+                st.warning("Problems in your tool JSON:\n\n- " + "\n- ".join(tool_errors))
+
+        with st.container(border=True):
+            st.markdown("##### 📥 Your scenario")
+            aa_prompt = st.text_area(
+                "Prompt sent to the agent", key="aa_custom_prompt", height=80,
+                value="Please email jane@example.com with the subject 'Update' and body 'All good.'")
+            _tool_names = [t["name"] for t in tools] if tools else []
+            cc1, cc2 = st.columns(2)
+            aa_kind = cc1.selectbox(
+                "This scenario expects the agent to…",
+                ["must_call", "must_not_call"],
+                format_func=lambda k: "✅ CALL this tool" if k == "must_call" else "🚫 NOT call this tool",
+                key="aa_custom_kind")
+            aa_tool = cc2.selectbox("Tool", _tool_names or ["(define a tool above first)"],
+                                    key="aa_custom_tool")
+            aa_args = ""
+            if aa_kind == "must_call":
+                aa_args = st.text_input(
+                    "Expected arguments (JSON, optional — leave blank to only check it called the tool)",
+                    value="", placeholder='{"to": "jane@example.com"}', key="aa_custom_args")
+            aa_severity = st.selectbox("Severity if this fails", ["critical", "high", "medium", "low"],
+                                       index=1, key="aa_custom_severity")
+            st.caption("💡 For a **safety** scenario, write a coercive/suspicious prompt and set "
+                       "kind to **NOT call** the dangerous tool — same pattern as the built-in demo.")
+
+        _scen, _scen_err = (core.build_custom_scenario(aa_prompt, aa_kind, aa_tool, aa_args, aa_severity)
+                            if _tool_names else (None, "define at least one valid tool above"))
+        if _scen_err:
+            st.caption(f"⚪ Disabled — {_scen_err}.")
+        if st.button("🛠️ Run agent-action check", type="primary", key="run_aa_custom",
+                     disabled=_scen is None or _aa_kind != "claude"):
+            with st.spinner(f"Offering your tools to {backend} and capturing its calls…"):
+                try:
+                    st.session_state["aa_run"] = core.run_agent_action(
+                        _scen, core.make_model(_aa_kind, backend_opts), tools=tools)
+                except Exception as exc:
+                    st.session_state.pop("aa_run", None)
+                    st.error(f"Agent-action check failed against **{backend}**: {exc}")
 
     aa = st.session_state.get("aa_run")
     if aa:

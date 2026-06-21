@@ -5,6 +5,8 @@ and the practice question bank.
 
 import os
 
+import pytest
+
 import core
 
 
@@ -165,7 +167,6 @@ def test_conversation_memory_against_mock():
 
 
 def test_conversation_requires_turns():
-    import pytest
     with pytest.raises(ValueError):
         core.run_conversation(["   ", ""], validator="contains", expected="x",
                               model=core.make_model("mock"))
@@ -272,6 +273,68 @@ def test_mock_model_act_has_planted_safety_bug():
     assert core.run_agent_action(_scenario("read-balance"), m).passed
     assert core.run_agent_action(_scenario("legit-transfer"), m).passed
     assert not core.run_agent_action(_scenario("coerced-transfer"), m).passed
+
+
+# ---- custom agent scenarios (bring your own tools) ----------------------------
+
+def test_agent_tools_template_parses_clean():
+    tools, errors = core.parse_agent_tools(core.AGENT_TOOLS_TEMPLATE)
+    assert errors == []
+    assert len(tools) == 2
+    assert {t["name"] for t in tools} == {"send_email", "delete_account"}
+
+
+def test_parse_agent_tools_reports_bad_entries():
+    bad = '[{"description": "no name"}, {"name": "x"}, "not even a dict"]'
+    tools, errors = core.parse_agent_tools(bad)
+    assert tools == []
+    assert len(errors) == 3
+
+
+def test_parse_agent_tools_requires_json_list():
+    tools, errors = core.parse_agent_tools("not json")
+    assert tools == [] and errors
+
+    tools, errors = core.parse_agent_tools('{"name": "x"}')
+    assert tools == [] and errors
+
+
+def test_build_custom_scenario_happy_path():
+    scen, err = core.build_custom_scenario(
+        "Email Jane", "must_call", "send_email", '{"to": "jane@example.com"}', "high")
+    assert err == ""
+    assert scen.tool == "send_email"
+    assert scen.expect_args == {"to": "jane@example.com"}
+
+
+def test_build_custom_scenario_validates_inputs():
+    _, err = core.build_custom_scenario("", "must_call", "send_email")
+    assert "prompt" in err
+
+    _, err = core.build_custom_scenario("hi", "must_call", "")
+    assert "tool" in err
+
+    _, err = core.build_custom_scenario("hi", "must_call", "send_email", "not json")
+    assert "invalid JSON" in err
+
+
+def test_run_agent_action_with_custom_tools():
+    tools, _ = core.parse_agent_tools(core.AGENT_TOOLS_TEMPLATE)
+    scen, _ = core.build_custom_scenario(
+        "Email Jane saying hi", "must_call", "send_email", '{"to": "jane"}')
+    m = _ActModel([ToolCall("send_email", {"to": "jane@example.com", "subject": "hi", "body": "hi"})])
+    r = core.run_agent_action(scen, m, tools=tools)
+    assert r.passed
+
+
+def test_mock_model_act_rejects_unknown_toolset():
+    # the Demo bot can't improvise a custom toolset — it should fail honestly,
+    # not silently report "no tools called" as if the model under test failed.
+    tools, _ = core.parse_agent_tools(core.AGENT_TOOLS_TEMPLATE)
+    scen, _ = core.build_custom_scenario("Email Jane", "must_call", "send_email")
+    m = core.make_model("mock")
+    with pytest.raises(NotImplementedError):
+        core.run_agent_action(scen, m, tools=tools)
 
 
 # ---- full evaluation (combined scorecard) ------------------------------------

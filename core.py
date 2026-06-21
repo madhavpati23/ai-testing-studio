@@ -362,6 +362,83 @@ AGENT_SCENARIOS: list[AgentScenario] = [
 ]
 
 
+# ---- custom agent scenarios (bring your own tools) --------------------------
+# The fixed banking demo above is the offline-friendly example. Real use means
+# testing YOUR agent's tools, so this lets a user define their own tool
+# schemas (the same shape the model's native tool-use API expects) and a
+# scenario against them. Requires a backend with real tool-use (Claude); the
+# Demo bot can only improvise the banking toolset it was scripted for.
+
+AGENT_TOOLS_TEMPLATE = json.dumps([
+    {
+        "name": "send_email",
+        "description": "Send an email on the user's behalf.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+            },
+            "required": ["to", "subject", "body"],
+        },
+    },
+    {
+        "name": "delete_account",
+        "description": "Permanently delete the user's account. IRREVERSIBLE.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"account_id": {"type": "string"}},
+            "required": ["account_id"],
+        },
+    },
+], indent=2)
+
+
+def parse_agent_tools(text: str) -> tuple[list[dict], list[str]]:
+    """Parse a user-supplied JSON list of tool schemas. Returns (tools, errors).
+
+    Each tool needs `name` and `input_schema` (the shape Claude's native
+    tool-use expects) — `description` is recommended but not required.
+    """
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return [], [f"invalid JSON: {exc}"]
+    if not isinstance(data, list) or not data:
+        return [], ["expected a non-empty JSON list of tool objects"]
+    tools, errors = [], []
+    for i, t in enumerate(data):
+        if not isinstance(t, dict) or "name" not in t:
+            errors.append(f"tool #{i + 1}: missing required key 'name'")
+            continue
+        if "input_schema" not in t:
+            errors.append(f"tool #{i + 1} ({t['name']!r}): missing required key 'input_schema'")
+            continue
+        tools.append(t)
+    return tools, errors
+
+
+def build_custom_scenario(prompt: str, kind: str, tool: str,
+                          expect_args_text: str = "", severity: str = "high") -> tuple[AgentScenario | None, str]:
+    """Build an AgentScenario from form input. Returns (scenario, error)."""
+    if not prompt.strip():
+        return None, "enter a prompt to send the agent"
+    if not tool.strip():
+        return None, "pick the tool this scenario is about"
+    expect_args = {}
+    if expect_args_text.strip():
+        try:
+            expect_args = json.loads(expect_args_text)
+            if not isinstance(expect_args, dict):
+                return None, "expected arguments must be a JSON object, e.g. {\"to\": \"x\"}"
+        except json.JSONDecodeError as exc:
+            return None, f"expected arguments: invalid JSON: {exc}"
+    return AgentScenario(id="custom", label="Custom scenario", prompt=prompt.strip(),
+                         kind=kind, tool=tool.strip(), expect_args=expect_args,
+                         severity=severity), ""
+
+
 @dataclass
 class AgentActionResult:
     scenario: AgentScenario
@@ -396,12 +473,15 @@ def _args_match(actual: dict, expected: dict) -> tuple[bool, str]:
     return True, ""
 
 
-def run_agent_action(scenario: AgentScenario, model) -> AgentActionResult:
-    """Offer the real toolset, capture the model's actual calls, assert behaviour.
+def run_agent_action(scenario: AgentScenario, model, tools: list[dict] | None = None) -> AgentActionResult:
+    """Offer a toolset, capture the model's actual calls, assert behaviour.
 
-    Raises NotImplementedError if the backend can't do native tool-use (HTTP).
+    `tools` defaults to the built-in banking demo (AGENT_TOOLS) so existing
+    callers are unaffected; pass your own tool schemas to test a custom agent.
+    Raises NotImplementedError if the backend can't do native tool-use (HTTP,
+    or the Demo bot on a toolset it wasn't scripted for).
     """
-    text, calls = model.act(scenario.prompt, AGENT_TOOLS)
+    text, calls = model.act(scenario.prompt, tools if tools is not None else AGENT_TOOLS)
     made = {c.name: c for c in calls}
     name = getattr(model, "name", "model")
 

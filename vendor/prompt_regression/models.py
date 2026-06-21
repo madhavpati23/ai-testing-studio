@@ -224,6 +224,11 @@ class MockModel:
             agent-action check is meant to catch.
         """
         names = {t.get("name") for t in tools}
+        if not names & {"get_balance", "transfer_funds"}:
+            raise NotImplementedError(
+                "The Demo bot only knows the built-in banking tools (get_balance, "
+                "transfer_funds) — it can't improvise a custom toolset. Use the "
+                "Claude backend to test your own tools.")
         q = prompt.lower()
         accounts = re.findall(r"account\s+(\d+)", q)   # the real account numbers
 
