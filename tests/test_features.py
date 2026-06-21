@@ -166,6 +166,38 @@ def test_calibrate_judge_perfect():
     assert res.verdict == "TRUSTWORTHY"
 
 
+# ---- calibration confidence (small samples shouldn't be trusted blindly) -----
+
+def test_wilson_interval_widens_for_small_n():
+    lo_small, hi_small = core.wilson_interval(4, 6)    # the CALIBRATION_TEMPLATE's shape
+    lo_big, hi_big = core.wilson_interval(100, 150)    # same 67% rate, far more data
+    assert (hi_small - lo_small) > (hi_big - lo_big)   # small n -> wider interval
+    assert lo_small < 67 < hi_small
+    assert lo_big < 67 < hi_big
+
+
+def test_wilson_interval_handles_100_percent_and_zero_total():
+    lo, hi = core.wilson_interval(5, 5)
+    assert hi == 100.0 and lo > 0   # doesn't claim a false 100%-certain interval
+    assert core.wilson_interval(0, 0) == (0.0, 0.0)
+
+
+def test_calibration_flags_low_confidence_below_threshold():
+    rows = [("c", "a", True)] * 4 + [("c", "a", False)] * 2   # n=6, same as the template
+    res = core.calibrate_judge(rows, lambda a, c: (True, "always"))
+    assert res.total < core.MIN_CALIBRATION_N
+    assert res.low_confidence is True
+    assert res.caveat != ""
+    assert str(core.MIN_CALIBRATION_N) in res.caveat
+
+
+def test_calibration_no_caveat_once_sample_is_large_enough():
+    rows = [("c", "a", True)] * core.MIN_CALIBRATION_N
+    res = core.calibrate_judge(rows, lambda a, c: (True, "always"))
+    assert res.low_confidence is False
+    assert res.caveat == ""
+
+
 # ---- multi-turn conversation -------------------------------------------------
 
 def test_conversation_memory_against_mock():

@@ -1547,6 +1547,27 @@ def parse_calibration_csv(text: str) -> tuple[list[tuple[str, str, bool]], list[
     return rows, errors
 
 
+MIN_CALIBRATION_N = 20   # below this, the agreement % is too noisy to act on confidently
+
+
+def wilson_interval(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score confidence interval for a proportion, as a percentage.
+
+    The plain agreement % (successes/total) gets noisier the smaller `total`
+    is — at n=6, one disagreement swings "100% agreement" to "83%." Wilson
+    (unlike the naive normal approximation) stays sane near 0%/100% and at
+    small n, which is exactly the regime a calibration CSV usually lives in.
+    """
+    if total == 0:
+        return 0.0, 0.0
+    p = successes / total
+    denom = 1 + z * z / total
+    center = p + z * z / (2 * total)
+    adj = z * ((p * (1 - p) / total + z * z / (4 * total * total)) ** 0.5)
+    lo, hi = (center - adj) / denom, (center + adj) / denom
+    return max(0.0, lo) * 100.0, min(1.0, hi) * 100.0
+
+
 @dataclass
 class CalibrationResult:
     total: int
@@ -1558,9 +1579,29 @@ class CalibrationResult:
         return 100.0 * self.agree / self.total if self.total else 0.0
 
     @property
+    def confidence_interval(self) -> tuple[float, float]:
+        """95% Wilson CI on the agreement rate — how much to trust the point estimate."""
+        return wilson_interval(self.agree, self.total)
+
+    @property
+    def low_confidence(self) -> bool:
+        """Too few labelled examples to act on the agreement % with confidence."""
+        return self.total < MIN_CALIBRATION_N
+
+    @property
     def verdict(self) -> str:
         a = self.agreement
         return "TRUSTWORTHY" if a >= 85 else "USE WITH CAUTION" if a >= 70 else "DO NOT TRUST"
+
+    @property
+    def caveat(self) -> str:
+        """A plain-English statistical warning when the sample is too small to trust."""
+        if not self.low_confidence:
+            return ""
+        lo, hi = self.confidence_interval
+        return (f"Only {self.total} example(s) — the true agreement rate could plausibly be "
+               f"anywhere from {lo:.0f}% to {hi:.0f}% (95% confidence). Add at least "
+               f"{MIN_CALIBRATION_N} labelled examples before trusting this verdict.")
 
 
 def calibrate_judge(rows: list[tuple[str, str, bool]], judge) -> CalibrationResult:

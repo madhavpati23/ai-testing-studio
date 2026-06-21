@@ -127,6 +127,10 @@ your actual production agent's real behaviour, not just Claude or the offline de
 (`criterion, answer, human_pass`) and see how often it agrees with you (**agreement %**
 → *trustworthy / use with caution / do not trust*). Backend-agnostic, so open-ended
 quality can be graded without a Claude key; it also grades `llm_judge` cases in a run.
+Agreement also gets a **95% confidence interval** (Wilson score) — below ~20 labelled
+examples, the tool explicitly warns that the point estimate is too noisy to trust (6
+examples at "67% agreement" could really be anywhere from ~30% to ~90%), rather than
+stating a small sample's number as settled fact.
 
 > A **500+ probe bank** across 19 skills (injection, hallucination, bias, PII,
 > over-refusal, …) powers the **Deep** certification level: each Deep run draws **80

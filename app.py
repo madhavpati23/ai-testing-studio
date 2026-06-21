@@ -44,8 +44,10 @@ def _active_judge(kind: str, opts: dict):
     """
     cj = st.session_state.get("calibrated_judge")
     if cj and cj.get("fn") is not None:
+        _caveat = (f" ⚠️ *only {cj.get('total', '?')} examples — too few to be confident*"
+                  if cj.get("low_confidence") else "")
         return cj["fn"], (f"your **calibrated** judge `{cj.get('model_name', '?')}` "
-                          f"({cj['agreement']:.0f}% human agreement → {cj['verdict']})")
+                          f"({cj['agreement']:.0f}% human agreement → {cj['verdict']}){_caveat}")
     return core.make_judge(kind, opts), ("an **uncalibrated** judge — calibrate one in the "
                                          "⚖️ Judge tab to validate it first")
 
@@ -1432,7 +1434,8 @@ def _flow_judge():
                     # Store the judge so every run can reuse it (the tabs work together).
                     st.session_state["calibrated_judge"] = {
                         "fn": _jfn, "agreement": cal.agreement, "verdict": cal.verdict,
-                        "model_name": getattr(_jfn, "model_name", backend)}
+                        "model_name": getattr(_jfn, "model_name", backend),
+                        "low_confidence": cal.low_confidence, "total": cal.total}
                 except Exception as exc:
                     st.session_state.pop("calib", None)
                     st.session_state.pop("calibrated_judge", None)
@@ -1440,16 +1443,24 @@ def _flow_judge():
 
         cal = st.session_state.get("calib")
         if cal:
-            jm1, jm2 = st.columns(2)
+            _lo, _hi = cal.confidence_interval
+            jm1, jm2, jm3 = st.columns(3)
             jm1.metric("Agreement with humans", f"{cal.agreement:.0f}%", f"{cal.agree}/{cal.total}")
             jm2.metric("Judge verdict", cal.verdict)
+            jm3.metric("95% confidence range", f"{_lo:.0f}–{_hi:.0f}%")
             _jv = {"TRUSTWORTHY": "success", "USE WITH CAUTION": "warning", "DO NOT TRUST": "error"}
             getattr(st, _jv.get(cal.verdict, "info"))(
                 f"This judge agreed with your labels **{cal.agreement:.0f}%** of the time → "
                 f"**{cal.verdict}**. " + ("Safe to use for grading." if cal.verdict == "TRUSTWORTHY"
                 else "Disagreements below — tighten your criteria or pick a stronger judge."))
+            if cal.low_confidence:
+                st.warning(f"⚠️ **Statistically thin sample.** {cal.caveat} The point estimate "
+                          f"({cal.agreement:.0f}%) above could be misleading on its own — look at "
+                          f"the confidence range, not just the headline number.")
             st.caption("✅ This calibrated judge is now used for **llm_judge** grading in Evaluate "
-                       "and Multi-turn — calibrate once, trusted everywhere.")
+                       "and Multi-turn — calibrate once, trusted everywhere." +
+                       (" *(treat that reuse with the same caution as the sample size above.)*"
+                        if cal.low_confidence else ""))
             st.markdown("**Where the judge landed (❌ = disagreed with your label)**")
             st.dataframe(
                 pd.DataFrame([{
@@ -1572,6 +1583,10 @@ def _flow_help():
             "Calibrate (a judge)": "Test the judge against examples *you* (a human) already labelled "
                 "pass/fail, and measure how often it agrees with you — **agreement %** — before "
                 "trusting it to grade anything. An uncalibrated judge is just an unverified guess.",
+            "Confidence interval (95%)": "The range the *true* agreement rate could plausibly fall "
+                "in, given how few examples it was measured on — not just the single headline %. "
+                "6 examples at \"67% agreement\" could really be anywhere from ~30% to ~90%; the "
+                "tool warns you below ~20 examples rather than stating the point estimate as fact.",
             "Coverage": "Whether the probes actually span every risk dimension that matters, not "
                 "just a lot of probes in one area.",
         },
