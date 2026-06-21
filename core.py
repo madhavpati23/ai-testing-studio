@@ -130,6 +130,14 @@ def make_model(kind: str, opts: dict | None = None):
             method=opts.get("method", "POST"),
             block_private=bool(opts.get("block_private", True)),   # safe default: block SSRF
         )
+    if kind == "http_agent":
+        from prompt_regression.models import HttpAgentModel
+        headers = json.loads(opts["headers"]) if opts.get("headers") else None
+        return HttpAgentModel(
+            url=opts.get("url", ""),
+            headers=headers,
+            block_private=bool(opts.get("block_private", True)),
+        )
     return MockModel()
 
 

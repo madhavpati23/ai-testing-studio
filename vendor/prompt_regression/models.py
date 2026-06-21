@@ -568,6 +568,93 @@ class HttpModel:
             "(or the Demo bot for an offline demonstration).")
 
 
+class HttpAgentModel:
+    """Adapter for YOUR REAL deployed agent, via a small JSON contract.
+
+    Every other backend here is either offline (Mock) or a raw model call
+    (Claude). This is the one that points the agent-action / agent-loop checks
+    at an agent you actually run in production. Contract — your endpoint must:
+
+      POST {"prompt": "<user prompt>", "tools": [<tool schemas, if any>]}
+      ->   {"text": "<final reply>",
+            "tool_calls": [{"name": "...", "arguments": {...}}, ...]}
+
+    `tool_calls` should be EVERY call your agent made internally, in order —
+    however many steps it took. Side effects are REAL here (it's your real
+    agent), so `run_loop`'s tool_executor/max_steps are accepted for interface
+    compatibility but ignored: your agent already ran its own loop server-side
+    before responding.
+    """
+
+    def __init__(self, url: str, headers: dict[str, str] | None = None,
+                 block_private: bool = True, timeout: float = 60.0):
+        _assert_safe_url(url, block_private=False)  # fail fast on a bad scheme/host
+        self.name = f"agent:{re.sub(r'^https?://', '', url).split('/')[0]}"
+        self.url = url
+        self.headers = headers or {}
+        self.block_private = block_private
+        self.timeout = timeout
+        self._opener = (urllib.request.build_opener(_NoRedirect())
+                        if block_private else urllib.request.build_opener())
+
+    def _call(self, prompt: str, tools: list[dict] | None) -> dict:
+        _assert_safe_url(self.url, block_private=self.block_private)
+        body: dict[str, Any] = {"prompt": prompt}
+        if tools is not None:
+            body["tools"] = tools
+        request = urllib.request.Request(
+            self.url, data=json.dumps(body).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json",
+                     "User-Agent": "prompt-regression-suite/1.0 (+https://github.com/madhavpati23)",
+                     **self.headers},
+        )
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                with self._opener.open(request, timeout=self.timeout) as response:
+                    raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(f"agent endpoint did not return JSON: {exc}") from None
+            except urllib.error.HTTPError as exc:
+                if exc.code in (429, 503) and attempt < _MAX_RETRIES:
+                    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+                    try:
+                        wait = float(retry_after)
+                    except (TypeError, ValueError):
+                        wait = 2.0 * (attempt + 1)
+                    time.sleep(min(max(wait, 1.0), 30.0))
+                    continue
+                body_text = ""
+                try:
+                    body_text = exc.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace").strip()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    f"HTTP {exc.code} {exc.reason} from {self.url}"
+                    + (f" -- {body_text[:200]}" if body_text else "")
+                ) from None
+            except urllib.error.URLError as exc:
+                raise RuntimeError(f"Could not reach {self.url}: {exc.reason}") from None
+        raise RuntimeError(f"exhausted retries calling {self.url}")
+
+    def ask(self, prompt: str) -> str:
+        return str(self._call(prompt, tools=None).get("text", ""))
+
+    def act(self, prompt: str, tools: list[dict]) -> tuple[str, list[ToolCall]]:
+        data = self._call(prompt, tools)
+        text = str(data.get("text", ""))
+        calls = [ToolCall(str(c.get("name", "")), dict(c.get("arguments") or {}))
+                for c in (data.get("tool_calls") or [])]
+        return text, calls
+
+    def run_loop(self, prompt: str, tools: list[dict], tool_executor, max_steps: int = 6
+                ) -> tuple[str, list[ToolCall]]:
+        """Your real agent already ran its own loop server-side — nothing to
+        simulate. One call returns the final text plus every call it made."""
+        return self.act(prompt, tools)
+
+
 def _truthy(value: str | None) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 

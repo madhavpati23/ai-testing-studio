@@ -38,6 +38,16 @@ def test_make_model_http_blocks_private_by_default():
     assert m.block_private is True
 
 
+def test_make_model_http_agent_for_a_real_deployed_agent():
+    m = core.make_model("http_agent", {
+        "url": "https://my-agent.example.com/run",
+        "headers": '{"Authorization": "Bearer secret-token"}',
+    })
+    assert m.name.startswith("agent:")
+    assert m.headers.get("Authorization") == "Bearer secret-token"
+    assert m.block_private is True   # safe default
+
+
 def test_generate_suite_with_explicit_mock_kind():
     gen = core.generate_suite("password reset", kind="mock", opts={})
     assert gen.generator_name == "mock"

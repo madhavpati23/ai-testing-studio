@@ -66,7 +66,8 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer sk-..."}',
     },
 }
-_BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http"}
+_BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http",
+                 "Your deployed agent (HTTP)": "http_agent"}
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 
 st.set_page_config(page_title="AI Evaluation Studio", page_icon="🧪", layout="wide")
@@ -120,7 +121,7 @@ def _clear_feature():
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
     st.header("Model under test")
-    backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint"]
+    backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint", "Your deployed agent (HTTP)"]
     backend = st.radio("Backend", backends,
                        help="The Demo bot is a built-in offline dummy with planted bugs — for "
                             "free demos, no key. Claude/HTTP test a real model with "
@@ -197,6 +198,23 @@ with st.sidebar:
                  "can't be used to reach private infrastructure. Tick only for an endpoint "
                  "you run and trust on your own machine/network.")
         backend_opts["block_private"] = not _allow_local
+    elif backend == "Your deployed agent (HTTP)":
+        st.caption("📡 For testing **your own production agent** — Agent actions / Agent loops "
+                   "(Behaviors) point at this. Your endpoint must accept "
+                   "`POST {\"prompt\", \"tools\"}` and return "
+                   "`{\"text\", \"tool_calls\": [{\"name\", \"arguments\"}, ...]}` — "
+                   "every tool call your agent made, in order, however many steps it took.")
+        backend_opts["url"] = st.text_input("Agent endpoint URL", key="agent_url",
+                                            placeholder="https://my-agent.example.com/run")
+        backend_opts["headers"] = st.text_input("Headers (JSON)", key="agent_headers",
+                                                placeholder='{"Authorization": "Bearer ..."}')
+        _allow_local_agent = st.checkbox(
+            "Allow private / localhost addresses", value=False, key="agent_allow_local",
+            help="Off by default — tick only for an agent you run and trust locally.")
+        backend_opts["block_private"] = not _allow_local_agent
+        st.caption("⚠️ Side effects here are **real** — this calls your actual agent, not a "
+                   "simulation. Point it at a staging/test agent, not production data, unless "
+                   "you mean it.")
 
     st.divider()
     st.markdown(
@@ -991,6 +1009,10 @@ def _flow_agent_action():
             st.warning("HTTP endpoints have no standard tool-call channel to capture. Use "
                        "**Claude** (real native tool-use) — or the **Demo bot** for an offline "
                        "demonstration (it has a *planted* unsafe-action bug for the safety scenario).")
+        elif _aa_kind == "http_agent":
+            st.warning("This built-in demo uses fixed banking tools — your deployed agent doesn't "
+                       "have those. Switch to **🧪 Your own agent** below to test it with its "
+                       "actual tools.")
         elif _aa_kind == "mock":
             st.info("Running the **Demo bot**: a deterministic agent with a *planted* safety bug — "
                     "it obeys the coerced transfer instead of refusing. Switch to **Claude** to "
@@ -1005,10 +1027,11 @@ def _flow_agent_action():
             st.markdown(f"> {_scen.prompt}")
             st.caption(f"✅ A correct agent should: {_scen.intent}")
 
-        if _aa_kind == "http":
+        _aa_builtin_disabled = _aa_kind in ("http", "http_agent")
+        if _aa_builtin_disabled:
             st.caption("⚪ Disabled — switch to Claude or the Demo bot in the sidebar to enable.")
         if st.button("🛠️ Run agent-action check", type="primary", key="run_aa",
-                     disabled=_aa_kind == "http"):
+                     disabled=_aa_builtin_disabled):
             with st.spinner(f"Offering the tools to {backend} and capturing its calls…"):
                 try:
                     st.session_state["aa_run"] = core.run_agent_action(
@@ -1018,10 +1041,15 @@ def _flow_agent_action():
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
 
     else:
-        if _aa_kind != "claude":
-            st.warning("Custom tools need **real native tool-use** — only the **Claude** backend "
-                       "supports an arbitrary toolset (the Demo bot can only improvise the "
-                       "built-in banking tools; HTTP has no standard tool-call channel).")
+        _aa_custom_ok = _aa_kind in ("claude", "http_agent")
+        if not _aa_custom_ok:
+            st.warning("Custom tools need **real native tool-use** — use **Claude**, or "
+                       "**your deployed agent** (it gets your tools forwarded directly) — the "
+                       "Demo bot can only improvise the built-in banking tools, and a generic "
+                       "HTTP endpoint has no standard tool-call channel.")
+        elif _aa_kind == "http_agent":
+            st.caption("📡 Your tools below are sent to your agent endpoint as-is — it decides "
+                       "what to call, just like in production.")
 
         with st.container(border=True):
             st.markdown("##### 🧰 Your tools")
@@ -1064,7 +1092,7 @@ def _flow_agent_action():
         if _scen_err:
             st.caption(f"⚪ Disabled — {_scen_err}.")
         if st.button("🛠️ Run agent-action check", type="primary", key="run_aa_custom",
-                     disabled=_scen is None or _aa_kind != "claude"):
+                     disabled=_scen is None or not _aa_custom_ok):
             with st.spinner(f"Offering your tools to {backend} and capturing its calls…"):
                 try:
                     st.session_state["aa_run"] = core.run_agent_action(
@@ -1109,11 +1137,18 @@ def _flow_agent_loop():
     al1.success("**SHIP**  \nEvery step in the chain respected the rules.")
     al2.error("**BLOCK**  \nIt skipped a precondition or exceeded a limit somewhere in the chain.")
 
-    if _al_kind in ("http", "mock"):
-        st.warning("Real multi-step loops need **native tool-use** — only **Claude** runs the "
-                   "actual back-and-forth. The **Demo bot** simulates the *planted* precondition "
-                   "bug below in one shot (no real loop) so you can see the failure mode offline; "
-                   "HTTP endpoints aren't supported.")
+    if _al_kind == "http":
+        st.warning("HTTP endpoints have no native tool-use channel — use **Claude**, **your "
+                   "deployed agent**, or the **Demo bot** for an offline demonstration.")
+    elif _al_kind == "http_agent":
+        st.warning("This built-in scenario uses fixed banking tools your deployed agent likely "
+                   "doesn't have — it's a demonstration of the *check kinds* (must_call, order, "
+                   "max_arg), not a real test of your agent. Use the **core.run_agent_loop** API "
+                   "directly with your own scenario for that (see the README).")
+    elif _al_kind == "mock":
+        st.info("The **Demo bot** simulates the *planted* precondition bug in one shot (it isn't "
+                "running a real adaptive loop) so you can see the failure mode offline. Switch to "
+                "**Claude** for a real multi-step tool-use loop.")
 
     with st.container(border=True):
         st.markdown("##### 📥 The scenario")
