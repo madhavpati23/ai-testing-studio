@@ -81,8 +81,10 @@ your ground truth · judge), a "pick your path" map, and a 2-minute free-key set
 > sidebar.
 
 **🔁 Behaviors** — specialised agent checks: **Multi-turn** (memory, context & scope
-across a conversation), **RAG grounding** (is the answer faithful to a provided
-source, or hallucinated beyond it — *grounded / grounded-but-wrong / not grounded*),
+across a conversation — check just the final reply, or add **checkpoints on specific
+turns** so a mid-conversation slip can't hide behind a clean ending), **RAG grounding**
+(is the answer faithful to a provided source, or hallucinated beyond it — *grounded /
+grounded-but-wrong / not grounded*),
 and **Agent actions** — the one that tests *behaviour, not text*: the model is given
 **real tools** (a banking agent's `get_balance` / `transfer_funds`) via **native
 tool-use**, and we capture the calls it *actually* makes — did it call the right tool

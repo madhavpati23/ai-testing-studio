@@ -130,7 +130,7 @@ with st.sidebar:
     # switches backends, clear every cached run so a stale verdict from the old
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
-                    "convo_run", "rag_run", "aa_run", "calib", "calibrated_judge")
+                    "convo_run", "convo_trace", "rag_run", "aa_run", "calib", "calibrated_judge")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
             st.session_state.pop(_k, None)
@@ -689,68 +689,142 @@ def _flow_multiturn():
         _convo_default = "My name is Sam and my account ID is 4471.\nWhat is my account ID?"
         convo = st.text_area("Conversation — one user turn per line", value=_convo_default,
                              height=130, key="convo_turns")
+        _turns_preview = [ln for ln in convo.splitlines() if ln.strip()]
+        if _turns_preview:
+            st.caption("Turns: " + " · ".join(f"**{i+1}** {t[:40]}{'…' if len(t) > 40 else ''}"
+                                               for i, t in enumerate(_turns_preview)))
 
-        st.markdown("##### ✅ The rule for the final reply")
-        _CONVO_RULES = {
-            "Must mention this text": "contains",
-            "Must NOT mention this text": "not_contains",
-            "Must match this pattern (regex)": "regex",
-            "Must equal this number": "equals_number",
-            "Must satisfy this description (AI-graded)": "llm_judge",
-        }
-        ac1, ac2 = st.columns([1, 2])
-        _rule_label = ac1.selectbox("Rule type", list(_CONVO_RULES), key="convo_rule_label")
-        convo_validator = _CONVO_RULES[_rule_label]
-        _ph = {"contains": "4471", "not_contains": "I don't know",
-               "regex": r"\b4471\b", "equals_number": "4471",
-               "llm_judge": "correctly states the account ID is 4471"}[convo_validator]
-        convo_expected = ac2.text_input("Value", value="4471" if convo_validator == "contains" else "",
-                                        placeholder=_ph, key="convo_expected")
+    convo_mode = st.radio(
+        "What to check",
+        ["Just the final reply — classic memory/scope test",
+         "Specific turns — checkpoints, so a mid-conversation slip can't hide behind a clean ending"],
+        key="convo_mode")
+    _CONVO_RULES = {
+        "Must mention this text": "contains",
+        "Must NOT mention this text": "not_contains",
+        "Must match this pattern (regex)": "regex",
+        "Must equal this number": "equals_number",
+        "Must satisfy this description (AI-graded)": "llm_judge",
+    }
 
-        # A plain-English readout of the rule just configured, so there's no
-        # guessing what "contains" + a value actually checks.
-        _sentence = {
-            "contains": f"the final reply **must mention** “{convo_expected or '…'}”.",
-            "not_contains": f"the final reply **must NOT mention** “{convo_expected or '…'}”.",
-            "regex": f"the final reply **must match the pattern** `{convo_expected or '…'}`.",
-            "equals_number": f"the final reply's number **must equal** {convo_expected or '…'}.",
-            "llm_judge": f"an AI judge checks the final reply **{convo_expected or '…'}**.",
-        }[convo_validator]
-        st.caption(f"📐 **PASS if** {_sentence}")
-        st.caption("💡 The check runs on the **last line's reply**. Add turns to probe memory "
-                   "(state a fact early, ask it back later) or scope (try to pull it off-task).")
-
-    if st.button("▶️ Run conversation", type="primary", key="run_convo",
-                 disabled=not convo.strip() or not convo_expected.strip()):
-        _turns = [ln for ln in convo.splitlines() if ln.strip()]
-        with st.spinner(f"Running {len(_turns)} turn(s) against {backend}…"):
-            try:
-                _kind = _BACKEND_KIND[backend]
-                _cjudge, _cbadge = (None, None)
-                if convo_validator == "llm_judge" and _kind != "mock":
-                    _cjudge, _cbadge = _active_judge(_kind, backend_opts)
-                st.session_state["convo_judge_badge"] = _cbadge
-                st.session_state["convo_run"] = core.run_conversation(
-                    _turns, validator=convo_validator, expected=convo_expected,
-                    model=core.make_model(_kind, backend_opts), judge=_cjudge)
-            except Exception as exc:
-                st.session_state.pop("convo_run", None)
-                st.error(f"Conversation run failed against **{backend}**: {exc}")
-
-    crun = st.session_state.get("convo_run")
-    if crun:
-        res = crun.results[0]
-        (st.success if res.passed else st.error)(
-            f"{'✅ PASS' if res.passed else '❌ FAIL'} · verdict **{crun.verdict}** · "
-            f"model `{crun.model_name}`")
+    if convo_mode.startswith("Just"):
         with st.container(border=True):
-            st.markdown("**Final reply**")
-            st.markdown(f"> {res.answer}")
-            if not res.passed and res.detail:
-                st.caption(f"Why: {res.detail}")
-        _cb = st.session_state.get("convo_judge_badge")
-        if _cb:
-            st.caption(f"⚖️ Graded by {_cb}.")
+            st.markdown("##### ✅ The rule for the final reply")
+            ac1, ac2 = st.columns([1, 2])
+            _rule_label = ac1.selectbox("Rule type", list(_CONVO_RULES), key="convo_rule_label")
+            convo_validator = _CONVO_RULES[_rule_label]
+            _ph = {"contains": "4471", "not_contains": "I don't know",
+                   "regex": r"\b4471\b", "equals_number": "4471",
+                   "llm_judge": "correctly states the account ID is 4471"}[convo_validator]
+            convo_expected = ac2.text_input("Value", value="4471" if convo_validator == "contains" else "",
+                                            placeholder=_ph, key="convo_expected")
+            _sentence = {
+                "contains": f"the final reply **must mention** “{convo_expected or '…'}”.",
+                "not_contains": f"the final reply **must NOT mention** “{convo_expected or '…'}”.",
+                "regex": f"the final reply **must match the pattern** `{convo_expected or '…'}`.",
+                "equals_number": f"the final reply's number **must equal** {convo_expected or '…'}.",
+                "llm_judge": f"an AI judge checks the final reply **{convo_expected or '…'}**.",
+            }[convo_validator]
+            st.caption(f"📐 **PASS if** {_sentence}")
+            st.caption("💡 Add turns to probe memory (state a fact early, ask it back later) or "
+                       "scope (try to pull it off-task).")
+
+        if st.button("▶️ Run conversation", type="primary", key="run_convo",
+                     disabled=not convo.strip() or not convo_expected.strip()):
+            _turns = [ln for ln in convo.splitlines() if ln.strip()]
+            with st.spinner(f"Running {len(_turns)} turn(s) against {backend}…"):
+                try:
+                    _kind = _BACKEND_KIND[backend]
+                    _cjudge, _cbadge = (None, None)
+                    if convo_validator == "llm_judge" and _kind != "mock":
+                        _cjudge, _cbadge = _active_judge(_kind, backend_opts)
+                    st.session_state["convo_judge_badge"] = _cbadge
+                    st.session_state["convo_run"] = core.run_conversation(
+                        _turns, validator=convo_validator, expected=convo_expected,
+                        model=core.make_model(_kind, backend_opts), judge=_cjudge)
+                    st.session_state.pop("convo_trace", None)
+                except Exception as exc:
+                    st.session_state.pop("convo_run", None)
+                    st.error(f"Conversation run failed against **{backend}**: {exc}")
+
+        crun = st.session_state.get("convo_run")
+        if crun:
+            res = crun.results[0]
+            (st.success if res.passed else st.error)(
+                f"{'✅ PASS' if res.passed else '❌ FAIL'} · verdict **{crun.verdict}** · "
+                f"model `{crun.model_name}`")
+            with st.container(border=True):
+                st.markdown("**Final reply**")
+                st.markdown(f"> {res.answer}")
+                if not res.passed and res.detail:
+                    st.caption(f"Why: {res.detail}")
+            _cb = st.session_state.get("convo_judge_badge")
+            if _cb:
+                st.caption(f"⚖️ Graded by {_cb}.")
+
+    else:
+        with st.container(border=True):
+            st.markdown("##### ✅ Checkpoints — one or more turns to assert on")
+            st.caption("Pick a **turn number** (from the list above), a rule, and the value — add "
+                       "as many rows as you like. Example: check turn 1 for a leak even though "
+                       "turn 2's reply (the end of the chat) looks perfectly clean.")
+            _default_rows = pd.DataFrame([
+                {"turn": 1, "rule": "Must mention this text", "value": "Sam"},
+                {"turn": 2, "rule": "Must mention this text", "value": "4471"},
+            ])
+            checkpoints_df = st.data_editor(
+                _default_rows, num_rows="dynamic", key="convo_checkpoints",
+                use_container_width=True,
+                column_config={
+                    "turn": st.column_config.NumberColumn("Turn #", min_value=1, step=1),
+                    "rule": st.column_config.SelectboxColumn("Rule", options=list(_CONVO_RULES)),
+                    "value": st.column_config.TextColumn("Value"),
+                })
+
+        _aa_kind = _BACKEND_KIND[backend]
+        if _aa_kind == "http":
+            st.caption("⚪ Disabled — HTTP endpoints don't expose a per-turn transcript. "
+                       "Use Claude or the Demo bot.")
+        if st.button("▶️ Run checkpoints", type="primary", key="run_convo_trace",
+                     disabled=not convo.strip() or checkpoints_df.empty or _aa_kind == "http"):
+            _turns = [ln for ln in convo.splitlines() if ln.strip()]
+            _checks = [core.TurnCheck(int(row["turn"]), _CONVO_RULES[row["rule"]], str(row["value"]))
+                      for _, row in checkpoints_df.dropna().iterrows()]
+            with st.spinner(f"Running {len(_turns)} turn(s), checking {len(_checks)} checkpoint(s)…"):
+                try:
+                    _kind = _BACKEND_KIND[backend]
+                    _cjudge = None
+                    if any(c.validator == "llm_judge" for c in _checks) and _kind != "mock":
+                        _cjudge, _ = _active_judge(_kind, backend_opts)
+                    st.session_state["convo_trace"] = core.run_conversation_trace(
+                        _turns, _checks, model=core.make_model(_kind, backend_opts), judge=_cjudge)
+                    st.session_state.pop("convo_run", None)
+                except Exception as exc:
+                    st.session_state.pop("convo_trace", None)
+                    st.error(f"Checkpoint run failed against **{backend}**: {exc}")
+
+        trace = st.session_state.get("convo_trace")
+        if trace:
+            (st.success if trace.passed else st.error)(
+                f"{'✅ ALL CHECKPOINTS PASS' if trace.passed else '❌ AT LEAST ONE FAILED'} · "
+                f"verdict **{trace.verdict}** · model `{trace.model_name}`")
+            with st.container(border=True):
+                st.markdown("**Full transcript — every reply, not just the last**")
+                for i, (t, r) in enumerate(zip(trace.turns, trace.replies), start=1):
+                    st.markdown(f"**Turn {i}** — *{t}*")
+                    st.markdown(f"> {r}")
+            with st.container(border=True):
+                st.markdown("**Checkpoint results**")
+                st.dataframe(
+                    pd.DataFrame([{
+                        "✓": "✅" if c.passed else "❌",
+                        "turn": c.check.turn_index,
+                        "rule": c.check.validator,
+                        "expected": c.check.expected,
+                        "reply checked": c.reply,
+                        "why": c.detail or "—",
+                    } for c in trace.checks]),
+                    hide_index=True, use_container_width=True)
 
 # ---- Behaviours · RAG grounding ---------------------------------------------
 def _flow_rag():

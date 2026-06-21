@@ -284,6 +284,95 @@ def run_conversation(turns: list[str], validator: str = "contains", expected: st
     return run_suite_dir(out_dir, model=model, judge=judge, repeat=repeat)
 
 
+# ---- multi-turn checkpoints (assert mid-conversation, not just the end) -----
+# run_conversation() above only ever checks the FINAL reply — which misses the
+# common real failure: the model gets it right for a few turns, then drifts or
+# forgets, and the LAST reply happens to look fine anyway (or a later turn
+# papers over an earlier one). Checkpoints let you assert on ANY turn's reply,
+# using the model's full transcript() rather than just its last answer.
+
+@dataclass
+class TurnCheck:
+    turn_index: int          # 1-based: which user turn's reply this checks
+    validator: str           # contains | not_contains | regex | equals_number | llm_judge
+    expected: str
+
+
+@dataclass
+class TurnCheckResult:
+    check: TurnCheck
+    user_turn: str
+    reply: str
+    passed: bool
+    detail: str
+
+
+@dataclass
+class ConversationTraceResult:
+    turns: list[str]                  # every user turn sent
+    replies: list[str]                # every reply, one per turn (the full transcript)
+    checks: list                      # list[TurnCheckResult]
+    passed: bool                      # all checks passed
+    model_name: str
+
+    @property
+    def verdict(self) -> str:
+        return "SHIP" if self.passed else "NEEDS SIGN-OFF"
+
+
+def run_conversation_trace(turns: list[str], checks: list[TurnCheck], model=None,
+                           judge=None) -> ConversationTraceResult:
+    """Run the full conversation and assert on one or more turns' replies.
+
+    Each TurnCheck names which turn (1-based) it grades — e.g. check turn 2's
+    reply for a fact, then check turn 5's reply for whether scope held — instead
+    of only ever being able to see the end of the conversation.
+    """
+    from prompt_regression.validators import REGISTRY, set_llm_judge
+
+    turns = [t for t in turns if t.strip()]
+    if not turns:
+        raise ValueError("enter at least one conversation turn")
+    if not checks:
+        raise ValueError("add at least one checkpoint to assert on")
+    model = model if model is not None else get_model()
+    if not hasattr(model, "transcript"):
+        raise NotImplementedError(
+            f"{getattr(model, 'name', 'this backend')} doesn't expose a per-turn transcript "
+            "(needs a transcript() method) — multi-turn checkpoints aren't available for it.")
+
+    if judge is not None:
+        set_llm_judge(judge)
+    try:
+        replies = model.transcript(turns)
+    finally:
+        if judge is not None:
+            set_llm_judge(None)
+
+    results = []
+    for chk in checks:
+        if not (1 <= chk.turn_index <= len(replies)):
+            results.append(TurnCheckResult(chk, "", "", False,
+                                           f"turn {chk.turn_index} is out of range (only "
+                                           f"{len(replies)} turn(s) sent)"))
+            continue
+        reply = replies[chk.turn_index - 1]
+        args = {"criterion": chk.expected} if chk.validator == "llm_judge" else _golden_args(chk.validator, chk.expected)
+        if judge is not None:
+            set_llm_judge(judge)
+        try:
+            passed, detail = REGISTRY[chk.validator](reply, args)
+        finally:
+            if judge is not None:
+                set_llm_judge(None)
+        results.append(TurnCheckResult(chk, turns[chk.turn_index - 1], reply, passed, detail))
+
+    return ConversationTraceResult(
+        turns=turns, replies=replies, checks=results,
+        passed=all(r.passed for r in results),
+        model_name=getattr(model, "name", "model"))
+
+
 # ---- agent-action check (real native tool-use) ------------------------------
 # Most "agent" testing only inspects text. This inspects ACTIONS: the model is
 # given real tool schemas, decides whether/how to call them, and we assert on

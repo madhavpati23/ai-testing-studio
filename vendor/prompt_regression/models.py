@@ -49,6 +49,16 @@ class Model(Protocol):
         """
         ...
 
+    def transcript(self, turns: list[str]) -> list[str]:
+        """Run a multi-turn conversation; return EVERY reply, not just the last.
+
+        `converse()` only returns the final answer, which hides what the model
+        said mid-conversation. This exposes the full reply-per-turn sequence so
+        a check can assert on turn 2 of 5, not only the end — e.g. catching
+        scope drift that later turns paper over.
+        """
+        ...
+
 
 class MockModel:
     """A deterministic, offline 'AI under test' with planted bugs.
@@ -178,12 +188,14 @@ class MockModel:
     def converse(self, turns: list[str]) -> str:
         """Minimal multi-turn behaviour: remembers stated facts, refuses destructive asks.
 
-        Enough to demonstrate stateful (agent) testing offline. A real model
-        adapter (ClaudeModel) carries full history instead.
+        Returns only the final reply; use transcript() for every reply.
         """
+        return self.transcript(turns)[-1]
+
+    def transcript(self, turns: list[str]) -> list[str]:
         name: str | None = None
         facts: dict[str, str] = {}   # e.g. {"account id": "4471"}
-        answer = ""
+        replies: list[str] = []
         for turn in turns:
             q = re.sub(r"[^a-z0-9 ]", " ", turn.lower())
             q = re.sub(r"\s+", " ", q).strip()
@@ -209,7 +221,8 @@ class MockModel:
                 answer = "I can't do that — deleting all records requires proper authorization."
             else:
                 answer = self.ask(turn)
-        return answer
+            replies.append(answer)
+        return replies
 
     def act(self, prompt: str, tools: list[dict]) -> tuple[str, list[ToolCall]]:
         """Deterministic 'agent' with a planted safety bug, for offline demos.
@@ -272,9 +285,15 @@ class ClaudeModel:
         return self.converse([prompt])
 
     def converse(self, turns: list[str]) -> str:
-        """Send each turn with the running conversation history (multi-turn)."""
+        """Send each turn with the running conversation history (multi-turn).
+
+        Returns only the final reply; use transcript() for every reply.
+        """
+        return self.transcript(turns)[-1]
+
+    def transcript(self, turns: list[str]) -> list[str]:
         messages: list[dict] = []
-        answer = ""
+        replies: list[str] = []
         for turn in turns:
             messages.append({"role": "user", "content": turn})
             response = self._client.messages.create(
@@ -285,7 +304,8 @@ class ClaudeModel:
             )
             answer = "".join(b.text for b in response.content if b.type == "text").strip()
             messages.append({"role": "assistant", "content": answer})
-        return answer
+            replies.append(answer)
+        return replies
 
     def act(self, prompt: str, tools: list[dict]) -> tuple[str, list[ToolCall]]:
         """Real native tool-use: offer the tools and capture the actual calls.
@@ -448,17 +468,22 @@ class HttpModel:
     def converse(self, turns: list[str]) -> str:
         """Multi-turn: send each turn carrying the running transcript as context.
 
-        Endpoint-agnostic — works with any single-prompt body template, so an
-        OpenAI-style chat API or a custom service both get the prior turns. (Claude
-        uses a native role-separated history; here the transcript rides in the
-        prompt.) Returns the final turn's answer.
+        Returns only the final reply; use transcript() for every reply.
         """
-        transcript, answer = "", ""
+        return self.transcript(turns)[-1]
+
+    def transcript(self, turns: list[str]) -> list[str]:
+        """Endpoint-agnostic multi-turn — works with any single-prompt body
+        template, so an OpenAI-style chat API or a custom service both get the
+        prior turns riding in the prompt (Claude instead uses a native
+        role-separated history). Returns every reply, one per turn."""
+        running, replies = "", []
         for turn in turns:
-            content = f"{transcript}User: {turn}\nAssistant:" if transcript else turn
+            content = f"{running}User: {turn}\nAssistant:" if running else turn
             answer = self.ask(content)
-            transcript += f"User: {turn}\nAssistant: {answer}\n"
-        return answer
+            running += f"User: {turn}\nAssistant: {answer}\n"
+            replies.append(answer)
+        return replies
 
     def act(self, prompt: str, tools: list[dict]) -> tuple[str, list[ToolCall]]:
         """Not supported: a generic text-in/text-out endpoint exposes no uniform
