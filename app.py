@@ -1247,10 +1247,13 @@ def _flow_agent_action():
 
         _scen, _scen_err = (core.build_custom_scenario(aa_prompt, aa_kind, aa_tool, aa_args, aa_severity)
                             if _tool_names else (None, "define at least one valid tool above"))
+        _aa_needs_url = _aa_kind == "http_agent" and not (backend_opts.get("url") or "").strip()
         if _scen_err:
             st.caption(f"⚪ Disabled — {_scen_err}.")
+        elif _aa_needs_url:
+            st.caption("⚪ Disabled — enter your agent's endpoint URL in the sidebar first.")
         if st.button("🛠️ Run agent-action check", type="primary", key="run_aa_custom",
-                     disabled=_scen is None or not _aa_custom_ok):
+                     disabled=_scen is None or not _aa_custom_ok or _aa_needs_url):
             with st.spinner(f"Offering your tools to {backend} and capturing its calls "
                             f"({aa_reps}×)…"):
                 try:
@@ -1347,7 +1350,11 @@ def _flow_agent_loop():
             help="LLMs are non-deterministic. Repeat the loop to see the real pass rate, not a "
                  "lucky single run.")
 
-    if st.button("🔗 Run agent loop", type="primary", key="run_al", disabled=_al_kind == "http"):
+    _al_needs_url = _al_kind == "http_agent" and not (backend_opts.get("url") or "").strip()
+    if _al_needs_url:
+        st.caption("⚪ Disabled — enter your agent's endpoint URL in the sidebar first.")
+    if st.button("🔗 Run agent loop", type="primary", key="run_al",
+                 disabled=_al_kind == "http" or _al_needs_url):
         with st.spinner(f"Running the multi-step loop against {backend} ({al_reps}×)…"):
             try:
                 _model = core.make_model(_al_kind, backend_opts)
