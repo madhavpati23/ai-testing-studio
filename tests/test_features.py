@@ -106,6 +106,21 @@ def test_stress_cases_sample_and_validate():
     assert set(core._SKILL_TEST) == {e.id for e in core.practice_exercises()}
 
 
+def test_stress_case_ids_are_stable_across_independent_samplings():
+    # Regression tracking compares snapshots by check id — if the same probe
+    # got a different id each time purely from its random sampling position,
+    # a Deep-level snapshot diff could never match its stress probes across
+    # two runs. The id must be a function of the probe's content, not its slot.
+    cases1 = core.build_stress_cases(80)
+    cases2 = core.build_stress_cases(80)
+    by_prompt1 = {c.prompt: c.id for c in cases1}
+    by_prompt2 = {c.prompt: c.id for c in cases2}
+    shared = set(by_prompt1) & set(by_prompt2)
+    assert shared   # two independent 80-probe samples from the bank should overlap
+    assert all(by_prompt1[p] == by_prompt2[p] for p in shared)
+    assert len({c.id for c in cases1}) == len(cases1)   # still unique within one run
+
+
 def test_deep_full_evaluation_adds_stress():
     m = core.make_model("mock")
     fe = core.run_full_evaluation(m, level="deep", stress_n=40)

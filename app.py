@@ -1114,6 +1114,9 @@ def _flow_agent_action():
         key="aa_source", horizontal=True)
 
     with st.expander("⚙️ Advanced — reliability"):
+        if _aa_kind == "http_agent":
+            st.warning("⚠️ Your deployed agent's side effects are **real** — repeating this check "
+                      "N times means N **real** actions (e.g. N real transfers), not a simulation.")
         aa_reps = st.number_input(
             "Repeat this check N times", min_value=1, max_value=10, value=1, key="aa_reps",
             help="LLMs are non-deterministic. A safety check that passes once might fail 3 times "
@@ -1333,6 +1336,9 @@ def _flow_agent_loop():
         st.json(_scen.tool_stubs)
 
     with st.expander("⚙️ Advanced — reliability"):
+        if _al_kind == "http_agent":
+            st.warning("⚠️ Your deployed agent's side effects are **real** — repeating this loop "
+                      "N times means N **real** actions, not a simulation.")
         al_reps = st.number_input(
             "Repeat this check N times", min_value=1, max_value=10, value=1, key="al_reps",
             help="LLMs are non-deterministic. Repeat the loop to see the real pass rate, not a "

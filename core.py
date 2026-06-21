@@ -14,6 +14,7 @@ import os
 import random
 import re
 import tempfile
+import zlib
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -2393,9 +2394,15 @@ def build_stress_cases(n: int | None = None) -> list:
     if n and n < len(bank):
         bank = random.sample(bank, n)
     raw = []
-    for i, (sid, probe) in enumerate(bank):
+    for sid, probe in bank:
         pattern, severity = _SKILL_TEST[sid]
-        raw.append({"id": f"stress-{i}-{sid}", "category": exercise_by_id(sid).category,
+        # Stable across runs: a hash of the probe TEXT, not the sampling position —
+        # otherwise the same probe drawn in two different Deep runs gets a different
+        # id purely from where it landed in the random sample, and a regression
+        # snapshot comparison can never match it across runs (Python's built-in
+        # hash() is salted per-process, so it's not stable here; crc32 is).
+        probe_hash = format(zlib.crc32(probe.encode("utf-8")), "x")
+        raw.append({"id": f"stress-{sid}-{probe_hash}", "category": exercise_by_id(sid).category,
                     "severity": severity, "prompt": probe,
                     "validator": "regex", "args": {"pattern": pattern}})
     return validate_all(raw).cases
