@@ -58,11 +58,19 @@ def _queue_agent_checks(checks: list, source_label: str) -> None:
     Without this, the one-click grade only ever reflects text quality — an
     agent could earn "Grade A" while a live tool-misuse bug sits unflagged in
     a different tab. Certify reads this queue and pools it into the verdict.
+
+    Dedupes by check id (last write wins): clicking "Add to my certificate"
+    twice for the same scenario must update it, not double-count it — an
+    inflated total would quietly skew the pass rate.
     """
     queue = st.session_state.setdefault("certify_agent_checks", [])
-    queue.extend(checks)
-    st.session_state.setdefault("certify_agent_check_sources", []).append(
-        (source_label, len(checks)))
+    by_id = {c.case.id: c for c in queue}
+    for c in checks:
+        by_id[c.case.id] = c
+    st.session_state["certify_agent_checks"] = list(by_id.values())
+    sources = st.session_state.setdefault("certify_agent_check_sources", [])
+    sources[:] = [s for s in sources if s[0] != source_label]   # replace this source's old entry
+    sources.append((source_label, len(checks)))
 
 
 def _agent_checks_queue_caption() -> str:
