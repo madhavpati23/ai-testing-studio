@@ -600,6 +600,14 @@ def _flow_certify():
             st.session_state["certify_agent_checks"] = []
             st.session_state["certify_agent_check_sources"] = []
             st.rerun()
+    elif _kind in ("claude", "http_agent"):
+        # This backend CAN act on tools — so a clean certificate that never checked tool-use
+        # is a real gap, not a minor caveat. Make that loud rather than a quiet footnote.
+        st.warning("⚠️ **This certificate will not reflect tool-use safety.** `" + backend + "` can "
+                  "act on tools, but no Agent-action/loop checks are queued — go to **🔁 Behaviors "
+                  "→ Agent actions / Agent loops**, run a check, and click *\"Add this result to my "
+                  "certificate\"* first. Otherwise an agent that misuses a real tool can still earn "
+                  "a clean grade here, because nothing below tests that.")
     else:
         st.caption("💡 Run a check in **🔁 Behaviors → Agent actions / Agent loops** and click "
                   "*\"Add this result to my certificate\"* to fold tool-use safety into this grade "
@@ -633,6 +641,10 @@ def _flow_certify():
         _cb2 = st.session_state.get("certify_badge")
         if _cb2:
             st.caption(f"⚖️ Open-ended cases graded by {_cb2}.")
+        if not fe.agent_checks and _kind in ("claude", "http_agent"):
+            st.caption("⚠️ **This grade reflects text quality only** — no agent-action/loop checks "
+                      "were folded in, even though this backend can act on tools. See **🔁 "
+                      "Behaviors** to test (and certify) tool-use safety too.")
 
         cert_html = core.render_certificate(fe)
         cert_snapshot = core.export_snapshot(fe)
@@ -1093,11 +1105,11 @@ def _flow_agent_action():
          "🧪 Your own agent — define your own tools and scenario"],
         key="aa_source", horizontal=True)
 
-    aa_reps = st.number_input(
-        "Reliability — repeat this check N times", min_value=1, max_value=10, value=1,
-        key="aa_reps",
-        help="LLMs are non-deterministic. A safety check that passes once might fail 3 times "
-             "out of 10 — repeat it to see the real pass rate, not a lucky single run.")
+    with st.expander("⚙️ Advanced — reliability"):
+        aa_reps = st.number_input(
+            "Repeat this check N times", min_value=1, max_value=10, value=1, key="aa_reps",
+            help="LLMs are non-deterministic. A safety check that passes once might fail 3 times "
+                 "out of 10 — repeat it to see the real pass rate, not a lucky single run.")
 
     if aa_source.startswith("📦"):
         if _aa_kind == "http":
@@ -1312,11 +1324,11 @@ def _flow_agent_loop():
         st.markdown("**Simulated tool results it will see (these don't really happen):**")
         st.json(_scen.tool_stubs)
 
-    al_reps = st.number_input(
-        "Reliability — repeat this check N times", min_value=1, max_value=10, value=1,
-        key="al_reps",
-        help="LLMs are non-deterministic. Repeat the loop to see the real pass rate, not a "
-             "lucky single run.")
+    with st.expander("⚙️ Advanced — reliability"):
+        al_reps = st.number_input(
+            "Repeat this check N times", min_value=1, max_value=10, value=1, key="al_reps",
+            help="LLMs are non-deterministic. Repeat the loop to see the real pass rate, not a "
+                 "lucky single run.")
 
     if st.button("🔗 Run agent loop", type="primary", key="run_al", disabled=_al_kind == "http"):
         with st.spinner(f"Running the multi-step loop against {backend} ({al_reps}×)…"):

@@ -782,6 +782,19 @@ def test_render_certificate_is_html():
     assert fe.model_name in html
 
 
+def test_render_certificate_discloses_whether_agent_checks_were_included():
+    m = core.make_model("mock")
+    fe_blind = core.run_full_evaluation(m, level="quick")
+    html_blind = core.render_certificate(fe_blind)
+    assert "no agent-action/tool-use checks were included" in html_blind.lower()
+
+    loop_scen = core.AGENT_LOOP_SCENARIOS[0]
+    checks = core.agent_loop_checks(core.run_agent_loop(loop_scen, m), loop_scen)
+    fe_with = core.run_full_evaluation(m, level="quick", agent_checks=checks)
+    html_with = core.render_certificate(fe_with)
+    assert f"Includes {len(checks)} agent-action/tool-use check" in html_with
+
+
 # ---- regression tracking (snapshot export + compare) --------------------------
 
 def test_export_snapshot_has_every_check():
