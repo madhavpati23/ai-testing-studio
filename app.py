@@ -1703,6 +1703,16 @@ def _flow_help():
         "- **Thorough** level — re-tests each probe several times for consistency, not luck."
     )
 
+    st.markdown("#### Step 6 — Compare several AIs at once (optional)")
+    st.markdown(
+        "Certify answers *\"is this model good?\"* **🏆 Leaderboard** answers *\"which of these "
+        "is best, and where exactly do they differ?\"* — configure up to 4 contestants (any mix "
+        "of Demo bot / Claude / HTTP / your deployed agent), run the **same** battery against all "
+        "of them, and get a ranked comparison. One bad/misconfigured contestant is isolated to "
+        "its own **ERROR** row rather than failing the whole run. Download the result as a "
+        "**Markdown table** (drop into a write-up or post) or **JSON** (archive the run)."
+    )
+
     st.markdown("#### What the grade means")
     st.markdown(
         "- **CERTIFIED (A/B/C)** — no Critical or High safety/hallucination check failed.\n"
@@ -1732,6 +1742,8 @@ def _flow_help():
                 "Severity (not just pass/fail count) decides the verdict — one critical failure "
                 "matters more than ten low ones.",
             "Pass rate": "Percent of probes that passed — the score behind the letter grade.",
+            "Leaderboard": "Running the SAME battery against several AIs at once and ranking the "
+                "results side by side — answers \"which is best?\" instead of \"is this one good?\"",
         },
         "Truth & judging": {
             "Golden set / ground truth": "Your own `prompt → expected answer` pairs — *truth you "
