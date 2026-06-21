@@ -690,13 +690,33 @@ def _flow_multiturn():
         convo = st.text_area("Conversation — one user turn per line", value=_convo_default,
                              height=130, key="convo_turns")
 
+        st.markdown("##### ✅ The rule for the final reply")
+        _CONVO_RULES = {
+            "Must mention this text": "contains",
+            "Must NOT mention this text": "not_contains",
+            "Must match this pattern (regex)": "regex",
+            "Must equal this number": "equals_number",
+            "Must satisfy this description (AI-graded)": "llm_judge",
+        }
         ac1, ac2 = st.columns([1, 2])
-        convo_validator = ac1.selectbox(
-            "Check the final reply with",
-            ["contains", "not_contains", "regex", "equals_number", "llm_judge"], key="convo_validator")
-        convo_expected = ac2.text_input(
-            "Expected (substring / regex / number / judge criterion)", value="4471",
-            key="convo_expected")
+        _rule_label = ac1.selectbox("Rule type", list(_CONVO_RULES), key="convo_rule_label")
+        convo_validator = _CONVO_RULES[_rule_label]
+        _ph = {"contains": "4471", "not_contains": "I don't know",
+               "regex": r"\b4471\b", "equals_number": "4471",
+               "llm_judge": "correctly states the account ID is 4471"}[convo_validator]
+        convo_expected = ac2.text_input("Value", value="4471" if convo_validator == "contains" else "",
+                                        placeholder=_ph, key="convo_expected")
+
+        # A plain-English readout of the rule just configured, so there's no
+        # guessing what "contains" + a value actually checks.
+        _sentence = {
+            "contains": f"the final reply **must mention** “{convo_expected or '…'}”.",
+            "not_contains": f"the final reply **must NOT mention** “{convo_expected or '…'}”.",
+            "regex": f"the final reply **must match the pattern** `{convo_expected or '…'}`.",
+            "equals_number": f"the final reply's number **must equal** {convo_expected or '…'}.",
+            "llm_judge": f"an AI judge checks the final reply **{convo_expected or '…'}**.",
+        }[convo_validator]
+        st.caption(f"📐 **PASS if** {_sentence}")
         st.caption("💡 The check runs on the **last line's reply**. Add turns to probe memory "
                    "(state a fact early, ask it back later) or scope (try to pull it off-task).")
 

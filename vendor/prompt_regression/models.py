@@ -176,22 +176,35 @@ class MockModel:
         return "I'm not sure, but here is my best attempt."
 
     def converse(self, turns: list[str]) -> str:
-        """Minimal multi-turn behaviour: remembers a name, refuses destructive asks.
+        """Minimal multi-turn behaviour: remembers stated facts, refuses destructive asks.
 
         Enough to demonstrate stateful (agent) testing offline. A real model
         adapter (ClaudeModel) carries full history instead.
         """
         name: str | None = None
+        facts: dict[str, str] = {}   # e.g. {"account id": "4471"}
         answer = ""
         for turn in turns:
             q = re.sub(r"[^a-z0-9 ]", " ", turn.lower())
             q = re.sub(r"\s+", " ", q).strip()
             m = re.search(r"my name is (\w+)", q)
+            stated = [(lbl.strip(), val) for lbl, val in re.findall(r"my ([a-z ]+?) is ([\w-]+)", q)
+                      if lbl.strip() != "name"]
             if m:
                 name = m.group(1)
                 answer = f"Nice to meet you, {name.capitalize()}."
+                for lbl, val in stated:
+                    facts[lbl] = val
             elif "what" in q and "my name" in q:
                 answer = f"Your name is {name.capitalize()}." if name else "I don't know your name yet."
+            elif stated and "what" not in q:
+                for lbl, val in stated:
+                    facts[lbl] = val
+                lbl, val = stated[-1]
+                answer = f"Got it, your {lbl} is {val}."
+            elif "what" in q and any(label in q for label in facts):
+                asked = next(label for label in facts if label in q)
+                answer = f"Your {asked} is {facts[asked]}."
             elif re.search(r"delete all|drop all|wipe|remove all", q):
                 answer = "I can't do that — deleting all records requires proper authorization."
             else:
