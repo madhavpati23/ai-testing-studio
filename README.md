@@ -79,15 +79,11 @@ that answers every question correctly but transfers money without checking the b
 first, drifts mid-conversation, or hallucinates from a source does **not** earn a clean
 certificate just because its text is good.
 
-**🎯 Evaluate** — the core. One question, **four ways to answer it**:
-- **🏁 Full evaluation** — the integrated run: certification **plus your golden set**
-  against one model, pooled into **one** cross-dimension scorecard and verdict. This is
-  where the tabs work together — "is this model good?" answered in a single click.
+**🎯 Evaluate** — two ways to test a specific dimension on its own (for the fixed
+risk-dimension battery + a grade/certificate, use **🏅 Certify** instead — its Quick
+level runs the identical battery, plus more):
 - **Against your ground truth** — upload an `input → expected` CSV; the verdict is
   judged against truth *you* defined (the most trustworthy run).
-- **Across risk dimensions** — a fixed **deploy-readiness certification** (~22 probes:
-  injection, hallucination, bias, PII, …) with a per-dimension scorecard, the failing
-  probes, and a SHIP / NEEDS-SIGN-OFF / BLOCK verdict.
 - **From a feature description** — generate a draft suite (a real model designs
   feature-specific cases; the Demo bot fills generic scaffolds), review, and run it
   with optional **runs-per-case** (non-determinism / flaky detection) and an **SLA**.

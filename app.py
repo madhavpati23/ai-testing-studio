@@ -165,7 +165,7 @@ with st.sidebar:
     # Results belong to the backend they were produced against. When the user
     # switches backends, clear every cached run so a stale verdict from the old
     # model can't sit there looking current — and tell them why it vanished.
-    _RESULT_KEYS = ("gen", "run", "cert_run", "certify", "golden_run",
+    _RESULT_KEYS = ("gen", "run", "certify", "golden_run",
                     "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "aa_search",
                     "al_run", "calib", "calibrated_judge",
                     "certify_agent_checks", "certify_agent_check_sources")
@@ -482,86 +482,6 @@ def _flow_feature():
 
 
 # ---- Evaluate · across risk dimensions (deploy-readiness certification) ------
-def _flow_certification():
-    st.subheader("🛡️ Deploy-readiness certification")
-    st.caption(
-        f"A fixed, comprehensive battery — **{len(core.CERTIFICATION_CASES)} probes** across "
-        f"**{core.certification_dimensions()}** risk dimensions (safety, security/red-team, "
-        "hallucination, accuracy, reasoning, consistency, robustness, bias, format, and "
-        "refusal-calibration). Validators check for the *correct* behaviour, so a strong model "
-        "passes and a weak one fails. Run it against a real bot (Groq/Claude) to certify it for "
-        "deploy. *Certification is risk-based, not absolute — this is a strong general bar, not a "
-        "guarantee.*")
-
-    # Drop a stale result if the backend changed since the last certification run.
-    if st.session_state.get("_cert_backend") not in (None, backend):
-        st.session_state.pop("cert_run", None)
-
-    cc1, cc2, cc3 = st.columns([1.4, 1, 1])
-    do_cert = cc1.button("🛡️ Run certification battery", type="primary", key="run_cert")
-    cert_repeat = cc2.number_input("Runs per case", min_value=1, max_value=10, value=1, step=1,
-                                   key="cert_repeat",
-                                   help="Run each probe N times and measure a pass rate "
-                                        "(non-determinism). 3–5 for a real model.")
-    if st.session_state.get("cert_run") is not None:
-        cc3.button("Clear result", key="clear_cert",
-                   on_click=lambda: st.session_state.pop("cert_run", None))
-    if do_cert:
-        st.session_state["_cert_backend"] = backend
-        with st.spinner("Running the certification battery…"):
-            try:
-                _cases = core.build_certification()
-                st.session_state["cert_run"] = core.run_selected(
-                    _cases, repeat=int(cert_repeat),
-                    model=core.make_model(_BACKEND_KIND[backend], backend_opts))
-            except Exception as exc:
-                st.session_state.pop("cert_run", None)
-                st.error(f"Certification run failed against **{backend}**: {exc}")
-
-    cert = st.session_state.get("cert_run")
-    if cert:
-        st.caption("Showing your most recent certification run (it stays until you re-run, "
-                   "clear it, or switch backend).")
-        cm1, cm2, cm3, cm4 = st.columns(4)
-        cm1.metric("Score", f"{cert.summary.pass_rate:.0f}%")
-        cm2.metric("Passed", f"{cert.summary.passed}/{cert.summary.total}")
-        cm3.metric("Failed", cert.summary.failed)
-        cm4.metric("Verdict", cert.verdict)
-        _cv_style = {"SHIP": "success", "NEEDS SIGN-OFF": "warning", "BLOCK": "error"}
-        getattr(st, _cv_style.get(cert.verdict, "info"))(
-            f"Certification verdict: **{cert.verdict}**  ·  model: `{cert.model_name}`  "
-            + ("— ready to deploy on this bar." if cert.verdict == "SHIP"
-               else "— do not deploy until the failures below are resolved."))
-        if str(cert.model_name).startswith("mock"):
-            st.warning("**Demo bot** — it has planted bugs, so it deliberately fails many probes "
-                       "(it is *not* deploy-ready, by design). Run Groq/Claude to certify a real bot.")
-        # per-dimension scorecard
-        _by_cat: dict[str, list[int]] = {}
-        for r in cert.results:
-            row = _by_cat.setdefault(r.case.category, [0, 0])
-            row[1] += 1
-            if r.passed:
-                row[0] += 1
-        _score_rows = {
-            "risk dimension": [], "passed": [], "status": []}
-        for c, (p, t) in sorted(_by_cat.items()):
-            _score_rows["risk dimension"].append(c)
-            _score_rows["passed"].append(f"{p}/{t}")
-            _score_rows["status"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
-        st.markdown("**Scorecard by risk dimension**")
-        st.table(_score_rows)
-        _fails = [r for r in cert.results if not r.passed]
-        if _fails:
-            with st.expander(f"❌ {len(_fails)} failing probe(s) — what to fix", expanded=False):
-                for r in _fails:
-                    st.markdown(f"**`{r.case.id}`** (`{r.case.category}` / {r.case.severity})")
-                    st.markdown(f"> Prompt: {r.case.prompt}")
-                    st.caption(f"Bot replied: {r.answer[:300]}")
-                    st.divider()
-        cdl1, cdl2 = st.columns(2)
-        cdl1.download_button("⬇️ Certification HTML", cert.html, "certification.html", "text/html")
-        cdl2.download_button("⬇️ Certification JSON", cert.json, "certification.json", "application/json")
-
 # ---- Certify (the common-man front door: one click -> a certificate) --------
 def _flow_certify():
     st.subheader("🏅 Certify an AI")
@@ -1897,8 +1817,8 @@ _JOURNEY_STEPS = [
     (3, "Build the battery", False,
      "Run the fixed risk-dimension battery — safety, hallucination, bias, accuracy, and more "
      "— at your chosen thoroughness.",
-     "🏅 Certify, or 🎯 Evaluate → 🛡️ Across risk dimensions",
-     lambda: bool(st.session_state.get("certify") or st.session_state.get("cert_run"))),
+     "🏅 Certify",
+     lambda: bool(st.session_state.get("certify"))),
     (4, "Calibrate the judge", True,
      "Open-ended quality needs an LLM judge — but only trust one that's measured to agree "
      "with your own human labels first.",
@@ -1915,7 +1835,7 @@ _JOURNEY_STEPS = [
      "Automatic on every run — one Critical or safety/hallucination failure blocks the "
      "verdict outright, it isn't just averaged into the score.",
      "(happens automatically — nothing to click)",
-     lambda: bool(st.session_state.get("certify") or st.session_state.get("cert_run")
+     lambda: bool(st.session_state.get("certify")
                  or st.session_state.get("aa_run") or st.session_state.get("al_run"))),
     (7, "Test agent actions (agents only)", True,
      "Does it call the right tool with the right arguments, and refuse the dangerous one?",
@@ -1963,19 +1883,17 @@ with tab_certify:
 
 with tab_eval:
     st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
-    st.caption("For a one-click grade + certificate, use the **🏅 Certify** tab. These modes are "
-               "for testing a specific dimension on its own.")
+    st.caption("For the fixed risk-dimension battery + a grade/certificate, use the **🏅 Certify** "
+              "tab (its Quick level runs the identical battery). These modes are for testing a "
+              "specific dimension on its own.")
     eval_mode = st.radio(
         "How do you want to evaluate?",
         ["📋 Against your ground truth — upload input → expected (most trustworthy)",
-         "🛡️ Across risk dimensions — a fixed deploy-readiness certification",
          "🧪 From a feature description — generate a draft suite, then run it"],
         key="eval_mode")
     st.divider()
     if eval_mode.startswith("📋"):
         _flow_golden()
-    elif eval_mode.startswith("🛡️"):
-        _flow_certification()
     else:
         _flow_feature()
 
