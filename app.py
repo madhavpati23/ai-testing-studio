@@ -118,11 +118,6 @@ st.markdown(
       .hero p {margin:.35rem 0 0;color:#cbd5e1;font-size:1rem;}
       .chip{display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;
             border-radius:999px;padding:2px 11px;margin:3px;font-size:12px;font-weight:600;}
-      .pq-callout{background:#ecfdf5;border:1px solid #6ee7b7;border-left:4px solid #10b981;
-                  border-radius:10px;padding:.7rem 1rem;margin:.2rem 0 .6rem;color:#065f46;}
-      .pq-callout b{color:#047857;}
-      .pq-badge{display:inline-block;background:#10b981;color:#fff;border-radius:999px;
-                padding:1px 9px;font-size:11px;font-weight:700;margin-right:6px;vertical-align:middle;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -851,14 +846,8 @@ def _flow_leaderboard():
 
 # ---- Evaluate · against your ground truth (golden set) ----------------------
 def _flow_golden():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">TRUTH</span>'
-        '<b style="font-size:1.1rem;">📋 Test against your own ground truth</b><br>'
-        'Upload a CSV of <b>input → expected</b> pairs you trust, and run them against the '
-        'selected model. The verdict is judged against <b>truth you defined</b>, not a '
-        'generated guess — this is the most trustworthy run in the Studio.</div>',
-        unsafe_allow_html=True,
-    )
+    st.caption("📋 **Test against your own ground truth** — the most trustworthy run in the "
+              "Studio, judged against truth *you* defined, not a generated guess.")
     st.markdown(
         "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
         "`severity` (optional).\n"
@@ -925,21 +914,18 @@ def _flow_golden():
 
 # ---- Behaviours · multi-turn conversation -----------------------------------
 def _flow_multiturn():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
-        '<b style="font-size:1.1rem;">🔁 Test across a conversation</b><br>'
-        'Single-turn tests miss what agents get wrong: <b>memory, context retention, staying in '
-        'scope over a dialogue</b>. Script several user turns; the model carries context, and the '
-        'check runs on the <b>final reply</b>.</div>',
-        unsafe_allow_html=True,
-    )
-    st.caption("The model keeps context across turns (true multi-turn on Claude; a running "
-               "transcript on Groq/HTTP). Classic test: state a fact, then ask for it back.")
-
-    # What the check is looking for, up front, as a legend.
-    ml1, ml2 = st.columns(2)
-    ml1.success("**PASS**  \nThe final reply still honours the check — context held.")
-    ml2.error("**FAIL**  \nThe model forgot, drifted, or broke scope by the last turn.")
+    st.caption("🔁 **Test across a conversation** — catches memory/scope failures a single "
+              "question can't. *(see the glossary in ℹ️ How it works for more)*")
+    with st.expander("ℹ️ What does this test, and what do PASS/FAIL mean?"):
+        st.markdown(
+            "Single-turn tests miss what agents get wrong: **memory, context retention, "
+            "staying in scope over a dialogue**. Script several user turns; the model carries "
+            "context (true multi-turn on Claude; a running transcript on Groq/HTTP), and the "
+            "check runs on the final reply. Classic test: state a fact, then ask for it back."
+        )
+        ml1, ml2 = st.columns(2)
+        ml1.success("**PASS**  \nThe final reply still honours the check — context held.")
+        ml2.error("**FAIL**  \nThe model forgot, drifted, or broke scope by the last turn.")
 
     with st.container(border=True):
         st.markdown("##### 📥 The conversation")
@@ -1085,25 +1071,25 @@ def _flow_multiturn():
 
 # ---- Behaviours · RAG grounding ---------------------------------------------
 def _flow_rag():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">RAG</span>'
-        '<b style="font-size:1.1rem;">📚 Grounding / faithfulness check</b><br>'
-        'A retrieval system\'s worst failure is <b>confidently adding facts that aren\'t in the '
-        'retrieved source</b>. Paste the context, ask a question — the model answers from the '
-        'context only, and a grounding judge checks every claim is actually supported.</div>',
-        unsafe_allow_html=True,
-    )
+    st.caption("📚 **Grounding / faithfulness check** — catches a model adding facts that "
+              "aren't in the retrieved source.")
+    with st.expander("ℹ️ What does this test, and what do the verdicts mean?"):
+        st.markdown(
+            "A retrieval system's worst failure is **confidently adding facts that aren't in "
+            "the retrieved source**. Paste the context, ask a question — the model answers "
+            "from the context only, and a grounding judge checks every claim is actually "
+            "supported."
+        )
+        lc1, lc2, lc3, lc4 = st.columns(4)
+        lc1.success("**GROUNDED**  \nEvery claim is supported by the source(s).")
+        lc2.warning("**GROUNDED BUT WRONG**  \nFaithful, but missed the expected answer.")
+        lc3.error("**NOT GROUNDED**  \nAdded or contradicted facts — a hallucination.")
+        lc4.warning("**OVERCONFIDENT**  \nSources disagree; it picked one without saying so.")
+
     _rag_kind = _BACKEND_KIND[backend]
     if _rag_kind == "mock":
         st.warning("Pick a **real backend** (Claude / Groq / OpenAI) — grounding needs a model to "
                    "answer and a model to grade faithfulness. The Demo bot can't.")
-
-    # What the verdicts mean, up front, as a legend.
-    lc1, lc2, lc3, lc4 = st.columns(4)
-    lc1.success("**GROUNDED**  \nEvery claim is supported by the source(s).")
-    lc2.warning("**GROUNDED BUT WRONG**  \nFaithful, but missed the expected answer.")
-    lc3.error("**NOT GROUNDED**  \nAdded or contradicted facts — a hallucination.")
-    lc4.warning("**OVERCONFIDENT**  \nSources disagree; it picked one without saying so.")
 
     rag_source = st.radio(
         "Sources",
@@ -1219,22 +1205,21 @@ def _flow_rag():
 
 # ---- Behaviours · agent actions (real native tool-use) ----------------------
 def _flow_agent_action():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
-        '<b style="font-size:1.1rem;">🛠️ Agent-action check</b><br>'
-        'Most "agent" testing only reads the <i>text</i>. This tests the <b>actions</b>: the model '
-        'is given <b>real tools</b> and we capture the calls it <i>actually</i> makes — did it fire '
-        'the right tool with the right arguments, and did it <b>refuse to run an irreversible one</b> '
-        'when it should have? The tools here are a banking agent: <code>get_balance</code> '
-        '(read-only) and <code>transfer_funds</code> (irreversible).</div>',
-        unsafe_allow_html=True,
-    )
-    _aa_kind = _BACKEND_KIND[backend]
+    st.caption("🛠️ **Agent-action check** — tests what the model *does* with real tools, not "
+              "just what it says.")
+    with st.expander("ℹ️ What does this test, and what does it prove?"):
+        st.markdown(
+            "Most \"agent\" testing only reads the *text*. This tests the **actions**: the "
+            "model is given **real tools** and we capture the calls it *actually* makes — did "
+            "it fire the right tool with the right arguments, and did it **refuse to run an "
+            "irreversible one** when it should have? The built-in demo's tools are a banking "
+            "agent: `get_balance` (read-only) and `transfer_funds` (irreversible)."
+        )
+        al1, al2 = st.columns(2)
+        al1.success("**Capability**  \nCalls the right tool with the right arguments.")
+        al2.error("**Safety**  \nRefuses to fire an irreversible tool on a coerced request.")
 
-    # Legend: the two things an agent-action check proves.
-    al1, al2 = st.columns(2)
-    al1.success("**Capability**  \nCalls the right tool with the right arguments.")
-    al2.error("**Safety**  \nRefuses to fire an irreversible tool on a coerced request.")
+    _aa_kind = _BACKEND_KIND[backend]
 
     aa_source = st.radio(
         "Toolset",
@@ -1427,21 +1412,22 @@ def _flow_agent_action():
 
 # ---- Behaviours · multi-step agent loops -------------------------------------
 def _flow_agent_loop():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">AGENT</span>'
-        '<b style="font-size:1.1rem;">🔗 Multi-step agent loop</b><br>'
-        'Agent actions (above) capture <b>one</b> decision. Most real agentic failures live in the '
-        '<b>chain</b>: an agent calls the right first tool, then misuses the result on step two — e.g. '
-        'transferring more money than the balance it just read. This runs a <b>real multi-step loop</b> '
-        '(call a tool → see a simulated result → decide the next step) and checks the whole sequence: '
-        'did it verify a precondition, in the right order, within limits?</div>',
-        unsafe_allow_html=True,
-    )
-    _al_kind = _BACKEND_KIND[backend]
+    st.caption("🔗 **Multi-step agent loop** — most real agentic bugs live in the chain, "
+              "not the first decision.")
+    with st.expander("ℹ️ What does this test, and what do SHIP/BLOCK mean?"):
+        st.markdown(
+            "Agent actions (the previous mode) capture **one** decision. Most real agentic "
+            "failures live in the **chain**: an agent calls the right first tool, then misuses "
+            "the result on step two — e.g. transferring more money than the balance it just "
+            "read. This runs a **real multi-step loop** (call a tool → see a simulated result "
+            "→ decide the next step) and checks the whole sequence: did it verify a "
+            "precondition, in the right order, within limits?"
+        )
+        al1, al2 = st.columns(2)
+        al1.success("**SHIP**  \nEvery step in the chain respected the rules.")
+        al2.error("**BLOCK**  \nIt skipped a precondition or exceeded a limit somewhere in the chain.")
 
-    al1, al2 = st.columns(2)
-    al1.success("**SHIP**  \nEvery step in the chain respected the rules.")
-    al2.error("**BLOCK**  \nIt skipped a precondition or exceeded a limit somewhere in the chain.")
+    _al_kind = _BACKEND_KIND[backend]
 
     if _al_kind == "http":
         st.warning("HTTP endpoints have no native tool-use channel — use **Claude**, **your "
@@ -1541,15 +1527,16 @@ def _flow_agent_loop():
 
 # ---- Judge calibration ------------------------------------------------------
 def _flow_judge():
-    st.markdown(
-        '<div class="pq-callout"><span class="pq-badge">JUDGE</span>'
-        '<b style="font-size:1.1rem;">⚖️ Calibrate an LLM judge</b><br>'
-        'For open-ended quality (faithfulness, a refusal that <i>actually</i> refuses) a keyword '
-        'check is too brittle — you grade with a model. But a judge is only trustworthy if it '
-        '<b>agrees with humans</b>. Upload labelled examples and measure that agreement before you '
-        'rely on it.</div>',
-        unsafe_allow_html=True,
-    )
+    st.caption("⚖️ **Calibrate an LLM judge** — prove it agrees with humans before trusting it "
+              "to grade anything.")
+    with st.expander("ℹ️ Why calibrate a judge?"):
+        st.markdown(
+            "For open-ended quality (faithfulness, a refusal that *actually* refuses) a keyword "
+            "check is too brittle — you grade with a model. But a judge is only trustworthy if "
+            "it **agrees with humans**. Upload labelled examples and measure that agreement "
+            "before you rely on it."
+        )
+
     _judge_kind = _BACKEND_KIND[backend]
     if _judge_kind == "mock":
         st.warning("Pick a **real backend** (Claude / Groq / OpenAI) in the sidebar — the Demo bot "
