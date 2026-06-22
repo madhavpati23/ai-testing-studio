@@ -50,16 +50,29 @@ pile of peer tabs. First, in the sidebar, pick the **model under test**: the off
 **Groq (free)** / any HTTP endpoint — with **your own key** (kept in your session,
 never written to the server). Then:
 
-**🏅 Certify** *(the front door)* — **one click → a grade + a downloadable certificate.**
-Runs the full evaluation across every risk dimension (plus your own ground truth if you
-add it) and issues a printable **Certificate of AI Evaluation** with a letter **grade
-(A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the model
-name, the date, the **thoroughness level**, and a per-dimension breakdown.
-Pick the depth: **Quick (~22 checks)** / **Standard (~48)** / **Thorough (~48 × 3 runs)** —
-and the certificate prints which level it was, so the grade is honestly contextualised.
-**No key? Certify the Demo bot instantly.** Download a **snapshot** (JSON) alongside
-the certificate, and after a later prompt/model change, **compare two snapshots** to see
-exactly which checks regressed or improved — not just whether the score moved.
+**🧭 Journey** *(opens first)* — onboarding and execution in one tab (folded in what used
+to be a separate "Start here"). Leads with the one idea (the *three roles*: model under
+test · designer / your ground truth · judge) and a 2-minute free-key setup, then a
+**guided core path**: connect the AI → build the battery → certify, walked through one
+step at a time with Next/Back and a step picker, right there in the tab (no need to jump
+elsewhere). Below it, the **full 12-step methodology as a live checklist** — oracle →
+connect → battery → judge → reliability → (severity gating, automatic) → agent actions →
+agent loops → adversarial search → track over time → compare options → certify. **Not a
+locked wizard** — every step but two is optional or agent-only, every other tab stays
+directly reachable, and "Certify the Demo bot instantly" still needs zero steps done
+first. Status reflects what you've actually done *this session*.
+
+**🏅 Certify** *(the front door for a direct, one-click run)* — **one click → a grade +
+a downloadable certificate.** Runs the full evaluation across every risk dimension (plus
+your own ground truth if you add it) and issues a printable **Certificate of AI
+Evaluation** with a letter **grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT
+CERTIFIED** status, the model name, the date, the **thoroughness level**, and a
+per-dimension breakdown. Pick the depth: **Quick (~22 checks)** / **Standard (~48)** /
+**Thorough (~48 × 3 runs)** — and the certificate prints which level it was, so the grade
+is honestly contextualised. **No key? Certify the Demo bot instantly.** Download a
+**snapshot** (JSON) alongside the certificate, and after a later prompt/model change,
+**compare two snapshots** to see exactly which checks regressed or improved — not just
+whether the score moved.
 
 **The grade isn't blind to agent behaviour.** Run a check in **🔁 Behaviors → Agent
 actions / Agent loops / adversarial search** and click *"Add this result to my
@@ -67,17 +80,6 @@ certificate"* — it folds into the SAME verdict the text-quality checks use, th
 same severity gating. An agent that answers every question correctly but transfers
 money without checking the balance first does **not** earn a clean certificate just
 because its text is good.
-
-**🧭 Journey** — onboarding and execution in one tab (folded in what used to be a separate
-"Start here"). Leads with the one idea (the *three roles*: model under test · designer /
-your ground truth · judge) and a 2-minute free-key setup, then a **guided core path**: connect the AI →
-build the battery → certify, walked through one step at a time with Next/Back and a step
-picker, right there in the tab (no need to jump elsewhere). Below it, the **full 12-step
-methodology as a live checklist** — oracle → connect → battery → judge → reliability →
-(severity gating, automatic) → agent actions → agent loops → adversarial search → track over
-time → compare options → certify. **Not a locked wizard** — every step but two is optional
-or agent-only, every other tab stays directly reachable, and "Certify the Demo bot instantly"
-still needs zero steps done first. Status reflects what you've actually done *this session*.
 
 **🎯 Evaluate** — the core. One question, **four ways to answer it**:
 - **🏁 Full evaluation** — the integrated run: certification **plus your golden set**

@@ -2057,17 +2057,17 @@ def _flow_journey():
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_certify, tab_journey, tab_eval, tab_behav, tab_judge, tab_leaderboard,
+(tab_journey, tab_certify, tab_eval, tab_behav, tab_judge, tab_leaderboard,
  tab_audit, tab_help) = st.tabs(
-    ["🏅 Certify", "🧭 Journey", "🎯 Evaluate", "🔁 Behaviors",
+    ["🧭 Journey", "🏅 Certify", "🎯 Evaluate", "🔁 Behaviors",
      "⚖️ Judge", "🏆 Leaderboard", "📄 Real test reports", "ℹ️ How it works"]
 )
 
-with tab_certify:
-    _flow_certify()
-
 with tab_journey:
     _flow_journey()
+
+with tab_certify:
+    _flow_certify()
 
 with tab_eval:
     st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
