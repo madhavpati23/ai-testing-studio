@@ -50,17 +50,18 @@ pile of peer tabs. First, in the sidebar, pick the **model under test**: the off
 **Groq (free)** / any HTTP endpoint — with **your own key** (kept in your session,
 never written to the server). Then:
 
-**🧭 Journey** *(opens first)* — onboarding and execution in one tab (folded in what used
+**🧭 Journey** *(opens first)* — onboarding and orientation in one tab (folded in what used
 to be a separate "Start here"). Leads with the one idea (the *three roles*: model under
 test · designer / your ground truth · judge) and a 2-minute free-key setup, then a
-**guided core path**: connect the AI → build the battery → certify, walked through one
-step at a time with Next/Back and a step picker, right there in the tab (no need to jump
-elsewhere). Below it, the **full 12-step methodology as a live checklist** — oracle →
-connect → battery → judge → reliability → (severity gating, automatic) → agent actions →
-agent loops → adversarial search → track over time → compare options → certify. **Not a
-locked wizard** — every step but two is optional or agent-only, every other tab stays
-directly reachable, and "Certify the Demo bot instantly" still needs zero steps done
-first. Status reflects what you've actually done *this session*.
+**guided core path** — connect the AI → see what's in the battery → certify — walked
+through with Next/Back and a step picker. It's a guide, not a second copy of Certify: the
+last step points you at **🏅 Certify** to actually run it, rather than duplicating its
+controls. Below the guided path, the **full 12-step methodology as a live checklist** —
+oracle → connect → battery → judge → reliability → (severity gating, automatic) → agent
+actions → agent loops → adversarial search → track over time → compare options → certify.
+**Not a locked wizard** — every step but two is optional or agent-only, every other tab
+stays directly reachable, and "Certify the Demo bot instantly" still needs zero steps
+done first. Status reflects what you've actually done *this session*.
 
 **🏅 Certify** *(the front door for a direct, one-click run)* — **one click → a grade +
 a downloadable certificate.** Runs the full evaluation across every risk dimension (plus

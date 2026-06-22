@@ -1899,12 +1899,10 @@ def _flow_journey_guided():
     gh1.caption("The three steps everyone needs, walked through one at a time. Jump to any "
                "step below, or use Next/Back.")
     if gh2.button("🔄 Reset", key="journey_reset"):
-        # Clears the journey's own step/config state AND the result it produced
-        # (shared with the dedicated Certify tab) — otherwise stepping back to
-        # "Certify" after a reset still shows the old grade, which looks like
-        # the reset didn't work.
-        for k in ("journey_core_step", "journey_level", "journey_golden", "journey_gcases",
-                 "certify", "certify_badge"):
+        # Clears the journey's own step state AND the shared certify result —
+        # otherwise stepping back to "Certify" after a reset still shows the
+        # old grade, which looks like the reset didn't work.
+        for k in ("journey_core_step", "certify", "certify_badge"):
             st.session_state.pop(k, None)
         st.rerun()
 
@@ -1942,25 +1940,13 @@ def _flow_journey_guided():
 
         elif cur == 2:
             st.markdown("##### 2️⃣ Build the battery")
-            st.caption("Decide what's in the certification battery — depth, and optionally your "
-                      "own ground truth.")
-            jt1, jt2 = st.columns([2, 1])
-            j_thoroughness = jt1.selectbox("Thoroughness", list(_THOROUGH), index=1,
-                                          key="journey_level")
-            jt2.caption("Standard is recommended for a first pass.")
-            j_up = st.file_uploader("Optional: your own ground truth CSV", type=["csv"],
-                                    key="journey_golden")
-            j_gcases = []
-            if j_up is not None:
-                try:
-                    j_gcases, j_gerr = core.build_golden(j_up.getvalue().decode("utf-8", errors="replace"))
-                    if j_gerr:
-                        st.warning("Some rows skipped:\n\n- " + "\n- ".join(j_gerr))
-                    if j_gcases:
-                        st.caption(f"Added **{len(j_gcases)}** of your own check(s).")
-                except Exception as exc:
-                    st.error(f"Could not read the CSV: {exc}")
-            st.session_state["journey_gcases"] = j_gcases
+            st.caption("The certification battery covers every risk dimension below — safety, "
+                      "hallucination, bias, accuracy, and more. You'll pick the depth (Quick/"
+                      "Standard/Thorough/Deep) and can add your own ground truth in the "
+                      "**🏅 Certify** tab, next.")
+            st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>'
+                                          for c in core.categories()) + '</div>',
+                       unsafe_allow_html=True)
             bcol = st.columns([1, 1, 4])
             if bcol[0].button("← Back", key="journey_back_2"):
                 st.session_state["journey_core_step"] = 1
@@ -1971,27 +1957,9 @@ def _flow_journey_guided():
 
         else:
             st.markdown("##### 3️⃣ Certify")
-            _level_label = st.session_state.get("journey_level", list(_THOROUGH)[1])
-            _level, _runs, _stress = _THOROUGH[_level_label]
-            st.caption(f"Ready to run **{_level}** against **{backend}**"
-                      + (f" with {len(st.session_state.get('journey_gcases', []))} of your own "
-                         "ground-truth check(s)" if st.session_state.get("journey_gcases") else "")
-                      + ".")
-            if st.button("🏅 Certify this AI", type="primary", key="journey_run_certify"):
-                with st.spinner(f"Running the {_level} evaluation…"):
-                    try:
-                        _cj, _cb = ((None, None) if _kind == "mock"
-                                   else _active_judge(_kind, backend_opts))
-                        st.session_state["certify_badge"] = _cb
-                        st.session_state["certify"] = core.run_full_evaluation(
-                            core.make_model(_kind, backend_opts),
-                            golden_cases=st.session_state.get("journey_gcases") or None, judge=_cj,
-                            level=_level, repeat=_runs, stress_n=_stress,
-                            agent_checks=st.session_state.get("certify_agent_checks") or None)
-                    except Exception as exc:
-                        st.session_state.pop("certify", None)
-                        st.error(f"Certification failed against **{backend}**: {exc}")
-
+            st.caption(f"Open **🏅 Certify**, pick a thoroughness, and click **Certify this AI** "
+                      f"against **{backend}** — the grade, certificate download, full breakdown, "
+                      "and snapshot tools are all there.")
             fe = st.session_state.get("certify")
             if fe:
                 letter, status = core.certification_grade(fe.pass_rate, fe.verdict)
@@ -1999,8 +1967,8 @@ def _flow_journey_guided():
                 gm1.metric("Grade", letter)
                 gm2.metric("Status", status)
                 gm3.metric("Score", f"{fe.pass_rate:.0f}%")
-                st.success("🎉 Done — full certificate, breakdown, and snapshot tools are in "
-                          "the **🏅 Certify** tab.")
+                st.success("🎉 Already certified this session — see the full certificate in "
+                          "**🏅 Certify**.")
             ccol = st.columns([1, 1, 4])
             if ccol[0].button("← Back", key="journey_back_3"):
                 st.session_state["journey_core_step"] = 2
