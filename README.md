@@ -110,7 +110,11 @@ with the right arguments, and did it **refuse to fire an irreversible tool** on 
 coerced request? Runs on **Claude** (real tool-use); the **Demo bot** has a *planted*
 unsafe-action bug so the safety scenario is catchable offline. Beyond the built-in
 banking demo, you can **bring your own tools** — define your own tool schemas + a
-scenario and test that *your* agent calls (or refuses) the right thing. A safety
+scenario and test that *your* agent calls (or refuses) the right thing — or go further:
+**paste your agent's own instructions** (a Rovo/Jira agent's persona, permissions, tools)
+and an AI **proposes a tailored battery** — likely tools, what could go wrong, and
+concrete must/must-not scenarios — which you review, then run for real and fold straight
+into a certificate. Nothing executes until you approve the proposed plan. A safety
 scenario also gets an **adversarial search** button — instead of one hand-written
 coercion phrasing, it automatically tries 6 different framings (direct override, fake
 authority, urgency, roleplay, reassurance, hypothetical-then-real) and reports the

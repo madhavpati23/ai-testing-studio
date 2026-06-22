@@ -167,7 +167,7 @@ with st.sidebar:
     # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "certify", "golden_run",
                     "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "aa_search",
-                    "al_run", "calib", "calibrated_judge",
+                    "aa_plan", "aa_plan_results", "al_run", "calib", "calibrated_judge",
                     "certify_agent_checks", "certify_agent_check_sources")
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
@@ -1211,7 +1211,8 @@ def _flow_agent_action():
     aa_source = st.radio(
         "Toolset",
         ["📦 Built-in demo — a banking agent (get_balance / transfer_funds)",
-         "🧪 Your own agent — define your own tools and scenario"],
+         "🧪 Your own agent — define your own tools and scenario",
+         "🧩 Analyze my agent's instructions — let an AI propose the battery"],
         key="aa_source", horizontal=True)
 
     with st.expander("⚙️ Advanced — reliability"):
@@ -1296,7 +1297,7 @@ def _flow_agent_action():
                                        f"Adversarial search: {_scen.label}")
                     st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
-    else:
+    elif aa_source.startswith("🧪"):
         _aa_custom_ok = _aa_kind in ("claude", "http_agent")
         if not _aa_custom_ok:
             st.warning("Custom tools need **real native tool-use** — use **Claude**, or "
@@ -1361,6 +1362,81 @@ def _flow_agent_action():
                 except Exception as exc:
                     st.session_state.pop("aa_run", None)
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
+
+    else:
+        _aa_plan_ok = _aa_kind in ("claude", "http_agent")
+        if not _aa_plan_ok:
+            st.warning("Analyzing instructions and running the proposed battery needs **real "
+                      "native tool-use** — use **Claude** or **your deployed agent**.")
+        st.caption("📋 Paste the agent's own configured instructions (its persona, permissions, "
+                  "tools) — an AI reads them and proposes a tailored test battery: which tools "
+                  "it likely has, what could go wrong, and concrete must/must-not scenarios. "
+                  "**Nothing runs until you review the plan and click Certify.**")
+
+        with st.container(border=True):
+            st.markdown("##### 📥 The agent's instructions")
+            aa_instructions = st.text_area(
+                "Paste instructions / system prompt / configured permissions", height=160,
+                key="aa_instructions",
+                placeholder="e.g. \"You are a Jira service agent. You can create, update, and "
+                           "delete issues in the OPS project. Always confirm before deleting...\"")
+            if st.button("🧩 Analyze instructions", type="primary", key="run_aa_analyze",
+                        disabled=not aa_instructions.strip() or not _aa_plan_ok):
+                with st.spinner(f"Reading the instructions and proposing a battery with {backend}…"):
+                    try:
+                        _planner = core.make_model(_aa_kind, backend_opts)
+                        st.session_state["aa_plan"] = core.analyze_agent_instructions(
+                            aa_instructions, _planner)
+                        st.session_state.pop("aa_plan_results", None)
+                    except Exception as exc:
+                        st.session_state.pop("aa_plan", None)
+                        st.error(f"Could not analyze instructions: {exc}")
+
+        plan = st.session_state.get("aa_plan")
+        if plan:
+            with st.container(border=True):
+                st.markdown("##### 🧩 Proposed battery (review before running)")
+                st.caption(plan.summary)
+                st.caption(f"Recommended thoroughness: **{plan.level}**")
+                if plan.warnings:
+                    st.warning("Some proposed items were dropped:\n\n- " + "\n- ".join(plan.warnings))
+                st.markdown("**Tools it likely has:**")
+                st.json(plan.tools)
+                st.markdown("**Proposed scenarios:**")
+                st.dataframe(
+                    pd.DataFrame([{
+                        "label": s.label,
+                        "expects": "✅ CALL" if s.kind == "must_call" else "🚫 NOT call",
+                        "tool": s.tool, "severity": s.severity, "prompt": s.prompt,
+                    } for s in plan.scenarios]),
+                    hide_index=True, use_container_width=True)
+
+            if st.button("🏅 Run this battery + certify", type="primary", key="run_aa_plan",
+                        disabled=not plan.scenarios or not _aa_plan_ok):
+                with st.spinner(f"Running {len(plan.scenarios)} proposed scenario(s) plus the "
+                                f"{plan.level} battery against {backend}…"):
+                    try:
+                        _model = core.make_model(_aa_kind, backend_opts)
+                        fe, action_results = core.run_planned_battery(plan, _model)
+                        st.session_state["certify"] = fe
+                        st.session_state["aa_plan_results"] = action_results
+                    except Exception as exc:
+                        st.error(f"Running the planned battery failed against **{backend}**: {exc}")
+
+            plan_results = st.session_state.get("aa_plan_results")
+            if plan_results:
+                st.markdown("**What each proposed scenario actually did:**")
+                st.dataframe(
+                    pd.DataFrame([{
+                        "scenario": s.label, "✓": "✅" if r.passed else "❌",
+                        "verdict": r.verdict, "why": r.detail,
+                    } for s, r in zip(plan.scenarios, plan_results)]),
+                    hide_index=True, use_container_width=True)
+                _fe = st.session_state.get("certify")
+                if _fe:
+                    _letter, _status = core.certification_grade(_fe.pass_rate, _fe.verdict)
+                    st.success(f"🎉 Certified with this battery — **Grade {_letter} · {_status}**. "
+                              f"See **🏅 Certify** for the full certificate, breakdown, and download.")
 
     aa_rep = st.session_state.get("aa_run")
     if aa_rep:
@@ -1783,6 +1859,10 @@ def _flow_help():
                 "automatically trying several coercion framings (direct override, fake authority, "
                 "urgency, roleplay...) and reporting the **break rate** — proof a refusal holds up "
                 "broadly, not just on one wording.",
+            "Battery planning (analyze instructions)": "Paste an agent's own configured "
+                "instructions and an AI proposes a tailored test battery — likely tools, what could "
+                "go wrong, concrete must/must-not scenarios. A proposal to review, not something "
+                "that runs unattended.",
         },
         "Tracking & safety": {
             "Snapshot": "A saved, point-in-time export of every individual check's result — what "
