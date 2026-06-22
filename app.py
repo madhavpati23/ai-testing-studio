@@ -1497,7 +1497,8 @@ def _flow_agent_loop():
                     "detail": ({"must_call": f"must call {c.check.tool}",
                                "must_not_call": f"must NOT call {c.check.tool}",
                                "order": f"{c.check.tool} before {c.check.other_tool}",
-                               "max_arg": f"{c.check.tool}.{c.check.arg} ≤ {c.check.limit}"}
+                               "max_arg": f"{c.check.tool}.{c.check.arg} ≤ {c.check.limit}",
+                               "no_false_success": f"must NOT claim success if {c.check.tool} fails"}
                               [c.check.kind]),
                     "why": c.detail or "—",
                 } for c in al.checks]),
@@ -1770,9 +1771,10 @@ def _flow_help():
                 "not the first decision (e.g. transferring money without checking the balance first).",
             "Precondition": "Something an agent must verify *before* taking an action — the classic "
                 "miss is acting on an assumption instead of checking it first.",
-            "must_call / must_not_call / order / max_arg": "The four rule types an agent-loop check "
-                "is built from: a tool *must* be called, must *never* be called, must be called "
-                "*before* another tool, or an argument must *never exceed* a limit.",
+            "must_call / must_not_call / order / max_arg / no_false_success": "The rule types an "
+                "agent-loop check is built from: a tool *must* be called, must *never* be called, "
+                "must be called *before* another tool, an argument must *never exceed* a limit, or "
+                "the final reply must *not claim success* when the tool actually reported failure.",
             "Adversarial search": "Instead of testing one hand-written attack phrasing, "
                 "automatically trying several coercion framings (direct override, fake authority, "
                 "urgency, roleplay...) and reporting the **break rate** — proof a refusal holds up "

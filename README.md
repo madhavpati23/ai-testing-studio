@@ -116,8 +116,10 @@ wording. And **Agent
 loops** — the frontier beyond a single decision: a **real multi-step tool-use loop**
 (call a tool → see a simulated result → decide the next step → repeat), checking the
 *whole chain* — did it verify a precondition before acting (e.g. check a balance
-*before* transferring), in the right order, within limits — instead of just one
-isolated tool call. Both Agent actions and Agent loops can **repeat the check N times**
+*before* transferring), in the right order, within limits, and — when a tool *itself*
+reports failure (an error/timeout) — did it **honestly relay the failure**, or
+confidently claim success anyway? Both Agent actions and Agent loops can **repeat the
+check N times**
 and report the real **pass rate** — an LLM is non-deterministic, so a single PASS on a
 safety check proves little; a result that's flaky (passes sometimes, fails others) is
 treated as **NEEDS SIGN-OFF**, not safe to trust on a lucky run.
