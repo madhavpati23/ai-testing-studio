@@ -572,7 +572,7 @@ def _flow_certify():
         st.info("You're set to the **Demo bot** — click below to certify it instantly, no key "
                 "needed. (It has planted bugs on purpose, so expect a low grade.) **To certify a "
                 "*real* AI**, pick **Claude** or **Groq (free)** in the sidebar — see "
-                "*👋 Start here* for the 3-step key setup.")
+                "*🧭 Journey* for the 3-step key setup.")
     else:
         st.caption(f"Certifying **{backend}** — your key stays in your session, never stored.")
 
@@ -1661,7 +1661,7 @@ def _flow_help():
         "never written to the server, stored, or logged. No key? Leave it on the **Demo bot**."
     )
     st.caption("Free path: console.groq.com → create a key (gsk_…) → sidebar → HTTP endpoint → "
-               "Groq preset → paste it. See 👋 Start here for the 2-minute version.")
+               "Groq preset → paste it. See 🧭 Journey for the 2-minute version.")
 
     st.markdown("#### Step 3 — Certify (one click)")
     st.markdown(
@@ -1810,45 +1810,6 @@ def _flow_help():
         with st.expander(section):
             for term, definition in terms.items():
                 st.markdown(f"**{term}** — {definition}")
-
-
-# ---- Start here -------------------------------------------------------------
-def _flow_start_here():
-    st.subheader("👋 Welcome — give any AI a verdict you can defend")
-    st.markdown(
-        "Put a model or agent **under test** and get a **SHIP / NO-SHIP verdict** across the "
-        "dimensions that matter — judged against *truth*, not vibes."
-    )
-    st.info(
-        "**The one idea — three roles.** It's easy to mix these up, so here they are once:\n\n"
-        "1. **The model under test** — the AI you're judging (pick it in the sidebar).\n"
-        "2. **The designer / your ground truth** — where the test cases *come from* (you upload "
-        "them, or a model drafts them).\n"
-        "3. **The judge** — for open-ended quality, a model grades the answer — and you "
-        "*calibrate* that judge against your own labels before trusting it."
-    )
-    st.markdown("#### Pick your path")
-    pc1, pc2, pc3 = st.columns(3)
-    with pc1:
-        st.markdown("**🏅 Just certify an AI**")
-        st.caption("Go to **🏅 Certify** → click **Certify this AI**. With the **Demo bot** it "
-                   "works instantly, no key. You get a **grade + a downloadable certificate**.")
-    with pc2:
-        st.markdown("**🔑 Certify a real AI**")
-        st.caption("In the sidebar pick **Groq (free)** or **Claude**, paste your key (3 steps "
-                   "below; it stays in your session), then **Certify**.")
-    with pc3:
-        st.markdown("**🔬 Go deep**")
-        st.caption("Add your **ground truth** (📋 in Evaluate), **calibrate a judge** (⚖️), or pick "
-                   "**Deep** in Certify to draw 80 fresh probes from a 500+ bank — hardest to game.")
-    st.markdown("#### Get a free Groq key (≈2 min)")
-    st.markdown(
-        "1. Go to **console.groq.com** → sign in → **API Keys** → **Create**.\n"
-        "2. Copy the key (starts `gsk_`).\n"
-        "3. Sidebar → **HTTP endpoint** → preset **Groq** → paste it in the Authorization header."
-    )
-    st.caption("Then open **🏅 Certify** and click the button. The **ℹ️ How it works** tab "
-               "explains the method behind the grade.")
 
 
 # ---- Journey — the 12-step AI/agent testing process, tracked live ----------
@@ -2037,10 +1998,30 @@ def _flow_journey_guided():
 
 
 def _flow_journey():
-    st.subheader("🧭 Your journey — the 12-step testing process")
-    st.markdown("The methodology behind every tab, in order. **Not a locked wizard** — every "
-                "step below is optional except where marked, and every other tab stays directly "
-                "reachable. Status reflects what you've actually done **this session**.")
+    st.subheader("🧭 Your journey — give any AI a verdict you can defend")
+    st.markdown(
+        "Put a model or agent **under test** and get a **SHIP / NO-SHIP verdict** across the "
+        "dimensions that matter — judged against *truth*, not vibes. The methodology behind "
+        "every tab, in order. **Not a locked wizard** — every step below is optional except "
+        "where marked, and every other tab stays directly reachable. Status reflects what "
+        "you've actually done **this session**."
+    )
+    st.info(
+        "**The one idea — three roles.** It's easy to mix these up, so here they are once:\n\n"
+        "1. **The model under test** — the AI you're judging (pick it in the sidebar).\n"
+        "2. **The designer / your ground truth** — where the test cases *come from* (you upload "
+        "them, or a model drafts them).\n"
+        "3. **The judge** — for open-ended quality, a model grades the answer — and you "
+        "*calibrate* that judge against your own labels before trusting it."
+    )
+    with st.expander("🔑 Need a free key first? (Groq, ≈2 min)"):
+        st.markdown(
+            "1. Go to **console.groq.com** → sign in → **API Keys** → **Create**.\n"
+            "2. Copy the key (starts `gsk_`).\n"
+            "3. Sidebar → **HTTP endpoint** → preset **Groq** → paste it in the Authorization "
+            "header.\n\n"
+            "Or skip this — the **Demo bot** works instantly below, no key needed."
+        )
 
     _flow_journey_guided()
     st.divider()
@@ -2066,9 +2047,9 @@ def _flow_journey():
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_certify, tab_leaderboard, tab_start, tab_journey, tab_eval, tab_behav, tab_judge,
+(tab_certify, tab_leaderboard, tab_journey, tab_eval, tab_behav, tab_judge,
  tab_audit, tab_help) = st.tabs(
-    ["🏅 Certify", "🏆 Leaderboard", "👋 Start here", "🧭 Journey", "🎯 Evaluate", "🔁 Behaviors",
+    ["🏅 Certify", "🏆 Leaderboard", "🧭 Journey", "🎯 Evaluate", "🔁 Behaviors",
      "⚖️ Judge", "📄 Real test reports", "ℹ️ How it works"]
 )
 
@@ -2077,9 +2058,6 @@ with tab_certify:
 
 with tab_leaderboard:
     _flow_leaderboard()
-
-with tab_start:
-    _flow_start_here()
 
 with tab_journey:
     _flow_journey()

@@ -76,10 +76,9 @@ battery against all of them, and get a ranked comparison — grade, status, scor
 **ERROR** row rather than failing the whole run. Download the result as a **Markdown
 table** (drop straight into a write-up or post) or **JSON** (archive the run).
 
-**👋 Start here** — the one idea (the *three roles*: model under test · designer /
-your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.
-
-**🧭 Journey** — two things in one tab. First, a **guided core path**: connect the AI →
+**🧭 Journey** — onboarding and execution in one tab (folded in what used to be a separate
+"Start here"). Leads with the one idea (the *three roles*: model under test · designer /
+your ground truth · judge) and a 2-minute free-key setup, then a **guided core path**: connect the AI →
 build the battery → certify, walked through one step at a time with Next/Back and a step
 picker, right there in the tab (no need to jump elsewhere). Below it, the **full 12-step
 methodology as a live checklist** — oracle → connect → battery → judge → reliability →
