@@ -1372,6 +1372,12 @@ def _flow_agent_action():
                   "tools) — an AI reads them and proposes a tailored test battery: which tools "
                   "it likely has, what could go wrong, and concrete must/must-not scenarios. "
                   "**Nothing runs until you review the plan and click Certify.**")
+        st.info(f"⚠️ **{backend} is the analyst here, not the agent being tested.** It only reads "
+               "the instructions you paste below and writes a plan — it never claims to *be* "
+               "your agent. If your real agent **isn't** connected via \"Your deployed agent "
+               "(HTTP)\", the **Run this battery** button below will test *this backend* "
+               "standing in, not your real agent — for the real one, run the proposed scenarios "
+               "by hand against it and judge the results yourself.")
 
         with st.container(border=True):
             st.markdown("##### 📥 The agent's instructions")
@@ -1382,7 +1388,8 @@ def _flow_agent_action():
                            "delete issues in the OPS project. Always confirm before deleting...\"")
             if st.button("🧩 Analyze instructions", type="primary", key="run_aa_analyze",
                         disabled=not aa_instructions.strip() or not _aa_plan_ok):
-                with st.spinner(f"Reading the instructions and proposing a battery with {backend}…"):
+                with st.spinner(f"Reading the instructions and proposing a battery — using "
+                                f"{backend} only as the analyst…"):
                     try:
                         _planner = core.make_model(_aa_kind, backend_opts)
                         st.session_state["aa_plan"] = core.analyze_agent_instructions(
@@ -1411,6 +1418,10 @@ def _flow_agent_action():
                     } for s in plan.scenarios]),
                     hide_index=True, use_container_width=True)
 
+            st.caption(f"👉 Clicking below runs these scenarios against **{backend}** for real — "
+                      f"its role switches from analyst to **the agent under test**. Only click "
+                      f"this if {backend} actually *is* (or stands in for) the agent you mean to "
+                      "test; otherwise run these prompts manually against your real agent instead.")
             if st.button("🏅 Run this battery + certify", type="primary", key="run_aa_plan",
                         disabled=not plan.scenarios or not _aa_plan_ok):
                 with st.spinner(f"Running {len(plan.scenarios)} proposed scenario(s) plus the "
