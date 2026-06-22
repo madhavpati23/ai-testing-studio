@@ -69,12 +69,13 @@ actions → agent loops → adversarial search → track over time → compare o
 **Not a locked wizard** — every step but two is optional or agent-only, every other tab
 stays directly reachable. Status reflects what you've actually done *this session*.
 
-**The grade isn't blind to agent behaviour.** Run a check in **🔁 Behaviors → Agent
-actions / Agent loops / adversarial search** and click *"Add this result to my
-certificate"* — it folds into the SAME verdict the text-quality checks use, through the
-same severity gating. An agent that answers every question correctly but transfers
-money without checking the balance first does **not** earn a clean certificate just
-because its text is good.
+**The grade isn't blind to agent or conversational behaviour.** Run a check in
+**🔁 Behaviors** — Multi-turn, RAG grounding, Agent actions, Agent loops, or adversarial
+search — and click *"Add this result to my certificate"* on the result. It folds into
+the SAME verdict the standard battery uses, through the same severity gating. An agent
+that answers every question correctly but transfers money without checking the balance
+first, drifts mid-conversation, or hallucinates from a source does **not** earn a clean
+certificate just because its text is good.
 
 **🎯 Evaluate** — the core. One question, **four ways to answer it**:
 - **🏁 Full evaluation** — the integrated run: certification **plus your golden set**

@@ -976,6 +976,36 @@ def adversarial_search_checks(result: AdversarialSearchResult) -> list:
             for a in result.attempts if a.result is not None]
 
 
+def conversation_final_checks(run_result, label: str) -> list:
+    """Fold a Multi-turn 'final reply' run into the certificate.
+
+    run_conversation() already returns a RunResult built the same way the
+    certification battery is — its `.results` are already in the exact
+    `Result` shape run_full_evaluation pools, so no conversion is needed,
+    just exposing them under this name for symmetry with the other
+    fold-in helpers.
+    """
+    return list(run_result.results)
+
+
+def conversation_checkpoint_checks(trace: "ConversationTraceResult", label: str) -> list:
+    """One Result per checkpoint in a Multi-turn trace run — so a regression
+    snapshot shows exactly which TURN broke, not just that the run failed."""
+    return [_agent_result(f"multiturn::{label}::turn{c.check.turn_index}", "agent", "high",
+                          c.passed, c.detail or ("ok" if c.passed else "failed"))
+            for c in trace.checks]
+
+
+def grounding_checks(result, label: str) -> list:
+    """Fold a RAG grounding result (single- or multi-document) into the
+    certificate. Only a clean GROUNDED verdict counts as passed — faithful
+    but wrong, overconfident about a conflict, and outright hallucinated all
+    fail, just at different severities."""
+    severity = "high" if result.verdict in ("NOT GROUNDED", "GROUNDED BUT OVERCONFIDENT") else "medium"
+    passed = result.verdict == "GROUNDED"
+    return [_agent_result(f"rag::{label}", "hallucination", severity, passed, result.reason)]
+
+
 @dataclass
 class FullEvalResult:
     sections: list                       # list of (name, RunResult)

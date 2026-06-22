@@ -623,8 +623,9 @@ def _flow_certify():
 
     _aq_caption = _agent_checks_queue_caption()
     if _aq_caption:
-        st.info(_aq_caption + "  \nWithout these, the grade only reflects text quality — an agent "
-               "can misuse a real tool and still earn a clean certificate.")
+        st.info(_aq_caption + "  \nWithout these, the grade only reflects the standard battery — "
+               "an agent can misuse a tool, drift mid-conversation, or hallucinate from a source "
+               "and still earn a clean certificate.")
         if st.button("🗑️ Clear queued agent checks", key="clear_agent_checks"):
             st.session_state["certify_agent_checks"] = []
             st.session_state["certify_agent_check_sources"] = []
@@ -638,9 +639,9 @@ def _flow_certify():
                   "certificate\"* first. Otherwise an agent that misuses a real tool can still earn "
                   "a clean grade here, because nothing below tests that.")
     else:
-        st.caption("💡 Run a check in **🔁 Behaviors → Agent actions / Agent loops** and click "
-                  "*\"Add this result to my certificate\"* to fold tool-use safety into this grade "
-                  "— otherwise it only reflects text quality.")
+        st.caption("💡 Run a check in **🔁 Behaviors** (Multi-turn, RAG grounding, Agent actions, "
+                  "Agent loops) and click *\"Add this result to my certificate\"* to fold it into "
+                  "this grade — otherwise it only reflects the standard battery.")
 
     _certify_needs_url = _kind in ("http", "http_agent") and not (backend_opts.get("url") or "").strip()
     if _certify_needs_url:
@@ -1046,6 +1047,10 @@ def _flow_multiturn():
             _cb = st.session_state.get("convo_judge_badge")
             if _cb:
                 st.caption(f"⚖️ Graded by {_cb}.")
+            if st.button("📥 Add this result to my certificate", key="queue_convo"):
+                _queue_agent_checks(core.conversation_final_checks(crun, "multi-turn"),
+                                   "Multi-turn (final reply)")
+                st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
     else:
         with st.container(border=True):
@@ -1110,6 +1115,10 @@ def _flow_multiturn():
                         "why": c.detail or "—",
                     } for c in trace.checks]),
                     hide_index=True, use_container_width=True)
+            if st.button("📥 Add this result to my certificate", key="queue_convo_trace"):
+                _queue_agent_checks(core.conversation_checkpoint_checks(trace, "multi-turn"),
+                                   "Multi-turn (checkpoints)")
+                st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
 # ---- Behaviours · RAG grounding ---------------------------------------------
 def _flow_rag():
@@ -1181,6 +1190,9 @@ def _flow_rag():
                 if rag.expected is not None:
                     st.caption(f"Expected substring “{rag.expected}”: "
                               + ("✅ found" if rag.expected_ok else "❌ not found"))
+            if st.button("📥 Add this result to my certificate", key="queue_rag"):
+                _queue_agent_checks(core.grounding_checks(rag, "single-source"), "RAG grounding")
+                st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
     else:
         if _rag_kind == "mock":
@@ -1244,6 +1256,9 @@ def _flow_rag():
                 if rag_m.expected is not None:
                     st.caption(f"Expected substring “{rag_m.expected}”: "
                               + ("✅ found" if rag_m.expected_ok else "❌ not found"))
+            if st.button("📥 Add this result to my certificate", key="queue_rag_multi"):
+                _queue_agent_checks(core.grounding_checks(rag_m, "multi-source"), "RAG grounding")
+                st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
 # ---- Behaviours · agent actions (real native tool-use) ----------------------
 def _flow_agent_action():
