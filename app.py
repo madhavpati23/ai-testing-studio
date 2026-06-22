@@ -1894,9 +1894,17 @@ _CORE_PATH = [("Connect", 2), ("Build the battery", 3), ("Certify", 12)]
 
 
 def _flow_journey_guided():
-    st.markdown("#### Guided core path")
-    st.caption("The three steps everyone needs, walked through one at a time. Jump to any "
-              "step below, or use Next/Back.")
+    gh1, gh2 = st.columns([5, 1])
+    gh1.markdown("#### Guided core path")
+    gh1.caption("The three steps everyone needs, walked through one at a time. Jump to any "
+               "step below, or use Next/Back.")
+    if gh2.button("🔄 Reset", key="journey_reset"):
+        # Clears the journey's own step/config state only — NOT "certify", since
+        # that result is shared with the dedicated Certify tab; wiping it here
+        # would surprise anyone who checks that tab afterward.
+        for k in ("journey_core_step", "journey_level", "journey_golden", "journey_gcases"):
+            st.session_state.pop(k, None)
+        st.rerun()
 
     cur = st.session_state.setdefault("journey_core_step", 1)
     picks = st.columns(len(_CORE_PATH))
