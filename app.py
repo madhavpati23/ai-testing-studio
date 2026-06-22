@@ -103,6 +103,12 @@ _HTTP_PRESETS = {
 _BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http",
                  "Your deployed agent (HTTP)": "http_agent"}
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
+_THOROUGH = {
+    "Quick — ~22 checks, 1 run (fast smoke test)": ("quick", 1, 0),
+    "Standard — ~48 checks, 1 run (recommended)": ("standard", 1, 0),
+    "Thorough — ~48 checks, 3 runs each (most rigorous)": ("thorough", 3, 0),
+    "Deep — ~48 + 80 randomized stress probes (hardest to game)": ("deep", 1, 80),
+}
 
 st.set_page_config(page_title="AI Evaluation Studio", page_icon="🧪", layout="wide")
 
@@ -585,12 +591,6 @@ def _flow_certify():
         except Exception as exc:
             st.error(f"Could not read the CSV: {exc}")
 
-    _THOROUGH = {
-        "Quick — ~22 checks, 1 run (fast smoke test)": ("quick", 1, 0),
-        "Standard — ~48 checks, 1 run (recommended)": ("standard", 1, 0),
-        "Thorough — ~48 checks, 3 runs each (most rigorous)": ("thorough", 3, 0),
-        "Deep — ~48 + 80 randomized stress probes (hardest to game)": ("deep", 1, 80),
-    }
     tc1, tc2 = st.columns([2, 1])
     thoroughness = tc1.selectbox("Thoroughness", list(_THOROUGH), index=1, key="certify_level")
     _level, _runs, _stress = _THOROUGH[thoroughness]
@@ -1922,11 +1922,129 @@ _JOURNEY_STEPS = [
 ]
 
 
+# The guided core path: connect -> build the battery -> certify. These three
+# steps get their own widgets here (distinct keys from the Certify tab's, since
+# Streamlit renders every tab every run — reusing the same widget key twice
+# would crash) but write into the SAME session_state result keys, so a
+# certificate produced here shows up consistently in the dedicated Certify tab
+# too. This is the literal guided flow; the checklist below it covers the
+# full 12-step methodology, including the optional/agent-only steps.
+_CORE_PATH = [("Connect", 2), ("Build the battery", 3), ("Certify", 12)]
+
+
+def _flow_journey_guided():
+    st.markdown("#### Guided core path")
+    st.caption("The three steps everyone needs, walked through one at a time. Jump to any "
+              "step below, or use Next/Back.")
+
+    cur = st.session_state.setdefault("journey_core_step", 1)
+    picks = st.columns(len(_CORE_PATH))
+    for i, (label, _num) in enumerate(_CORE_PATH, start=1):
+        if picks[i - 1].button(f"{i}. {label}", key=f"journey_pick_{i}",
+                               type="primary" if i == cur else "secondary",
+                               use_container_width=True):
+            cur = i
+            st.session_state["journey_core_step"] = i
+    st.progress(cur / len(_CORE_PATH), text=f"Step {cur} of {len(_CORE_PATH)}")
+
+    _kind = _BACKEND_KIND[backend]
+
+    with st.container(border=True):
+        if cur == 1:
+            st.markdown("##### 1️⃣ Connect the AI")
+            st.caption("Pick the backend and (if needed) connect a key/URL — in the **sidebar** "
+                      "on the left. This page just shows your current connection.")
+            _needs_config = (_kind in ("http", "http_agent")
+                            and not (st.session_state.get("http_url" if _kind == "http" else "agent_url")
+                                    or "").strip())
+            if _kind == "mock":
+                st.success("✅ Connected — **Demo bot**, no key needed. Ready to go.")
+            elif _needs_config:
+                st.warning(f"⚪ **{backend}** selected, but no URL entered yet — fill it in the "
+                          "sidebar, then come back here.")
+            else:
+                st.success(f"✅ Connected — **{backend}**.")
+            ncol = st.columns([1, 1, 4])
+            if ncol[0].button("Next →", key="journey_next_1", type="primary"):
+                st.session_state["journey_core_step"] = 2
+                st.rerun()
+
+        elif cur == 2:
+            st.markdown("##### 2️⃣ Build the battery")
+            st.caption("Decide what's in the certification battery — depth, and optionally your "
+                      "own ground truth.")
+            jt1, jt2 = st.columns([2, 1])
+            j_thoroughness = jt1.selectbox("Thoroughness", list(_THOROUGH), index=1,
+                                          key="journey_level")
+            jt2.caption("Standard is recommended for a first pass.")
+            j_up = st.file_uploader("Optional: your own ground truth CSV", type=["csv"],
+                                    key="journey_golden")
+            j_gcases = []
+            if j_up is not None:
+                try:
+                    j_gcases, j_gerr = core.build_golden(j_up.getvalue().decode("utf-8", errors="replace"))
+                    if j_gerr:
+                        st.warning("Some rows skipped:\n\n- " + "\n- ".join(j_gerr))
+                    if j_gcases:
+                        st.caption(f"Added **{len(j_gcases)}** of your own check(s).")
+                except Exception as exc:
+                    st.error(f"Could not read the CSV: {exc}")
+            st.session_state["journey_gcases"] = j_gcases
+            bcol = st.columns([1, 1, 4])
+            if bcol[0].button("← Back", key="journey_back_2"):
+                st.session_state["journey_core_step"] = 1
+                st.rerun()
+            if bcol[1].button("Next →", key="journey_next_2", type="primary"):
+                st.session_state["journey_core_step"] = 3
+                st.rerun()
+
+        else:
+            st.markdown("##### 3️⃣ Certify")
+            _level_label = st.session_state.get("journey_level", list(_THOROUGH)[1])
+            _level, _runs, _stress = _THOROUGH[_level_label]
+            st.caption(f"Ready to run **{_level}** against **{backend}**"
+                      + (f" with {len(st.session_state.get('journey_gcases', []))} of your own "
+                         "ground-truth check(s)" if st.session_state.get("journey_gcases") else "")
+                      + ".")
+            if st.button("🏅 Certify this AI", type="primary", key="journey_run_certify"):
+                with st.spinner(f"Running the {_level} evaluation…"):
+                    try:
+                        _cj, _cb = ((None, None) if _kind == "mock"
+                                   else _active_judge(_kind, backend_opts))
+                        st.session_state["certify_badge"] = _cb
+                        st.session_state["certify"] = core.run_full_evaluation(
+                            core.make_model(_kind, backend_opts),
+                            golden_cases=st.session_state.get("journey_gcases") or None, judge=_cj,
+                            level=_level, repeat=_runs, stress_n=_stress,
+                            agent_checks=st.session_state.get("certify_agent_checks") or None)
+                    except Exception as exc:
+                        st.session_state.pop("certify", None)
+                        st.error(f"Certification failed against **{backend}**: {exc}")
+
+            fe = st.session_state.get("certify")
+            if fe:
+                letter, status = core.certification_grade(fe.pass_rate, fe.verdict)
+                gm1, gm2, gm3 = st.columns(3)
+                gm1.metric("Grade", letter)
+                gm2.metric("Status", status)
+                gm3.metric("Score", f"{fe.pass_rate:.0f}%")
+                st.success("🎉 Done — full certificate, breakdown, and snapshot tools are in "
+                          "the **🏅 Certify** tab.")
+            ccol = st.columns([1, 1, 4])
+            if ccol[0].button("← Back", key="journey_back_3"):
+                st.session_state["journey_core_step"] = 2
+                st.rerun()
+
+
 def _flow_journey():
     st.subheader("🧭 Your journey — the 12-step testing process")
     st.markdown("The methodology behind every tab, in order. **Not a locked wizard** — every "
                 "step below is optional except where marked, and every other tab stays directly "
                 "reachable. Status reflects what you've actually done **this session**.")
+
+    _flow_journey_guided()
+    st.divider()
+    st.markdown("#### Full methodology checklist")
 
     _applicable = [s for s in _JOURNEY_STEPS if s[5] is not None]
     _done = sum(1 for s in _applicable if s[5]())
