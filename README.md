@@ -50,31 +50,24 @@ pile of peer tabs. First, in the sidebar, pick the **model under test**: the off
 **Groq (free)** / any HTTP endpoint — with **your own key** (kept in your session,
 never written to the server). Then:
 
-**🧭 Journey** *(opens first)* — onboarding and orientation in one tab (folded in what used
-to be a separate "Start here"). Leads with the one idea (the *three roles*: model under
-test · designer / your ground truth · judge) and a 2-minute free-key setup, then a
-**guided core path** — connect the AI → certify — walked through with Next/Back and a
-step picker. It's a guide, not a second copy of Certify: step 2 points you at
-**🏅 Certify** to actually run it (showing what's in the battery along the way), rather
-than duplicating its controls. Below the guided path, the **full 12-step methodology as
-a live checklist** —
+**🏅 Certify** *(opens first — the front door)* — **one click → a grade + a downloadable
+certificate**, plus onboarding and the full methodology folded into the same tab so
+nothing needs its own stop. Open **👋 New here?** for the one idea (the *three roles*:
+model under test · designer / your ground truth · judge) and a 2-minute free-key setup.
+Then: runs the full evaluation across every risk dimension (plus your own ground truth if
+you add it) and issues a printable **Certificate of AI Evaluation** with a letter
+**grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the
+model name, the date, the **thoroughness level**, and a per-dimension breakdown. Pick the
+depth: **Quick (~22 checks)** / **Standard (~48)** / **Thorough (~48 × 3 runs)** — and the
+certificate prints which level it was, so the grade is honestly contextualised.
+**No key? Certify the Demo bot instantly.** Download a **snapshot** (JSON) alongside the
+certificate, and after a later prompt/model change, **compare two snapshots** to see
+exactly which checks regressed or improved — not just whether the score moved. Open
+**🧭 The full 12-step testing methodology** for the complete process as a live checklist —
 oracle → connect → battery → judge → reliability → (severity gating, automatic) → agent
 actions → agent loops → adversarial search → track over time → compare options → certify.
 **Not a locked wizard** — every step but two is optional or agent-only, every other tab
-stays directly reachable, and "Certify the Demo bot instantly" still needs zero steps
-done first. Status reflects what you've actually done *this session*.
-
-**🏅 Certify** *(the front door for a direct, one-click run)* — **one click → a grade +
-a downloadable certificate.** Runs the full evaluation across every risk dimension (plus
-your own ground truth if you add it) and issues a printable **Certificate of AI
-Evaluation** with a letter **grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT
-CERTIFIED** status, the model name, the date, the **thoroughness level**, and a
-per-dimension breakdown. Pick the depth: **Quick (~22 checks)** / **Standard (~48)** /
-**Thorough (~48 × 3 runs)** — and the certificate prints which level it was, so the grade
-is honestly contextualised. **No key? Certify the Demo bot instantly.** Download a
-**snapshot** (JSON) alongside the certificate, and after a later prompt/model change,
-**compare two snapshots** to see exactly which checks regressed or improved — not just
-whether the score moved.
+stays directly reachable. Status reflects what you've actually done *this session*.
 
 **The grade isn't blind to agent behaviour.** Run a check in **🔁 Behaviors → Agent
 actions / Agent loops / adversarial search** and click *"Add this result to my

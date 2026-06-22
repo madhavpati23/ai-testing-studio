@@ -567,12 +567,35 @@ def _flow_certify():
     st.subheader("🏅 Certify an AI")
     st.markdown("Run a full evaluation across every risk dimension and get a **shareable "
                 "certificate** — in one click.")
+
+    with st.expander("👋 New here? The one idea + a free key (≈2 min)"):
+        st.markdown(
+            "Put a model or agent **under test** and get a **SHIP / NO-SHIP verdict** across "
+            "the dimensions that matter — judged against *truth*, not vibes."
+        )
+        st.info(
+            "**The one idea — three roles.** It's easy to mix these up, so here they are once:\n\n"
+            "1. **The model under test** — the AI you're judging (pick it in the sidebar).\n"
+            "2. **The designer / your ground truth** — where the test cases *come from* (you "
+            "upload them, or a model drafts them).\n"
+            "3. **The judge** — for open-ended quality, a model grades the answer — and you "
+            "*calibrate* that judge against your own labels before trusting it."
+        )
+        st.markdown(
+            "**Free Groq key:**\n"
+            "1. Go to **console.groq.com** → sign in → **API Keys** → **Create**.\n"
+            "2. Copy the key (starts `gsk_`).\n"
+            "3. Sidebar → **HTTP endpoint** → preset **Groq** → paste it in the Authorization "
+            "header.\n\n"
+            "Or skip this — the **Demo bot** below works instantly, no key needed."
+        )
+
     _kind = _BACKEND_KIND[backend]
     if _kind == "mock":
         st.info("You're set to the **Demo bot** — click below to certify it instantly, no key "
                 "needed. (It has planted bugs on purpose, so expect a low grade.) **To certify a "
                 "*real* AI**, pick **Claude** or **Groq (free)** in the sidebar — see "
-                "*🧭 Journey* for the 3-step key setup.")
+                "*👋 New here?* above for the 3-step key setup.")
     else:
         st.caption(f"Certifying **{backend}** — your key stays in your session, never stored.")
 
@@ -719,6 +742,25 @@ def _flow_certify():
                                   + ", ".join(diff.unchanged_failed))
                 except Exception as exc:
                     st.error(f"Could not compare snapshots: {exc}")
+
+    with st.expander("🧭 The full 12-step testing methodology"):
+        st.caption("Not a locked wizard — every step but two is optional or agent-only, every "
+                  "other tab stays directly reachable. Status reflects what you've actually "
+                  "done **this session**.")
+        _applicable = [s for s in _JOURNEY_STEPS if s[5] is not None]
+        _done = sum(1 for s in _applicable if s[5]())
+        st.progress(_done / len(_applicable) if _applicable else 0,
+                   text=f"{_done}/{len(_applicable)} trackable steps done this session")
+        for num, title, optional, why, where, check in _JOURNEY_STEPS:
+            with st.container(border=True):
+                c1, c2 = st.columns([0.06, 0.94])
+                if check is None:
+                    c1.markdown("ℹ️")
+                else:
+                    c1.markdown("✅" if check() else "⚪")
+                c2.markdown(f"**{num}. {title}**" + ("  *(optional)*" if optional else ""))
+                c2.caption(why)
+                c2.caption(f"→ {where}")
 
 
 # ---- Leaderboard (the same battery, several models, one comparison) --------
@@ -1661,7 +1703,7 @@ def _flow_help():
         "never written to the server, stored, or logged. No key? Leave it on the **Demo bot**."
     )
     st.caption("Free path: console.groq.com → create a key (gsk_…) → sidebar → HTTP endpoint → "
-               "Groq preset → paste it. See 🧭 Journey for the 2-minute version.")
+               "Groq preset → paste it. See **🏅 Certify → 👋 New here?** for the 2-minute version.")
 
     st.markdown("#### Step 3 — Certify (one click)")
     st.markdown(
@@ -1735,8 +1777,9 @@ def _flow_help():
             "Pass rate": "Percent of probes that passed — the score behind the letter grade.",
             "Leaderboard": "Running the SAME battery against several AIs at once and ranking the "
                 "results side by side — answers \"which is best?\" instead of \"is this one good?\"",
-            "Journey": "The 12-step testing methodology as a live checklist (🧭 Journey tab) — "
-                "not a locked wizard, every step but two is optional or agent-only.",
+            "Testing methodology checklist": "The 12-step process as a live checklist (🏅 Certify "
+                "→ 🧭 The full 12-step testing methodology) — not a locked wizard, every step but "
+                "two is optional or agent-only.",
         },
         "Truth & judging": {
             "Golden set / ground truth": "Your own `prompt → expected answer` pairs — *truth you "
@@ -1812,7 +1855,7 @@ def _flow_help():
                 st.markdown(f"**{term}** — {definition}")
 
 
-# ---- Journey — the 12-step AI/agent testing process, tracked live ----------
+# ---- The 12-step AI/agent testing methodology, tracked live (used inside Certify) ----
 # A checklist, not a locked wizard: every other tab stays fully reachable, and
 # "Certify the Demo bot instantly" still works with zero steps done first.
 # Several steps only apply to agents, or are optional rigor — gating them as
@@ -1883,143 +1926,16 @@ _JOURNEY_STEPS = [
 ]
 
 
-# The guided core path: connect -> build the battery -> certify. These three
-# steps get their own widgets here (distinct keys from the Certify tab's, since
-# Streamlit renders every tab every run — reusing the same widget key twice
-# would crash) but write into the SAME session_state result keys, so a
-# certificate produced here shows up consistently in the dedicated Certify tab
-# too. This is the literal guided flow; the checklist below it covers the
-# full 12-step methodology, including the optional/agent-only steps.
-_CORE_PATH = [("Connect", 2), ("Certify", 12)]
-
-
-def _flow_journey_guided():
-    gh1, gh2 = st.columns([5, 1])
-    gh1.markdown("#### Guided core path")
-    gh1.caption("The three steps everyone needs, walked through one at a time. Jump to any "
-               "step below, or use Next/Back.")
-    if gh2.button("🔄 Reset", key="journey_reset"):
-        # Clears the journey's own step state AND the shared certify result —
-        # otherwise stepping back to "Certify" after a reset still shows the
-        # old grade, which looks like the reset didn't work.
-        for k in ("journey_core_step", "certify", "certify_badge"):
-            st.session_state.pop(k, None)
-        st.rerun()
-
-    cur = st.session_state.setdefault("journey_core_step", 1)
-    picks = st.columns(len(_CORE_PATH))
-    for i, (label, _num) in enumerate(_CORE_PATH, start=1):
-        if picks[i - 1].button(f"{i}. {label}", key=f"journey_pick_{i}",
-                               type="primary" if i == cur else "secondary",
-                               use_container_width=True):
-            cur = i
-            st.session_state["journey_core_step"] = i
-    st.progress(cur / len(_CORE_PATH), text=f"Step {cur} of {len(_CORE_PATH)}")
-
-    _kind = _BACKEND_KIND[backend]
-
-    with st.container(border=True):
-        if cur == 1:
-            st.markdown("##### 1️⃣ Connect the AI")
-            st.caption("Pick the backend and (if needed) connect a key/URL — in the **sidebar** "
-                      "on the left. This page just shows your current connection.")
-            _needs_config = (_kind in ("http", "http_agent")
-                            and not (st.session_state.get("http_url" if _kind == "http" else "agent_url")
-                                    or "").strip())
-            if _kind == "mock":
-                st.success("✅ Connected — **Demo bot**, no key needed. Ready to go.")
-            elif _needs_config:
-                st.warning(f"⚪ **{backend}** selected, but no URL entered yet — fill it in the "
-                          "sidebar, then come back here.")
-            else:
-                st.success(f"✅ Connected — **{backend}**.")
-            st.caption("The certification battery (next step) covers every risk dimension below:")
-            st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>'
-                                          for c in core.categories()) + '</div>',
-                       unsafe_allow_html=True)
-            ncol = st.columns([1, 1, 4])
-            if ncol[0].button("Next →", key="journey_next_1", type="primary"):
-                st.session_state["journey_core_step"] = 2
-                st.rerun()
-
-        else:
-            st.markdown("##### 2️⃣ Certify")
-            st.caption(f"Open **🏅 Certify**, pick a thoroughness, and click **Certify this AI** "
-                      f"against **{backend}** — the grade, certificate download, full breakdown, "
-                      "and snapshot tools are all there.")
-            fe = st.session_state.get("certify")
-            if fe:
-                letter, status = core.certification_grade(fe.pass_rate, fe.verdict)
-                gm1, gm2, gm3 = st.columns(3)
-                gm1.metric("Grade", letter)
-                gm2.metric("Status", status)
-                gm3.metric("Score", f"{fe.pass_rate:.0f}%")
-                st.success("🎉 Already certified this session — see the full certificate in "
-                          "**🏅 Certify**.")
-            ccol = st.columns([1, 1, 4])
-            if ccol[0].button("← Back", key="journey_back_2"):
-                st.session_state["journey_core_step"] = 1
-                st.rerun()
-
-
-def _flow_journey():
-    st.subheader("🧭 Your journey — give any AI a verdict you can defend")
-    st.markdown(
-        "Put a model or agent **under test** and get a **SHIP / NO-SHIP verdict** across the "
-        "dimensions that matter — judged against *truth*, not vibes. The methodology behind "
-        "every tab, in order. **Not a locked wizard** — every step below is optional except "
-        "where marked, and every other tab stays directly reachable. Status reflects what "
-        "you've actually done **this session**."
-    )
-    st.info(
-        "**The one idea — three roles.** It's easy to mix these up, so here they are once:\n\n"
-        "1. **The model under test** — the AI you're judging (pick it in the sidebar).\n"
-        "2. **The designer / your ground truth** — where the test cases *come from* (you upload "
-        "them, or a model drafts them).\n"
-        "3. **The judge** — for open-ended quality, a model grades the answer — and you "
-        "*calibrate* that judge against your own labels before trusting it."
-    )
-    with st.expander("🔑 Need a free key first? (Groq, ≈2 min)"):
-        st.markdown(
-            "1. Go to **console.groq.com** → sign in → **API Keys** → **Create**.\n"
-            "2. Copy the key (starts `gsk_`).\n"
-            "3. Sidebar → **HTTP endpoint** → preset **Groq** → paste it in the Authorization "
-            "header.\n\n"
-            "Or skip this — the **Demo bot** works instantly below, no key needed."
-        )
-
-    _flow_journey_guided()
-    st.divider()
-    st.markdown("#### Full methodology checklist")
-
-    _applicable = [s for s in _JOURNEY_STEPS if s[5] is not None]
-    _done = sum(1 for s in _applicable if s[5]())
-    st.progress(_done / len(_applicable) if _applicable else 0,
-               text=f"{_done}/{len(_applicable)} trackable steps done this session")
-
-    for num, title, optional, why, where, check in _JOURNEY_STEPS:
-        with st.container(border=True):
-            c1, c2 = st.columns([0.06, 0.94])
-            if check is None:
-                c1.markdown("ℹ️")
-            else:
-                c1.markdown("✅" if check() else "⚪")
-            c2.markdown(f"**{num}. {title}**" + ("  *(optional)*" if optional else ""))
-            c2.caption(why)
-            c2.caption(f"→ {where}")
 
 
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_journey, tab_certify, tab_eval, tab_behav, tab_judge, tab_leaderboard,
+(tab_certify, tab_eval, tab_behav, tab_judge, tab_leaderboard,
  tab_audit, tab_help) = st.tabs(
-    ["🧭 Journey", "🏅 Certify", "🎯 Evaluate", "🔁 Behaviors",
+    ["🏅 Certify", "🎯 Evaluate", "🔁 Behaviors",
      "⚖️ Judge", "🏆 Leaderboard", "📄 Real test reports", "ℹ️ How it works"]
 )
-
-with tab_journey:
-    _flow_journey()
 
 with tab_certify:
     _flow_certify()
