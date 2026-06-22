@@ -68,14 +68,6 @@ same severity gating. An agent that answers every question correctly but transfe
 money without checking the balance first does **not** earn a clean certificate just
 because its text is good.
 
-**🏆 Leaderboard** — Certify answers *"is this model good?"*; this answers *"which of
-these is best, and where exactly do they differ?"* Configure up to 4 contestants (any
-mix of Demo bot / Claude / HTTP / your deployed agent), run the **same** certification
-battery against all of them, and get a ranked comparison — grade, status, score, verdict
-— plus a per-model breakdown. One bad/misconfigured contestant is isolated to its own
-**ERROR** row rather than failing the whole run. Download the result as a **Markdown
-table** (drop straight into a write-up or post) or **JSON** (archive the run).
-
 **🧭 Journey** — onboarding and execution in one tab (folded in what used to be a separate
 "Start here"). Leads with the one idea (the *three roles*: model under test · designer /
 your ground truth · judge) and a 2-minute free-key setup, then a **guided core path**: connect the AI →
@@ -147,6 +139,14 @@ Agreement also gets a **95% confidence interval** (Wilson score) — below ~20 l
 examples, the tool explicitly warns that the point estimate is too noisy to trust (6
 examples at "67% agreement" could really be anywhere from ~30% to ~90%), rather than
 stating a small sample's number as settled fact.
+
+**🏆 Leaderboard** — Certify answers *"is this model good?"*; this answers *"which of
+these is best, and where exactly do they differ?"* Configure up to 4 contestants (any
+mix of Demo bot / Claude / HTTP / your deployed agent), run the **same** certification
+battery against all of them, and get a ranked comparison — grade, status, score, verdict
+— plus a per-model breakdown. One bad/misconfigured contestant is isolated to its own
+**ERROR** row rather than failing the whole run. Download the result as a **Markdown
+table** (drop straight into a write-up or post) or **JSON** (archive the run).
 
 > A **500+ probe bank** across 19 skills (injection, hallucination, bias, PII,
 > over-refusal, …) powers the **Deep** certification level: each Deep run draws **80
