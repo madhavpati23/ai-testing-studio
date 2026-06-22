@@ -71,6 +71,15 @@ def set_backend(kind: str, **opts) -> None:
 
     `block_private=True` (http) enables SSRF protection — the endpoint may not
     resolve to a private/loopback/metadata address.
+
+    ⚠️ DO NOT call this from the Studio app. It writes keys/URLs to the
+    process-wide `os.environ` — exactly the cross-session leak `make_model()`
+    was built to avoid (see its docstring). This exists only for CI/script
+    usage of core.py without a browser (a single-user process, one config at
+    a time) — e.g. the legacy env-fallback paths in generate_suite() /
+    run_suite_dir() when no explicit `kind`/`opts`/`model` is passed. The live
+    multi-user app always uses make_model() with an explicit, session-scoped
+    kind/opts instead.
     """
     for key in _BACKEND_ENV:           # start clean so precedence is predictable
         os.environ.pop(key, None)
@@ -1878,16 +1887,6 @@ def run_grounding_multidoc(documents: list[RagDocument], question: str, model, g
         documents=documents, question=question, answer=answer, grounded=grounded, reason=reason,
         model_name=getattr(model, "name", "model"), expected=expected, expected_ok=expected_ok,
         has_conflict=has_conflict, conflict_flagged=conflict_flagged)
-
-
-def ask_once(prompt: str, model=None) -> tuple[str, str]:
-    """Send a single prompt to the configured backend. Returns (model_name, answer).
-
-    Used by the Practice tab so a learner can fire one probe and judge the raw
-    answer themselves. Set the backend with `set_backend()` first.
-    """
-    model = model if model is not None else get_model()
-    return model.name, model.ask(prompt)
 
 
 # ---- practice exercises (guided, hands-on AI-testing drills) ----------------
