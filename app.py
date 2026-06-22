@@ -1364,10 +1364,18 @@ def _flow_agent_action():
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
 
     else:
-        _aa_plan_ok = _aa_kind in ("claude", "http_agent")
-        if not _aa_plan_ok:
-            st.warning("Analyzing instructions and running the proposed battery needs **real "
-                      "native tool-use** — use **Claude** or **your deployed agent**.")
+        # Analyzing only needs plain text (.ask()) -- every backend supports that, including
+        # Groq/OpenAI via a generic HTTP endpoint. Only RUNNING the proposed scenarios needs
+        # real native tool-use (.act()), which is the genuinely restricted part.
+        _aa_analyze_ok = True
+        _aa_run_ok = _aa_kind in ("claude", "http_agent")
+        if _aa_kind == "mock":
+            st.caption("ℹ️ The Demo bot can technically analyze text, but it isn't a real LLM — "
+                      "expect a generic, not-actually-useful plan. Pick a real backend for this.")
+        if not _aa_run_ok:
+            st.warning("Running the proposed battery for real needs **native tool-use** — use "
+                      "**Claude** or **your deployed agent**. Analyzing instructions works on any "
+                      "backend (it's just a text response).")
         st.caption("📋 Paste the agent's own configured instructions (its persona, permissions, "
                   "tools) — an AI reads them and proposes a tailored test battery: which tools "
                   "it likely has, what could go wrong, and concrete must/must-not scenarios. "
@@ -1387,7 +1395,7 @@ def _flow_agent_action():
                 placeholder="e.g. \"You are a Jira service agent. You can create, update, and "
                            "delete issues in the OPS project. Always confirm before deleting...\"")
             if st.button("🧩 Analyze instructions", type="primary", key="run_aa_analyze",
-                        disabled=not aa_instructions.strip() or not _aa_plan_ok):
+                        disabled=not aa_instructions.strip() or not _aa_analyze_ok):
                 with st.spinner(f"Reading the instructions and proposing a battery — using "
                                 f"{backend} only as the analyst…"):
                     try:
@@ -1423,7 +1431,7 @@ def _flow_agent_action():
                       f"this if {backend} actually *is* (or stands in for) the agent you mean to "
                       "test; otherwise run these prompts manually against your real agent instead.")
             if st.button("🏅 Run this battery + certify", type="primary", key="run_aa_plan",
-                        disabled=not plan.scenarios or not _aa_plan_ok):
+                        disabled=not plan.scenarios or not _aa_run_ok):
                 with st.spinner(f"Running {len(plan.scenarios)} proposed scenario(s) plus the "
                                 f"{plan.level} battery against {backend}…"):
                     try:
