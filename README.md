@@ -53,10 +53,11 @@ never written to the server). Then:
 **🧭 Journey** *(opens first)* — onboarding and orientation in one tab (folded in what used
 to be a separate "Start here"). Leads with the one idea (the *three roles*: model under
 test · designer / your ground truth · judge) and a 2-minute free-key setup, then a
-**guided core path** — connect the AI → see what's in the battery → certify — walked
-through with Next/Back and a step picker. It's a guide, not a second copy of Certify: the
-last step points you at **🏅 Certify** to actually run it, rather than duplicating its
-controls. Below the guided path, the **full 12-step methodology as a live checklist** —
+**guided core path** — connect the AI → certify — walked through with Next/Back and a
+step picker. It's a guide, not a second copy of Certify: step 2 points you at
+**🏅 Certify** to actually run it (showing what's in the battery along the way), rather
+than duplicating its controls. Below the guided path, the **full 12-step methodology as
+a live checklist** —
 oracle → connect → battery → judge → reliability → (severity gating, automatic) → agent
 actions → agent loops → adversarial search → track over time → compare options → certify.
 **Not a locked wizard** — every step but two is optional or agent-only, every other tab

@@ -1890,7 +1890,7 @@ _JOURNEY_STEPS = [
 # certificate produced here shows up consistently in the dedicated Certify tab
 # too. This is the literal guided flow; the checklist below it covers the
 # full 12-step methodology, including the optional/agent-only steps.
-_CORE_PATH = [("Connect", 2), ("Build the battery", 3), ("Certify", 12)]
+_CORE_PATH = [("Connect", 2), ("Certify", 12)]
 
 
 def _flow_journey_guided():
@@ -1933,30 +1933,17 @@ def _flow_journey_guided():
                           "sidebar, then come back here.")
             else:
                 st.success(f"✅ Connected — **{backend}**.")
+            st.caption("The certification battery (next step) covers every risk dimension below:")
+            st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>'
+                                          for c in core.categories()) + '</div>',
+                       unsafe_allow_html=True)
             ncol = st.columns([1, 1, 4])
             if ncol[0].button("Next →", key="journey_next_1", type="primary"):
                 st.session_state["journey_core_step"] = 2
                 st.rerun()
 
-        elif cur == 2:
-            st.markdown("##### 2️⃣ Build the battery")
-            st.caption("The certification battery covers every risk dimension below — safety, "
-                      "hallucination, bias, accuracy, and more. You'll pick the depth (Quick/"
-                      "Standard/Thorough/Deep) and can add your own ground truth in the "
-                      "**🏅 Certify** tab, next.")
-            st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>'
-                                          for c in core.categories()) + '</div>',
-                       unsafe_allow_html=True)
-            bcol = st.columns([1, 1, 4])
-            if bcol[0].button("← Back", key="journey_back_2"):
-                st.session_state["journey_core_step"] = 1
-                st.rerun()
-            if bcol[1].button("Next →", key="journey_next_2", type="primary"):
-                st.session_state["journey_core_step"] = 3
-                st.rerun()
-
         else:
-            st.markdown("##### 3️⃣ Certify")
+            st.markdown("##### 2️⃣ Certify")
             st.caption(f"Open **🏅 Certify**, pick a thoroughness, and click **Certify this AI** "
                       f"against **{backend}** — the grade, certificate download, full breakdown, "
                       "and snapshot tools are all there.")
@@ -1970,8 +1957,8 @@ def _flow_journey_guided():
                 st.success("🎉 Already certified this session — see the full certificate in "
                           "**🏅 Certify**.")
             ccol = st.columns([1, 1, 4])
-            if ccol[0].button("← Back", key="journey_back_3"):
-                st.session_state["journey_core_step"] = 2
+            if ccol[0].button("← Back", key="journey_back_2"):
+                st.session_state["journey_core_step"] = 1
                 st.rerun()
 
 
