@@ -83,7 +83,10 @@ certificate just because its text is good.
 risk-dimension battery + a grade/certificate, use **🏅 Certify** instead — its Quick
 level runs the identical battery, plus more):
 - **Against your ground truth** — upload an `input → expected` CSV; the verdict is
-  judged against truth *you* defined (the most trustworthy run).
+  judged against truth *you* defined (the most trustworthy run). You can also add ground
+  truth directly in **🏅 Certify**, but that pools it with the full battery — use this
+  tab for a verdict on **your rows alone**, with no battery cost/latency added and an
+  SLA check.
 - **From a feature description** — generate a draft suite (a real model designs
   feature-specific cases; the Demo bot fills generic scaffolds), review, and run it
   with optional **runs-per-case** (non-determinism / flaky detection) and an **SLA**.

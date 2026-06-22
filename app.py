@@ -817,6 +817,10 @@ def _flow_leaderboard():
 def _flow_golden():
     st.caption("📋 **Test against your own ground truth** — the most trustworthy run in the "
               "Studio, judged against truth *you* defined, not a generated guess.")
+    st.caption("💡 **You can also add ground truth directly in 🏅 Certify** — but that pools it "
+              "with the full risk-dimension battery. Use *this* tab when you want a verdict on "
+              "**your rows alone**, with no battery cost/latency added (and an SLA check), "
+              "skipping the generic checks entirely.")
     st.markdown(
         "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
         "`severity` (optional).\n"
