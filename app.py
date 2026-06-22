@@ -1899,10 +1899,12 @@ def _flow_journey_guided():
     gh1.caption("The three steps everyone needs, walked through one at a time. Jump to any "
                "step below, or use Next/Back.")
     if gh2.button("🔄 Reset", key="journey_reset"):
-        # Clears the journey's own step/config state only — NOT "certify", since
-        # that result is shared with the dedicated Certify tab; wiping it here
-        # would surprise anyone who checks that tab afterward.
-        for k in ("journey_core_step", "journey_level", "journey_golden", "journey_gcases"):
+        # Clears the journey's own step/config state AND the result it produced
+        # (shared with the dedicated Certify tab) — otherwise stepping back to
+        # "Certify" after a reset still shows the old grade, which looks like
+        # the reset didn't work.
+        for k in ("journey_core_step", "journey_level", "journey_golden", "journey_gcases",
+                 "certify", "certify_badge"):
             st.session_state.pop(k, None)
         st.rerun()
 
