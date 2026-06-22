@@ -1,0 +1,7 @@
+{
+  "extraPaths": [
+    "./vendor",
+    "../ai-test-case-generator/src",
+    "../prompt-regression-suite/src"
+  ]
+}

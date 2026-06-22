@@ -1219,7 +1219,7 @@ class FullEvalResult:
 def run_full_evaluation(model, golden_cases: list | None = None,
                         repeat: int = 1, judge=None, level: str = "standard",
                         stress_n: int = 0, agent_checks: list | None = None,
-                        on_progress=None) -> FullEvalResult:
+                        on_progress: Callable[[str, int, int, str], None] | None = None) -> FullEvalResult:
     """Run several dimensions against ONE model and roll them into one verdict.
 
     Runs the deploy-readiness certification at the chosen `level` (quick/standard/
@@ -1237,7 +1237,8 @@ def run_full_evaluation(model, golden_cases: list | None = None,
     def _on_case(phase_label):
         if on_progress is None:
             return None
-        return lambda i, n, case: on_progress(phase_label, i, n, case.id)
+        _cb = on_progress
+        return lambda i, n, case: _cb(phase_label, i, n, case.id)
 
     sections, pooled = [], []
     cert = run_selected(build_certification(level), model=model, repeat=repeat, judge=judge,
@@ -1750,7 +1751,7 @@ def parse_golden_csv(text: str) -> tuple[list[dict], list[str]]:
     reader = csv.DictReader(io.StringIO(text))
     if not reader.fieldnames or "prompt" not in [f.strip().lower() for f in reader.fieldnames]:
         return [], ["CSV must have a header row with at least 'prompt' and 'expected' columns."]
-    norm = {f: f.strip().lower() for f in reader.fieldnames}
+    norm = {f: f.strip().lower() for f in (reader.fieldnames or [])}
     for i, raw in enumerate(reader, start=1):
         row = {norm[k]: (v or "").strip() for k, v in raw.items() if k in norm}
         prompt = row.get("prompt", "")
@@ -1843,7 +1844,7 @@ def parse_calibration_csv(text: str) -> tuple[list[tuple[str, str, bool]], list[
     need = {"criterion", "answer", "human_pass"}
     if not need.issubset(set(cols)):
         return [], [f"CSV needs columns: criterion, answer, human_pass (got: {cols or 'none'})."]
-    norm = {f: f.strip().lower() for f in reader.fieldnames}
+    norm = {f: f.strip().lower() for f in (reader.fieldnames or [])}
     rows, errors = [], []
     for i, raw in enumerate(reader, start=1):
         r = {norm[k]: (v or "").strip() for k, v in raw.items() if k in norm}

@@ -176,7 +176,7 @@ with st.sidebar:
                    "Re-run against the new backend.")
     st.session_state["_last_backend"] = backend
 
-    backend_opts: dict[str, str] = {}
+    backend_opts: dict[str, str | bool] = {}
     if backend != "Demo bot (offline)":
         st.caption("🔑 **Bring your own key.** It's kept only in *your* browser session and sent "
                    "directly to the provider per request — never written to the server's "
@@ -1215,6 +1215,8 @@ def _flow_agent_action():
          "🧩 Analyze my agent's instructions — let an AI propose the battery"],
         key="aa_source", horizontal=True)
 
+    _scen: core.AgentScenario | None = None
+
     with st.expander("⚙️ Advanced — reliability"):
         if _aa_kind == "http_agent":
             st.warning("⚠️ Your deployed agent's side effects are **real** — repeating this check "
@@ -1356,9 +1358,11 @@ def _flow_agent_action():
             with st.spinner(f"Offering your tools to {backend} and capturing its calls "
                             f"({aa_reps}×)…"):
                 try:
+                    assert _scen is not None
+                    _scen_run = _scen
                     _model = core.make_model(_aa_kind, backend_opts)
                     st.session_state["aa_run"] = core.run_repeated(
-                        lambda: core.run_agent_action(_scen, _model, tools=tools), n=int(aa_reps))
+                        lambda: core.run_agent_action(_scen_run, _model, tools=tools), n=int(aa_reps))
                 except Exception as exc:
                     st.session_state.pop("aa_run", None)
                     st.error(f"Agent-action check failed against **{backend}**: {exc}")
@@ -1488,7 +1492,7 @@ def _flow_agent_action():
             st.markdown(f"**Why:** {aa.detail}")
             if aa.text:
                 st.caption(f"Assistant said: “{aa.text}”")
-        if st.button("📥 Add this result to my certificate", key="queue_aa"):
+        if _scen is not None and st.button("📥 Add this result to my certificate", key="queue_aa"):
             _queue_agent_checks(core.agent_action_checks(aa_rep, _scen), f"Agent action: {_scen.label}")
             st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
@@ -1651,9 +1655,11 @@ def _flow_agent_loop():
                      disabled=_al_scen is None or not _al_custom_ok or _al_needs_url):
             with st.spinner(f"Running your multi-step loop against {backend} ({al_reps}×)…"):
                 try:
+                    assert _al_scen is not None
+                    _al_scen_run = _al_scen
                     _model = core.make_model(_al_kind, backend_opts)
                     st.session_state["al_run"] = core.run_repeated(
-                        lambda: core.run_agent_loop(_al_scen, _model, tools=al_tools), n=int(al_reps))
+                        lambda: core.run_agent_loop(_al_scen_run, _model, tools=al_tools), n=int(al_reps))
                 except Exception as exc:
                     st.session_state.pop("al_run", None)
                     st.error(f"Agent-loop check failed against **{backend}**: {exc}")
@@ -1704,7 +1710,7 @@ def _flow_agent_loop():
                 hide_index=True, use_container_width=True)
             if al.text:
                 st.caption(f"Assistant's final answer: “{al.text}”")
-        if st.button("📥 Add this result to my certificate", key="queue_al"):
+        if _active_scen is not None and st.button("📥 Add this result to my certificate", key="queue_al"):
             _queue_agent_checks(core.agent_loop_checks(al_rep, _active_scen),
                                f"Agent loop: {_active_scen.label}")
             st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
