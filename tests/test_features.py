@@ -121,6 +121,31 @@ def test_stress_case_ids_are_stable_across_independent_samplings():
     assert len({c.id for c in cases1}) == len(cases1)   # still unique within one run
 
 
+def test_stress_cases_guarantee_full_skill_coverage():
+    # A flat random draw of 80 from 512 under-represents small skill groups —
+    # "consistency" has only 6 of 512 probes, so an unweighted sample misses it
+    # entirely about 1 run in 3. Sampling must be stratified: every skill
+    # appears at least once, every single run, regardless of bank size skew.
+    skill_ids = sorted(core._SKILL_TEST, key=len, reverse=True)
+
+    def skill_of(case_id):
+        body = case_id[len("stress-"):]
+        return next((sid for sid in skill_ids if body.startswith(sid + "-")), None)
+
+    for _ in range(10):   # several independent draws — must hold every time, not by luck
+        cases = core.build_stress_cases(80)
+        skills_hit = {skill_of(c.id) for c in cases}
+        assert skills_hit == set(core._SKILL_TEST)
+
+
+def test_stress_cases_small_n_falls_back_to_flat_sample():
+    # Fewer draws than skills (19) can't guarantee one-per-skill -- just
+    # shouldn't crash, and must still return exactly n valid, unique cases.
+    cases = core.build_stress_cases(5)
+    assert len(cases) == 5
+    assert len({c.id for c in cases}) == 5
+
+
 def test_deep_full_evaluation_adds_stress():
     m = core.make_model("mock")
     fe = core.run_full_evaluation(m, level="deep", stress_n=40)

@@ -2502,12 +2502,32 @@ _SKILL_TEST: dict[str, tuple[str, str]] = {
 def build_stress_cases(n: int | None = None) -> list:
     """Turn the probe bank into validated, machine-gradable test cases.
 
-    Each probe is paired with its skill's robust validator. `n` samples a random
-    subset (so each Deep certification is broad *and* varied). Returns Case objects.
+    Each probe is paired with its skill's robust validator. `n` samples a
+    subset (so each Deep certification is broad *and* varied) — STRATIFIED by
+    skill: one probe per skill is guaranteed first, then the rest fill in
+    randomly. A flat random draw over all 512 probes under-represents the
+    smaller skill groups — e.g. "consistency" has only 6 of 512 probes, so an
+    unweighted 80-draw sample misses it entirely about 1 run in 3, quietly
+    undermining the "broad coverage" claim for that run. Returns Case objects.
     """
-    bank = [(sid, probe) for sid, probe in question_bank() if sid in _SKILL_TEST]
-    if n and n < len(bank):
-        bank = random.sample(bank, n)
+    by_skill: dict[str, list[str]] = {}
+    for sid, probe in question_bank():
+        if sid in _SKILL_TEST:
+            by_skill.setdefault(sid, []).append(probe)
+    full_bank = [(sid, probe) for sid, probes in by_skill.items() for probe in probes]
+
+    if not n or n >= len(full_bank):
+        bank = full_bank
+    elif n <= len(by_skill):
+        # Too few draws to cover every skill — fall back to a flat random
+        # sample (matches the old behaviour for small n).
+        bank = random.sample(full_bank, n)
+    else:
+        guaranteed = [(sid, random.choice(probes)) for sid, probes in by_skill.items()]
+        chosen_probes = {probe for _, probe in guaranteed}
+        remaining = [(sid, probe) for sid, probe in full_bank if probe not in chosen_probes]
+        bank = guaranteed + random.sample(remaining, n - len(guaranteed))
+
     raw = []
     for sid, probe in bank:
         pattern, severity = _SKILL_TEST[sid]

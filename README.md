@@ -151,7 +151,10 @@ table** (drop straight into a write-up or post) or **JSON** (archive the run).
 > A **500+ probe bank** across 19 skills (injection, hallucination, bias, PII,
 > over-refusal, …) powers the **Deep** certification level: each Deep run draws **80
 > fresh, randomized probes** — broad coverage that's hard to game, with a robust
-> validator per skill (verified that a genuinely correct answer passes).
+> validator per skill (verified that a genuinely correct answer passes). Sampling is
+> **stratified by skill**, not a flat draw over all 512 — a flat draw would miss a
+> small skill group (e.g. "consistency," 6 of 512 probes) about 1 run in 3, so every
+> Deep run is guaranteed to cover all 19 skills, not just most of them most of the time.
 
 **📄 Example audit** — a real adversarial audit run with this methodology: 13
 sharp probes against a live model, judged with explicit pass criteria, with a
