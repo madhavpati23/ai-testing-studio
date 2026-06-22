@@ -647,6 +647,9 @@ def _flow_certify():
     if _certify_needs_url:
         st.caption("⚪ Disabled — enter an endpoint URL in the sidebar first.")
     if st.button("🏅 Certify this AI", type="primary", key="run_certify", disabled=_certify_needs_url):
+        _heartbeat = st.empty()
+        def _on_progress(phase, i, n, case_id, _box=_heartbeat):
+            _box.caption(f"🔄 **{phase}** — check {i}/{n}: `{case_id}`")
         with st.spinner(f"Running the {_level} evaluation across every dimension…"):
             try:
                 _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
@@ -655,10 +658,13 @@ def _flow_certify():
                     core.make_model(_kind, backend_opts),
                     golden_cases=gcases or None, judge=_cj,
                     level=_level, repeat=_runs, stress_n=_stress,
-                    agent_checks=st.session_state.get("certify_agent_checks") or None)
+                    agent_checks=st.session_state.get("certify_agent_checks") or None,
+                    on_progress=_on_progress)
             except Exception as exc:
                 st.session_state.pop("certify", None)
                 st.error(f"Certification failed against **{backend}**: {exc}")
+            finally:
+                _heartbeat.empty()
 
     fe = st.session_state.get("certify")
     if fe:

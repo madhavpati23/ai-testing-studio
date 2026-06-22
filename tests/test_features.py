@@ -685,6 +685,26 @@ def test_run_repeated_with_real_agent_action_scenario():
 
 # ---- full evaluation (combined scorecard) ------------------------------------
 
+def test_full_evaluation_on_progress_heartbeat_fires_per_case_per_phase():
+    m = core.make_model("mock")
+    gcases, _ = core.build_golden(core.GOLDEN_TEMPLATE)
+    events = []
+    fe = core.run_full_evaluation(m, golden_cases=gcases, level="quick",
+                                  on_progress=lambda phase, i, n, cid: events.append((phase, i, n, cid)))
+    assert len(events) == fe.total
+    phases = {e[0] for e in events}
+    assert phases == {"Deploy-readiness certification", "Your ground truth"}
+    # each phase's events count up to its own total, not the combined total
+    cert_events = [e for e in events if e[0] == "Deploy-readiness certification"]
+    assert cert_events[-1][1] == cert_events[-1][2] == len(cert_events)
+
+
+def test_full_evaluation_without_on_progress_is_unaffected():
+    m = core.make_model("mock")
+    fe = core.run_full_evaluation(m, level="quick")   # no on_progress passed at all
+    assert fe.total >= 20
+
+
 def test_full_evaluation_combines_dimensions():
     m = core.make_model("mock")
     fe = core.run_full_evaluation(m)

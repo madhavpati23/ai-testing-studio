@@ -85,15 +85,21 @@ def answer_for(model: Model, case: Case) -> str:
 
 
 def run_suite(model: Model, cases: list[Case], repeat: int = 1,
-              pass_threshold: float = 1.0) -> list[Result]:
+              pass_threshold: float = 1.0, on_case=None) -> list[Result]:
     """Run each case `repeat` times; it passes if the pass rate >= threshold.
 
     LLMs are non-deterministic, so a single green run is weak evidence. Running
     N times and gating on a threshold turns a lucky pass into a real signal and
     surfaces flaky cases (those that pass only sometimes).
+
+    `on_case(index, total, case)` (1-based index), if given, fires right before
+    each case runs — a heartbeat for a UI to show live progress on a run that
+    can take minutes (Deep level, a slow real backend, several repeats).
     """
     results: list[Result] = []
-    for case in cases:
+    for i, case in enumerate(cases, start=1):
+        if on_case is not None:
+            on_case(i, len(cases), case)
         outcomes = []  # (passed, answer, detail) per run
         latencies = []
         for _ in range(repeat):

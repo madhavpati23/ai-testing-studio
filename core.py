@@ -232,29 +232,34 @@ class RunResult:
 
 
 def run_selected(cases: list, sla_ms: float | None = None,
-                 repeat: int = 1, pass_threshold: float = 1.0, model=None, judge=None) -> RunResult:
+                 repeat: int = 1, pass_threshold: float = 1.0, model=None, judge=None,
+                 on_case=None) -> RunResult:
     """Run only a chosen subset of generated cases (write to a temp suite, then run).
 
     `repeat` runs each case N times (the model is non-deterministic) and a case
     passes only if its pass rate >= `pass_threshold`; cases that pass some runs
     but not all are flagged *flaky*. Pass an explicit `model` (built with
     make_model) to avoid the process environment, and an optional `judge`
-    callable so `llm_judge` cases grade with the chosen backend.
+    callable so `llm_judge` cases grade with the chosen backend. `on_case(index,
+    total, case)` is a live-progress heartbeat (see prompt_regression.runner.run_suite).
     """
     out_dir = tempfile.mkdtemp(prefix="studio_selected_")
     write_suite(cases, out_dir)
-    return run_suite_dir(out_dir, sla_ms, repeat, pass_threshold, model=model, judge=judge)
+    return run_suite_dir(out_dir, sla_ms, repeat, pass_threshold, model=model, judge=judge,
+                        on_case=on_case)
 
 
 def run_suite_dir(prompts_dir: str, sla_ms: float | None = None,
-                  repeat: int = 1, pass_threshold: float = 1.0, model=None, judge=None) -> RunResult:
+                  repeat: int = 1, pass_threshold: float = 1.0, model=None, judge=None,
+                  on_case=None) -> RunResult:
     from prompt_regression.validators import set_llm_judge
     model = model if model is not None else get_model()
     cases = load_cases(prompts_dir)
     if judge is not None:
         set_llm_judge(judge)
     try:
-        results = run_suite(model, cases, repeat=repeat, pass_threshold=pass_threshold)
+        results = run_suite(model, cases, repeat=repeat, pass_threshold=pass_threshold,
+                            on_case=on_case)
     finally:
         if judge is not None:
             set_llm_judge(None)
@@ -1025,7 +1030,8 @@ class FullEvalResult:
 
 def run_full_evaluation(model, golden_cases: list | None = None,
                         repeat: int = 1, judge=None, level: str = "standard",
-                        stress_n: int = 0, agent_checks: list | None = None) -> FullEvalResult:
+                        stress_n: int = 0, agent_checks: list | None = None,
+                        on_progress=None) -> FullEvalResult:
     """Run several dimensions against ONE model and roll them into one verdict.
 
     Runs the deploy-readiness certification at the chosen `level` (quick/standard/
@@ -1035,17 +1041,29 @@ def run_full_evaluation(model, golden_cases: list | None = None,
     folds in agent-action/loop/red-team outcomes — so an agent that misuses a
     tool can't earn a clean certificate just because its text answers are good.
     Results are pooled. `judge` (e.g. a calibrated one) grades llm_judge cases.
+
+    `on_progress(phase_label, index, total, case_id)` is a live heartbeat — a
+    Deep run can be ~128 checks against a real backend and take minutes; this
+    lets a UI show exactly which check is running instead of a static spinner.
     """
+    def _on_case(phase_label):
+        if on_progress is None:
+            return None
+        return lambda i, n, case: on_progress(phase_label, i, n, case.id)
+
     sections, pooled = [], []
-    cert = run_selected(build_certification(level), model=model, repeat=repeat, judge=judge)
+    cert = run_selected(build_certification(level), model=model, repeat=repeat, judge=judge,
+                       on_case=_on_case("Deploy-readiness certification"))
     sections.append(("Deploy-readiness certification", cert))
     pooled += list(cert.results)
     if stress_n:
-        stress = run_selected(build_stress_cases(stress_n), model=model, repeat=repeat, judge=judge)
+        stress = run_selected(build_stress_cases(stress_n), model=model, repeat=repeat, judge=judge,
+                             on_case=_on_case("Randomized stress battery"))
         sections.append(("Randomized stress battery", stress))
         pooled += list(stress.results)
     if golden_cases:
-        gold = run_selected(list(golden_cases), model=model, repeat=repeat, judge=judge)
+        gold = run_selected(list(golden_cases), model=model, repeat=repeat, judge=judge,
+                           on_case=_on_case("Your ground truth"))
         sections.append(("Your ground truth", gold))
         pooled += list(gold.results)
     agent_checks = list(agent_checks or [])

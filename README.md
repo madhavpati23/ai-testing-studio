@@ -59,7 +59,9 @@ you add it) and issues a printable **Certificate of AI Evaluation** with a lette
 **grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the
 model name, the date, the **thoroughness level**, and a per-dimension breakdown. Pick the
 depth: **Quick (~22 checks)** / **Standard (~48)** / **Thorough (~48 × 3 runs)** — and the
-certificate prints which level it was, so the grade is honestly contextualised.
+certificate prints which level it was, so the grade is honestly contextualised. A **Deep**
+run (~128 checks against a real backend) can take minutes, not seconds — so instead of a
+static spinner, a live heartbeat shows exactly which check is running right now.
 **No key? Certify the Demo bot instantly.** Download a **snapshot** (JSON) alongside the
 certificate, and after a later prompt/model change, **compare two snapshots** to see
 exactly which checks regressed or improved — not just whether the score moved. Open
