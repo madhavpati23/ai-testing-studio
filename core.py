@@ -919,6 +919,27 @@ AGENT_LOOP_SCENARIOS: list[AgentLoopScenario] = [
 ]
 
 
+LOOP_TOOLS_TEMPLATE = json.dumps([
+    {
+        "name": "enhancer",
+        "description": "Produce the enhanced functional user story from a Jira story + context.",
+        "input_schema": {"type": "object", "properties": {"story_id": {"type": "string"}},
+                         "required": ["story_id"]},
+    },
+    {
+        "name": "test_case_generation",
+        "description": "Produce the manual test-case table from the enhanced story.",
+        "input_schema": {"type": "object", "properties": {"story_id": {"type": "string"}},
+                         "required": ["story_id"]},
+    },
+], indent=2)
+
+LOOP_STUBS_TEMPLATE = json.dumps({
+    "enhancer": "Enhanced story for {story_id}: ## Story narrative ... (5 sections produced).",
+    "test_case_generation": "Test case table for {story_id}: | S.No | Test case name | ... |",
+}, indent=2)
+
+
 def parse_loop_stubs(text: str) -> tuple[dict, list[str]]:
     """Parse a user-supplied JSON object of {tool_name: response_template}."""
     try:
@@ -950,6 +971,21 @@ def build_loop_check(kind: str, tool: str = "", other_tool: str = "",
             return None, "the limit must be a number"
         return LoopCheck(kind, tool.strip(), arg=arg.strip(), limit=limit), ""
     return LoopCheck(kind, tool.strip(), other_tool.strip()), ""
+
+
+def build_custom_loop_scenario(prompt: str, tool_stubs: dict, checks: list,
+                               severity: str = "high", intent: str = ""
+                               ) -> tuple[AgentLoopScenario | None, str]:
+    """Build a custom AgentLoopScenario from form input. Returns (scenario, error)."""
+    if not prompt.strip():
+        return None, "enter a prompt to send the agent"
+    if not tool_stubs:
+        return None, "define at least one tool's simulated result"
+    if not checks:
+        return None, "add at least one check"
+    return AgentLoopScenario(id="custom", label="Custom scenario", prompt=prompt.strip(),
+                             tool_stubs=tool_stubs, checks=checks, severity=severity,
+                             intent=intent), ""
 
 
 def _eval_loop_checks(calls: list, checks: list, text: str = "") -> list:
@@ -1019,9 +1055,13 @@ class AgentLoopResult:
         return "BLOCK" if self.scenario.severity == "critical" else "NEEDS SIGN-OFF"
 
 
-def run_agent_loop(scenario: AgentLoopScenario, model, max_steps: int = 6) -> AgentLoopResult:
+def run_agent_loop(scenario: AgentLoopScenario, model, max_steps: int = 6,
+                   tools: list[dict] | None = None) -> AgentLoopResult:
     """Run a real multi-step tool-use loop and assert on the whole sequence.
 
+    `tools` defaults to the built-in banking demo (AGENT_TOOLS) so existing
+    callers are unaffected; pass your own tool schemas to test a custom
+    agent's own multi-step orchestration (e.g. "step A before step B").
     Raises NotImplementedError if the backend can't do a native tool-use loop
     (HTTP, or the Demo bot on a toolset it wasn't scripted for).
     """
@@ -1029,7 +1069,8 @@ def run_agent_loop(scenario: AgentLoopScenario, model, max_steps: int = 6) -> Ag
         raise NotImplementedError(
             f"{getattr(model, 'name', 'this backend')} doesn't support multi-step agent loops.")
     executor = build_tool_executor(scenario.tool_stubs)
-    text, calls = model.run_loop(scenario.prompt, AGENT_TOOLS, executor, max_steps=max_steps)
+    text, calls = model.run_loop(scenario.prompt, tools if tools is not None else AGENT_TOOLS,
+                                 executor, max_steps=max_steps)
     checks = _eval_loop_checks(calls, scenario.checks, text=text)
     return AgentLoopResult(scenario=scenario, calls=calls, checks=checks,
                            passed=all(c.passed for c in checks), text=text,

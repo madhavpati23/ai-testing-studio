@@ -788,6 +788,63 @@ def test_render_stub_substitutes_args():
     assert out == "Balance of 4471: $200"
 
 
+# ---- custom agent-loop scenarios (bring your own multi-step orchestration) ---
+
+def test_loop_templates_parse_clean():
+    tools, errors = core.parse_agent_tools(core.LOOP_TOOLS_TEMPLATE)
+    assert errors == [] and {t["name"] for t in tools} == {"enhancer", "test_case_generation"}
+    stubs, errors = core.parse_loop_stubs(core.LOOP_STUBS_TEMPLATE)
+    assert errors == [] and set(stubs) == {"enhancer", "test_case_generation"}
+
+
+def test_build_custom_loop_scenario_validates_inputs():
+    chk, _ = core.build_loop_check("order", "a", "b")
+    _, err = core.build_custom_loop_scenario("", {"a": "ok"}, [chk])
+    assert "prompt" in err
+    _, err = core.build_custom_loop_scenario("hi", {}, [chk])
+    assert "tool" in err
+    _, err = core.build_custom_loop_scenario("hi", {"a": "ok"}, [])
+    assert "check" in err
+    scen, err = core.build_custom_loop_scenario("hi", {"a": "ok", "b": "ok"}, [chk])
+    assert err == "" and scen.checks == [chk]
+
+
+def test_run_agent_loop_with_custom_tools_catches_wrong_order():
+    # the exact real-world case this closes: "step A must run before step B"
+    tools, _ = core.parse_agent_tools(core.LOOP_TOOLS_TEMPLATE)
+    stubs, _ = core.parse_loop_stubs(core.LOOP_STUBS_TEMPLATE)
+    chk, _ = core.build_loop_check("order", "enhancer", "test_case_generation")
+    scen, _ = core.build_custom_loop_scenario("process the story", stubs, [chk])
+
+    class _WrongOrderAgent:
+        name = "wrong-order-fake"
+        def run_loop(self, _prompt, _tools, tool_executor, max_steps=6):
+            tool_executor("test_case_generation", {"story_id": "X"})
+            tool_executor("enhancer", {"story_id": "X"})
+            return "done", [ToolCall("test_case_generation", {"story_id": "X"}),
+                            ToolCall("enhancer", {"story_id": "X"})]
+
+    class _RightOrderAgent:
+        name = "right-order-fake"
+        def run_loop(self, _prompt, _tools, tool_executor, max_steps=6):
+            tool_executor("enhancer", {"story_id": "X"})
+            tool_executor("test_case_generation", {"story_id": "X"})
+            return "done", [ToolCall("enhancer", {"story_id": "X"}),
+                            ToolCall("test_case_generation", {"story_id": "X"})]
+
+    wrong = core.run_agent_loop(scen, _WrongOrderAgent(), tools=tools)
+    right = core.run_agent_loop(scen, _RightOrderAgent(), tools=tools)
+    assert not wrong.passed and "before" in wrong.checks[0].detail
+    assert right.passed
+
+
+def test_run_agent_loop_default_tools_unaffected():
+    # existing callers that don't pass `tools` still get the banking demo
+    scen = core.AGENT_LOOP_SCENARIOS[0]
+    r = core.run_agent_loop(scen, core.make_model("mock"))
+    assert r.calls and r.calls[0].name in {"get_balance", "transfer_funds"}
+
+
 # ---- statistical rigor (repeat -> pass rate, not one verdict) ----------------
 
 class _FakeRun:

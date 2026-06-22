@@ -1492,29 +1492,11 @@ def _flow_agent_loop():
 
     _al_kind = _BACKEND_KIND[backend]
 
-    if _al_kind == "http":
-        st.warning("HTTP endpoints have no native tool-use channel — use **Claude**, **your "
-                   "deployed agent**, or the **Demo bot** for an offline demonstration.")
-    elif _al_kind == "http_agent":
-        st.warning("This built-in scenario uses fixed banking tools your deployed agent likely "
-                   "doesn't have — it's a demonstration of the *check kinds* (must_call, order, "
-                   "max_arg), not a real test of your agent. Use the **core.run_agent_loop** API "
-                   "directly with your own scenario for that (see the README).")
-    elif _al_kind == "mock":
-        st.info("The **Demo bot** simulates the *planted* precondition bug in one shot (it isn't "
-                "running a real adaptive loop) so you can see the failure mode offline. Switch to "
-                "**Claude** for a real multi-step tool-use loop.")
-
-    with st.container(border=True):
-        st.markdown("##### 📥 The scenario")
-        _labels = [s.label for s in core.AGENT_LOOP_SCENARIOS]
-        _pick = st.selectbox("Pick a scenario", _labels, key="al_scenario")
-        _scen = core.AGENT_LOOP_SCENARIOS[_labels.index(_pick)]
-        st.markdown("**Request sent to the agent:**")
-        st.markdown(f"> {_scen.prompt}")
-        st.caption(f"✅ A correct agent should: {_scen.intent}")
-        st.markdown("**Simulated tool results it will see (these don't really happen):**")
-        st.json(_scen.tool_stubs)
+    al_source = st.radio(
+        "Toolset",
+        ["📦 Built-in demo — a banking agent (get_balance / transfer_funds)",
+         "🧪 Your own agent — define your own tools, stubs, and checks"],
+        key="al_source", horizontal=True)
 
     with st.expander("⚙️ Advanced — reliability"):
         if _al_kind == "http_agent":
@@ -1525,19 +1507,137 @@ def _flow_agent_loop():
             help="LLMs are non-deterministic. Repeat the loop to see the real pass rate, not a "
                  "lucky single run.")
 
-    _al_needs_url = _al_kind == "http_agent" and not (backend_opts.get("url") or "").strip()
-    if _al_needs_url:
-        st.caption("⚪ Disabled — enter your agent's endpoint URL in the sidebar first.")
-    if st.button("🔗 Run agent loop", type="primary", key="run_al",
-                 disabled=_al_kind == "http" or _al_needs_url):
-        with st.spinner(f"Running the multi-step loop against {backend} ({al_reps}×)…"):
-            try:
-                _model = core.make_model(_al_kind, backend_opts)
-                st.session_state["al_run"] = core.run_repeated(
-                    lambda: core.run_agent_loop(_scen, _model), n=int(al_reps))
-            except Exception as exc:
-                st.session_state.pop("al_run", None)
-                st.error(f"Agent-loop check failed against **{backend}**: {exc}")
+    if al_source.startswith("📦"):
+        if _al_kind == "http":
+            st.warning("HTTP endpoints have no native tool-use channel — use **Claude**, **your "
+                       "deployed agent**, or the **Demo bot** for an offline demonstration.")
+        elif _al_kind == "http_agent":
+            st.warning("This built-in scenario uses fixed banking tools your deployed agent likely "
+                       "doesn't have — switch to **🧪 Your own agent** below to test it with its "
+                       "actual tools and your own checks.")
+        elif _al_kind == "mock":
+            st.info("The **Demo bot** simulates the *planted* precondition bug in one shot (it isn't "
+                    "running a real adaptive loop) so you can see the failure mode offline. Switch to "
+                    "**Claude** for a real multi-step tool-use loop.")
+
+        with st.container(border=True):
+            st.markdown("##### 📥 The scenario")
+            _labels = [s.label for s in core.AGENT_LOOP_SCENARIOS]
+            _pick = st.selectbox("Pick a scenario", _labels, key="al_scenario")
+            _scen = core.AGENT_LOOP_SCENARIOS[_labels.index(_pick)]
+            _active_scen = _scen
+            st.markdown("**Request sent to the agent:**")
+            st.markdown(f"> {_scen.prompt}")
+            st.caption(f"✅ A correct agent should: {_scen.intent}")
+            st.markdown("**Simulated tool results it will see (these don't really happen):**")
+            st.json(_scen.tool_stubs)
+
+        _al_needs_url = _al_kind == "http_agent" and not (backend_opts.get("url") or "").strip()
+        if _al_needs_url:
+            st.caption("⚪ Disabled — enter your agent's endpoint URL in the sidebar first.")
+        if st.button("🔗 Run agent loop", type="primary", key="run_al",
+                     disabled=_al_kind == "http" or _al_needs_url):
+            with st.spinner(f"Running the multi-step loop against {backend} ({al_reps}×)…"):
+                try:
+                    _model = core.make_model(_al_kind, backend_opts)
+                    st.session_state["al_run"] = core.run_repeated(
+                        lambda: core.run_agent_loop(_scen, _model), n=int(al_reps))
+                except Exception as exc:
+                    st.session_state.pop("al_run", None)
+                    st.error(f"Agent-loop check failed against **{backend}**: {exc}")
+
+    else:
+        _al_custom_ok = _al_kind in ("claude", "http_agent")
+        if not _al_custom_ok:
+            st.warning("Custom multi-step loops need **real native tool-use** — use **Claude** or "
+                      "**your deployed agent**. The Demo bot can only improvise the built-in "
+                      "banking tools, and a generic HTTP endpoint has no tool-call channel.")
+        elif _al_kind == "http_agent":
+            st.caption("📡 Your tools/stubs below describe what *should* happen — your real agent "
+                      "still runs its own loop server-side; this just checks the result.")
+
+        with st.container(border=True):
+            st.markdown("##### 🧰 Your tools")
+            st.caption("JSON list of tool schemas — same shape as Agent actions' custom tools.")
+            st.download_button("⬇️ Download a tools template", core.LOOP_TOOLS_TEMPLATE,
+                               "loop-tools-template.json", "application/json")
+            al_tools_text = st.text_area("Tool definitions (JSON)", value=core.LOOP_TOOLS_TEMPLATE,
+                                         height=140, key="al_tools_json")
+            al_tools, al_tool_errors = core.parse_agent_tools(al_tools_text)
+            if al_tool_errors:
+                st.warning("Problems in your tool JSON:\n\n- " + "\n- ".join(al_tool_errors))
+
+        with st.container(border=True):
+            st.markdown("##### 🎭 Simulated results")
+            st.caption("What each tool *returns* when called — `{arg_name}` is substituted from "
+                      "the call's arguments. Make one return an error to test honesty-on-failure.")
+            st.download_button("⬇️ Download a stubs template", core.LOOP_STUBS_TEMPLATE,
+                               "loop-stubs-template.json", "application/json")
+            al_stubs_text = st.text_area("Stub responses (JSON)", value=core.LOOP_STUBS_TEMPLATE,
+                                         height=100, key="al_stubs_json")
+            al_stubs, al_stub_errors = core.parse_loop_stubs(al_stubs_text)
+            if al_stub_errors:
+                st.warning("Problems in your stub JSON:\n\n- " + "\n- ".join(al_stub_errors))
+
+        with st.container(border=True):
+            st.markdown("##### 📥 Your scenario")
+            al_prompt = st.text_area("Prompt sent to the agent", key="al_custom_prompt", height=70,
+                                     value="Process Jira story OPS-123 end to end.")
+            _al_tool_names = [t["name"] for t in al_tools] if al_tools else []
+            st.markdown("**Checks** — add a row per rule:")
+            _al_default_checks = pd.DataFrame([
+                {"kind": "order", "tool": _al_tool_names[0] if _al_tool_names else "",
+                 "other_tool": _al_tool_names[1] if len(_al_tool_names) > 1 else "",
+                 "arg": "", "limit": 0.0},
+            ])
+            al_checks_df = st.data_editor(
+                _al_default_checks, num_rows="dynamic", key="al_checks_editor",
+                use_container_width=True,
+                column_config={
+                    "kind": st.column_config.SelectboxColumn("kind", options=list(core.LOOP_CHECK_KINDS)),
+                    "tool": st.column_config.SelectboxColumn("tool", options=_al_tool_names or [""]),
+                    "other_tool": st.column_config.SelectboxColumn(
+                        "other_tool (order only)", options=[""] + _al_tool_names),
+                    "arg": st.column_config.TextColumn("arg (max_arg only)"),
+                    "limit": st.column_config.NumberColumn("limit (max_arg only)"),
+                })
+            al_severity = st.selectbox("Severity if this fails", ["critical", "high", "medium", "low"],
+                                       key="al_custom_severity")
+            al_intent = st.text_input("Intent (optional — what a correct agent does)",
+                                      key="al_custom_intent")
+            st.caption("💡 For the classic 'do step A before step B' rule, add one **order** row.")
+
+        al_checks, al_check_errors = [], []
+        for _, row in al_checks_df.dropna(subset=["kind"]).iterrows():
+            chk, err = core.build_loop_check(
+                str(row.get("kind", "")), str(row.get("tool", "") or ""),
+                str(row.get("other_tool", "") or ""), str(row.get("arg", "") or ""),
+                str(row.get("limit", "") or "0"))
+            if chk:
+                al_checks.append(chk)
+            else:
+                al_check_errors.append(err)
+        if al_check_errors:
+            st.warning("Problems in your checks:\n\n- " + "\n- ".join(al_check_errors))
+
+        _al_scen, _al_scen_err = core.build_custom_loop_scenario(
+            al_prompt, al_stubs, al_checks, al_severity, al_intent)
+        _active_scen = _al_scen
+        _al_needs_url = _al_kind == "http_agent" and not (backend_opts.get("url") or "").strip()
+        if _al_scen_err:
+            st.caption(f"⚪ Disabled — {_al_scen_err}.")
+        elif _al_needs_url:
+            st.caption("⚪ Disabled — enter your agent's endpoint URL in the sidebar first.")
+        if st.button("🔗 Run agent loop", type="primary", key="run_al_custom",
+                     disabled=_al_scen is None or not _al_custom_ok or _al_needs_url):
+            with st.spinner(f"Running your multi-step loop against {backend} ({al_reps}×)…"):
+                try:
+                    _model = core.make_model(_al_kind, backend_opts)
+                    st.session_state["al_run"] = core.run_repeated(
+                        lambda: core.run_agent_loop(_al_scen, _model, tools=al_tools), n=int(al_reps))
+                except Exception as exc:
+                    st.session_state.pop("al_run", None)
+                    st.error(f"Agent-loop check failed against **{backend}**: {exc}")
 
     al_rep = st.session_state.get("al_run")
     if al_rep:
@@ -1586,7 +1686,8 @@ def _flow_agent_loop():
             if al.text:
                 st.caption(f"Assistant's final answer: “{al.text}”")
         if st.button("📥 Add this result to my certificate", key="queue_al"):
-            _queue_agent_checks(core.agent_loop_checks(al_rep, _scen), f"Agent loop: {_scen.label}")
+            _queue_agent_checks(core.agent_loop_checks(al_rep, _active_scen),
+                               f"Agent loop: {_active_scen.label}")
             st.success("Queued. Open **🏅 Certify** and re-run to fold it into the grade.")
 
 # ---- Judge calibration ------------------------------------------------------
