@@ -1735,6 +1735,8 @@ def _flow_help():
             "Pass rate": "Percent of probes that passed — the score behind the letter grade.",
             "Leaderboard": "Running the SAME battery against several AIs at once and ranking the "
                 "results side by side — answers \"which is best?\" instead of \"is this one good?\"",
+            "Journey": "The 12-step testing methodology as a live checklist (🧭 Journey tab) — "
+                "not a locked wizard, every step but two is optional or agent-only.",
         },
         "Truth & judging": {
             "Golden set / ground truth": "Your own `prompt → expected answer` pairs — *truth you "
@@ -1849,13 +1851,107 @@ def _flow_start_here():
                "explains the method behind the grade.")
 
 
+# ---- Journey — the 12-step AI/agent testing process, tracked live ----------
+# A checklist, not a locked wizard: every other tab stays fully reachable, and
+# "Certify the Demo bot instantly" still works with zero steps done first.
+# Several steps only apply to agents, or are optional rigor — gating them as
+# mandatory would punish someone testing a plain text model. "Done" reflects
+# THIS session's live state (recomputed every render), consistent with the
+# app being stateless between visits by design.
+_JOURNEY_STEPS = [
+    (1, "Define what \"correct\" means", True,
+     "No oracle, no real test — just vibes. The built-in battery already has one baked in; "
+     "add your own ground truth for a verdict trustworthy for *your* use case.",
+     "🎯 Evaluate → 📋 Against your ground truth",
+     lambda: bool(st.session_state.get("golden_run") or st.session_state.get("certify_golden"))),
+    (2, "Pick the AI and connect it", False,
+     "Decide what you're testing and how to reach it — the Demo bot needs nothing; a real "
+     "model or agent needs a key/URL, kept in your session only.",
+     "Sidebar → Model under test",
+     lambda: backend != "Demo bot (offline)"),
+    (3, "Build the battery", False,
+     "Run the fixed risk-dimension battery — safety, hallucination, bias, accuracy, and more "
+     "— at your chosen thoroughness.",
+     "🏅 Certify, or 🎯 Evaluate → 🛡️ Across risk dimensions",
+     lambda: bool(st.session_state.get("certify") or st.session_state.get("cert_run"))),
+    (4, "Calibrate the judge", True,
+     "Open-ended quality needs an LLM judge — but only trust one that's measured to agree "
+     "with your own human labels first.",
+     "⚖️ Judge",
+     lambda: bool(st.session_state.get("calibrated_judge"))),
+    (5, "Run it more than once", True,
+     "A model is non-deterministic — one pass proves little for a safety check. Repeat it "
+     "and look at the pass rate, not a single verdict.",
+     "🏅 Certify (Thorough/Deep), or the Advanced repeat control in Agent actions/loops",
+     lambda: bool((st.session_state.get("certify") and st.session_state["certify"].runs > 1)
+                 or (st.session_state.get("aa_run") and st.session_state["aa_run"].n > 1)
+                 or (st.session_state.get("al_run") and st.session_state["al_run"].n > 1))),
+    (6, "Let severity gate the verdict", False,
+     "Automatic on every run — one Critical or safety/hallucination failure blocks the "
+     "verdict outright, it isn't just averaged into the score.",
+     "(happens automatically — nothing to click)",
+     lambda: bool(st.session_state.get("certify") or st.session_state.get("cert_run")
+                 or st.session_state.get("aa_run") or st.session_state.get("al_run"))),
+    (7, "Test agent actions (agents only)", True,
+     "Does it call the right tool with the right arguments, and refuse the dangerous one?",
+     "🔁 Behaviors → 🛠️ Agent actions",
+     lambda: bool(st.session_state.get("aa_run"))),
+    (8, "Test the whole chain (agents only)", True,
+     "Real agent bugs live in step two, not the first decision — e.g. transferring more than "
+     "the balance it just read.",
+     "🔁 Behaviors → 🔗 Agent loops",
+     lambda: bool(st.session_state.get("al_run"))),
+    (9, "Search for a break (agents only)", True,
+     "One coercion phrasing isn't proof of safety — try several framings and check the break "
+     "rate.",
+     "🔁 Behaviors → 🛠️ Agent actions → 🔍 Search for a break",
+     lambda: bool(st.session_state.get("aa_search"))),
+    (10, "Track it over time", True,
+     "Snapshot today's certificate; next time something changes, diff against it to see "
+     "exactly what regressed — not just whether the score moved.",
+     "🏅 Certify → 📈 Compare to a previous snapshot",
+     None),   # not reliably detectable from session state — shown as informational only
+    (11, "Compare options side by side", True,
+     "Choosing between models or backends? Run the same battery against all of them, ranked.",
+     "🏆 Leaderboard",
+     lambda: bool(st.session_state.get("leaderboard"))),
+    (12, "Certify", False,
+     "Pool everything into one grade, one verdict, one downloadable certificate.",
+     "🏅 Certify → Certify this AI",
+     lambda: bool(st.session_state.get("certify"))),
+]
+
+
+def _flow_journey():
+    st.subheader("🧭 Your journey — the 12-step testing process")
+    st.markdown("The methodology behind every tab, in order. **Not a locked wizard** — every "
+                "step below is optional except where marked, and every other tab stays directly "
+                "reachable. Status reflects what you've actually done **this session**.")
+
+    _applicable = [s for s in _JOURNEY_STEPS if s[5] is not None]
+    _done = sum(1 for s in _applicable if s[5]())
+    st.progress(_done / len(_applicable) if _applicable else 0,
+               text=f"{_done}/{len(_applicable)} trackable steps done this session")
+
+    for num, title, optional, why, where, check in _JOURNEY_STEPS:
+        with st.container(border=True):
+            c1, c2 = st.columns([0.06, 0.94])
+            if check is None:
+                c1.markdown("ℹ️")
+            else:
+                c1.markdown("✅" if check() else "⚪")
+            c2.markdown(f"**{num}. {title}**" + ("  *(optional)*" if optional else ""))
+            c2.caption(why)
+            c2.caption(f"→ {where}")
+
+
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_certify, tab_leaderboard, tab_start, tab_eval, tab_behav, tab_judge,
+(tab_certify, tab_leaderboard, tab_start, tab_journey, tab_eval, tab_behav, tab_judge,
  tab_audit, tab_help) = st.tabs(
-    ["🏅 Certify", "🏆 Leaderboard", "👋 Start here", "🎯 Evaluate", "🔁 Behaviors", "⚖️ Judge",
-     "📄 Real test reports", "ℹ️ How it works"]
+    ["🏅 Certify", "🏆 Leaderboard", "👋 Start here", "🧭 Journey", "🎯 Evaluate", "🔁 Behaviors",
+     "⚖️ Judge", "📄 Real test reports", "ℹ️ How it works"]
 )
 
 with tab_certify:
@@ -1866,6 +1962,9 @@ with tab_leaderboard:
 
 with tab_start:
     _flow_start_here()
+
+with tab_journey:
+    _flow_journey()
 
 with tab_eval:
     st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")

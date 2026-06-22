@@ -79,6 +79,14 @@ table** (drop straight into a write-up or post) or **JSON** (archive the run).
 **👋 Start here** — the one idea (the *three roles*: model under test · designer /
 your ground truth · judge), a "pick your path" map, and a 2-minute free-key setup.
 
+**🧭 Journey** — the 12-step testing methodology as a live checklist: define your oracle →
+connect the AI → build the battery → calibrate a judge → repeat for reliability → (severity
+gating happens automatically) → agent actions → agent loops → adversarial search → track
+over time → compare options → certify. **Not a locked wizard** — every step but two is
+optional or agent-only, every other tab stays directly reachable, and "Certify the Demo bot
+instantly" still needs zero steps done first. Status reflects what you've actually done
+*this session*.
+
 **🎯 Evaluate** — the core. One question, **four ways to answer it**:
 - **🏁 Full evaluation** — the integrated run: certification **plus your golden set**
   against one model, pooled into **one** cross-dimension scorecard and verdict. This is
