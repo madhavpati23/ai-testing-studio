@@ -1189,6 +1189,96 @@ def conversation_checkpoint_checks(trace: "ConversationTraceResult", label: str)
             for c in trace.checks]
 
 
+@dataclass
+class StatefulSessionResult:
+    """Result of a two-session state-isolation test."""
+    session_a_turns: list[str]
+    session_a_replies: list[str]
+    session_b_turns: list[str]
+    session_b_replies: list[str]
+    isolation_passed: bool   # True = session B has no memory of session A
+    carry_passed: bool       # True = session A carried state correctly within itself
+    detail: str
+    model_name: str
+
+
+def run_stateful_session(
+    session_a_turns: list[str],
+    session_b_turns: list[str],
+    carry_check_turn: int,
+    carry_expected: str,
+    carry_validator: str,
+    isolation_check: str,
+    isolation_forbidden: str,
+    model=None,
+) -> StatefulSessionResult:
+    """Run two independent sessions and test:
+    1. State carry — session A remembers what was set earlier in the same session.
+    2. Session isolation — session B cannot access data from session A.
+
+    `carry_check_turn` is 1-based. `isolation_forbidden` is a string that must
+    NOT appear in the final reply of session B (proves no bleed).
+    """
+    from prompt_regression.validators import REGISTRY
+
+    model = model if model is not None else get_model()
+    model_name = getattr(model, "name", "model")
+
+    if not hasattr(model, "transcript"):
+        raise NotImplementedError(
+            f"{model_name} doesn't expose a transcript() method — "
+            "stateful session tests require multi-turn support.")
+
+    # --- Session A: test state carry within a session ---
+    replies_a = model.transcript(session_a_turns)
+    if carry_check_turn < 1 or carry_check_turn > len(replies_a):
+        raise ValueError(f"carry_check_turn={carry_check_turn} out of range (got {len(replies_a)} turns)")
+    carry_reply = replies_a[carry_check_turn - 1]
+    carry_args = _golden_args(carry_validator, carry_expected)
+    carry_passed, carry_detail = REGISTRY[carry_validator](carry_reply, carry_args)
+
+    # --- Session B: fresh session, check isolation ---
+    replies_b = model.transcript(session_b_turns)
+    final_b = replies_b[-1] if replies_b else ""
+    iso_args = {"substring": isolation_forbidden}
+    iso_passed, iso_detail = REGISTRY["not_contains"](final_b, iso_args)
+
+    detail_parts = []
+    if carry_passed:
+        detail_parts.append(f"✅ State carry (turn {carry_check_turn}): {carry_detail}")
+    else:
+        detail_parts.append(f"❌ State carry (turn {carry_check_turn}): {carry_detail}")
+    if iso_passed:
+        detail_parts.append(f"✅ Session isolation: session B has no trace of '{isolation_forbidden}'")
+    else:
+        detail_parts.append(f"❌ Session isolation: session B reply contains '{isolation_forbidden}' — data bled across sessions")
+
+    return StatefulSessionResult(
+        session_a_turns=session_a_turns,
+        session_a_replies=replies_a,
+        session_b_turns=session_b_turns,
+        session_b_replies=replies_b,
+        isolation_passed=iso_passed,
+        carry_passed=carry_passed,
+        detail="\n".join(detail_parts),
+        model_name=model_name,
+    )
+
+
+def stateful_session_checks(result: StatefulSessionResult, label: str) -> list:
+    """Convert a StatefulSessionResult into certificate-ready Result objects."""
+    return [
+        _agent_result(f"stateful::{label}::carry", "robustness", "high",
+                      result.carry_passed,
+                      "State carried correctly within session A" if result.carry_passed
+                      else "Session A lost state mid-conversation"),
+        _agent_result(f"stateful::{label}::isolation", "safety", "critical",
+                      result.isolation_passed,
+                      "Session B correctly isolated from session A" if result.isolation_passed
+                      else "Data from session A leaked into session B — CRITICAL"),
+    ]
+
+
 def grounding_checks(result, label: str) -> list:
     """Fold a RAG grounding result (single- or multi-document) into the
     certificate. Only a clean GROUNDED verdict counts as passed — faithful
