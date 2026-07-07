@@ -705,6 +705,17 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                 except Exception as exc:
                     st.error(f"Could not compare snapshots: {exc}")
 
+        st.divider()
+        rb1, rb2 = st.columns(2)
+        if rb1.button("🔄 Test a different AI / re-run", key="certify_reset", use_container_width=True):
+            for _k in ["certify", "certify_elapsed_s", "certify_badge",
+                       "certify_agent_checks", "certify_agent_check_sources",
+                       "wizard_golden_cases", "wizard_step", "wizard_domain",
+                       "wizard_ai_state", "convo_run", "convo_trace",
+                       "stateful_run", "al_run", "aa_rep", "aa_search"]:
+                st.session_state.pop(_k, None)
+            st.rerun()
+        rb2.caption("Clears the current results and takes you back to Step 1 — your sidebar settings stay.")
 
 
 # ---- Leaderboard (the same battery, several models, one comparison) --------
@@ -2259,8 +2270,34 @@ def _wizard_nav(step: int) -> None:
 def _wizard_step_cases() -> None:
     st.subheader("Step 1 — Set up your AI under test")
 
+    # ── Stateful vs stateless ─────────────────────────────────────────────────
+    st.markdown("#### Does your AI maintain state across calls?")
+    st.caption("This tells the Studio which behavior tests to recommend in Step 2.")
+    ai_state_mode = st.radio(
+        "AI session type",
+        ["Stateless — each call is independent (chatbot, Q&A, classifier)",
+         "Stateful — the AI remembers context across calls (agent, assistant with memory, session-aware API)"],
+        key="wizard_ai_state",
+        horizontal=False,
+    )
+    if ai_state_mode.startswith("Stateful"):
+        st.info(
+            "✅ **Stateful AI detected** — in Step 2 we recommend running the **Stateful session** "
+            "check to verify state carries within a session *and* stays isolated between sessions. "
+            "The standard battery tests each prompt independently, so session-bleed bugs won't be "
+            "caught there."
+        )
+    else:
+        st.info(
+            "✅ **Stateless AI** — the standard battery is well-suited. Each test case runs as an "
+            "independent call, matching how your AI actually works. Multi-turn and RAG grounding "
+            "in Step 2 are still useful if your AI handles conversations."
+        )
+
+    st.divider()
+
     # ── Domain selector ──────────────────────────────────────────────────────
-    st.markdown("#### What type of AI are you testing?")
+    st.markdown("#### What domain is your AI in?")
     st.caption("This adds domain-specific checks on top of the standard battery — "
                "e.g. a medical AI gets tested for safe referral behaviour; a coding assistant "
                "for hallucinated APIs and malware refusal.")
@@ -2352,21 +2389,34 @@ with tab_wizard:
         # Step 2: Test behaviors
         st.subheader("Step 2 — Test specific behaviors")
         c_msg, c_skip = st.columns([3, 1])
-        c_msg.info(
-            "**Want to test multi-turn memory, RAG grounding, or agent tool use?** Do it here and "
-            "the result folds into your certificate. "
-            "**Not relevant for your AI?** Just skip to the next step."
-        )
+        _is_stateful = st.session_state.get("wizard_ai_state", "").startswith("Stateful")
+        if _is_stateful:
+            c_msg.info(
+                "Your AI is **stateful** — we recommend running the **🔄 Stateful session** check below "
+                "to verify state carries within a session and stays isolated between sessions. "
+                "**Not ready?** Skip to the next step."
+            )
+        else:
+            c_msg.info(
+                "**Want to test multi-turn memory, RAG grounding, or agent tool use?** Do it here and "
+                "the result folds into your certificate. "
+                "**Not relevant for your AI?** Just skip to the next step."
+            )
         if c_skip.button("Skip this step →", key="wz_skip_1", use_container_width=True):
             st.session_state["wizard_step"] = 2
             st.rerun()
+        _beh_options = [
+            "🔁 Multi-turn — memory, context & scope across a conversation",
+            "📚 RAG grounding — is the answer faithful to a provided source?",
+            "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?",
+            "🔗 Agent loops — does it verify a precondition before acting, across multiple steps?",
+            "🔄 Stateful session — does state carry within a session and stay isolated between sessions?",
+        ]
+        _beh_default = 4 if _is_stateful else 0
         beh_mode = st.radio(
             "Which behaviour?",
-            ["🔁 Multi-turn — memory, context & scope across a conversation",
-             "📚 RAG grounding — is the answer faithful to a provided source?",
-             "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?",
-             "🔗 Agent loops — does it verify a precondition before acting, across multiple steps?",
-             "🔄 Stateful session — does state carry within a session and stay isolated between sessions?"],
+            _beh_options,
+            index=_beh_default,
             key="beh_mode")
         st.divider()
         if beh_mode.startswith("🔁"):
