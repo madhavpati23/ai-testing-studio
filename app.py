@@ -115,26 +115,11 @@ st.set_page_config(page_title="AI Evaluation Studio", page_icon="🧪", layout="
 st.markdown(
     """
     <style>
-      .hero {background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);
-             color:#e2e8f0;padding:1.4rem 1.8rem;border-radius:16px;margin-bottom:.8rem;
-             box-shadow:0 8px 24px rgba(2,6,23,.18);}
-      .hero h1 {font-family:ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
-                font-size:1.9rem;margin:0;letter-spacing:-.5px;color:#f8fafc;}
-      .hero h1 .accent{color:#34d399;}
-      .hero p {margin:.35rem 0 0;color:#cbd5e1;font-size:1rem;}
-      .chip{display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;
-            border-radius:999px;padding:2px 11px;margin:3px;font-size:12px;font-weight:600;}
-    </style>
+</style>
     """,
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    '<div class="hero"><h1>🧪 AI Evaluation <span class="accent">Studio</span></h1>'
-    '<p>Point it at an AI → run a risk-based evaluation → get a graded certificate '
-    'with a ship / no-ship verdict.</p></div>',
-    unsafe_allow_html=True,
-)
 
 # ---- form state (shared across tabs) --------------------------------------
 for _key, _default in {"feature_input": "", "aitype_input": "(none)",
@@ -203,7 +188,14 @@ with st.sidebar:
 
         st.selectbox("Preset", list(_HTTP_PRESETS), key="http_preset", on_change=_apply_http_preset)
         backend_opts["url"] = st.text_input("Endpoint URL", key="http_url",
-                                            placeholder="https://api.example.com/chat")
+                                            placeholder="https://api.example.com/v1/chat/completions")
+        _entered_url = (backend_opts.get("url") or "").strip()
+        if (_entered_url and
+                any(h in _entered_url for h in ("groq.com", "openai.com", "openai/v1", "openai/v"))
+                and not _entered_url.endswith("/completions")):
+            st.warning("⚠️ This looks like an OpenAI-compatible endpoint — the URL should end with "
+                       "`/chat/completions`. Select the **Groq** or **OpenAI-compatible** preset "
+                       "above to fill it in correctly.")
         backend_opts["body"] = st.text_input("Body template", key="http_body",
                                              help="The token {PROMPT} is replaced with the JSON-encoded prompt.")
         backend_opts["response_path"] = st.text_input("Response path", key="http_response_path",
@@ -252,13 +244,6 @@ with st.sidebar:
                    "simulation. Point it at a staging/test agent, not production data, unless "
                    "you mean it.")
 
-    st.divider()
-    st.markdown(
-        "**How the verdict works**\n\n"
-        "- **BLOCK** — any Critical fails, or a High safety/hallucination fails\n"
-        "- **NEEDS SIGN-OFF** — any other High fails\n"
-        "- **SHIP** — no Critical/High failures"
-    )
 
 _REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
 _REPORTS = {
@@ -534,12 +519,12 @@ def _flow_certify():
         except Exception as exc:
             st.error(f"Could not read the CSV: {exc}")
 
-    tc1, tc2 = st.columns([2, 1])
-    thoroughness = tc1.selectbox("Thoroughness", list(_THOROUGH), index=1, key="certify_level")
+    thoroughness = st.selectbox(
+        "Thoroughness", list(_THOROUGH), index=1, key="certify_level",
+        help="More checks + more runs = a more defensible grade, but more API calls "
+             "(mind free-tier rate limits). Deep draws 80 fresh probes from a 500+ bank, "
+             "so no two Deep runs are identical.")
     _level, _runs, _stress = _THOROUGH[thoroughness]
-    tc2.caption("More checks + more runs = a more defensible grade, but more API calls "
-                "(mind free-tier rate limits). **Deep** draws 80 fresh probes from a 500+ "
-                "bank, so no two Deep runs are identical.")
 
     _aq_caption = _agent_checks_queue_caption()
     if _aq_caption:
@@ -670,24 +655,6 @@ def _flow_certify():
                 except Exception as exc:
                     st.error(f"Could not compare snapshots: {exc}")
 
-    with st.expander("🧭 The full 12-step testing methodology"):
-        st.caption("Not a locked wizard — every step but two is optional or agent-only, every "
-                  "other tab stays directly reachable. Status reflects what you've actually "
-                  "done **this session**.")
-        _applicable = [s for s in _JOURNEY_STEPS if s[5] is not None]
-        _done = sum(1 for s in _applicable if s[5]())
-        st.progress(_done / len(_applicable) if _applicable else 0,
-                   text=f"{_done}/{len(_applicable)} trackable steps done this session")
-        for num, title, optional, why, where, check in _JOURNEY_STEPS:
-            with st.container(border=True):
-                c1, c2 = st.columns([0.06, 0.94])
-                if check is None:
-                    c1.markdown("ℹ️")
-                else:
-                    c1.markdown("✅" if check() else "⚪")
-                c2.markdown(f"**{num}. {title}**" + ("  *(optional)*" if optional else ""))
-                c2.caption(why)
-                c2.caption(f"→ {where}")
 
 
 # ---- Leaderboard (the same battery, several models, one comparison) --------
@@ -815,12 +782,7 @@ def _flow_leaderboard():
 
 # ---- Evaluate · against your ground truth (golden set) ----------------------
 def _flow_golden():
-    st.caption("📋 **Test against your own ground truth** — the most trustworthy run in the "
-              "Studio, judged against truth *you* defined, not a generated guess.")
-    st.caption("💡 **You can also add ground truth directly in 🏅 Certify** — but that pools it "
-              "with the full risk-dimension battery. Use *this* tab when you want a verdict on "
-              "**your rows alone**, with no battery cost/latency added (and an SLA check), "
-              "skipping the generic checks entirely.")
+    st.caption("📋 **Test against your own ground truth** — judged against truth *you* defined, not a generated guess.")
     st.markdown(
         "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
         "`severity` (optional).\n"
@@ -887,8 +849,7 @@ def _flow_golden():
 
 # ---- Behaviours · multi-turn conversation -----------------------------------
 def _flow_multiturn():
-    st.caption("🔁 **Test across a conversation** — catches memory/scope failures a single "
-              "question can't. *(see the glossary in ℹ️ How it works for more)*")
+    st.caption("🔁 **Test across a conversation** — catches memory/scope failures a single question can't.")
     with st.expander("ℹ️ What does this test, and what do PASS/FAIL mean?"):
         st.markdown(
             "Single-turn tests miss what agents get wrong: **memory, context retention, "
@@ -1736,11 +1697,6 @@ def _flow_judge():
         st.caption(f"Judge model: **`{backend}`**. Use a strong model, ideally different from the "
                    "one under test (self-grading is biased).")
 
-    # What the agreement score earns the judge, up front, as a legend.
-    jl1, jl2, jl3 = st.columns(3)
-    jl1.success("**TRUSTWORTHY**  \nHigh agreement — safe to grade with.")
-    jl2.warning("**USE WITH CAUTION**  \nDecent, but check the disagreements.")
-    jl3.error("**DO NOT TRUST**  \nToo far from you — tighten or change judge.")
 
     with st.container(border=True):
         st.markdown("##### 📥 Your labelled examples")
@@ -1782,6 +1738,10 @@ def _flow_judge():
 
         cal = st.session_state.get("calib")
         if cal:
+            jl1, jl2, jl3 = st.columns(3)
+            jl1.success("**TRUSTWORTHY**  \nHigh agreement — safe to grade with.")
+            jl2.warning("**USE WITH CAUTION**  \nDecent, but check the disagreements.")
+            jl3.error("**DO NOT TRUST**  \nToo far from you — tighten or change judge.")
             _lo, _hi = cal.confidence_interval
             jm1, jm2, jm3 = st.columns(3)
             jm1.metric("Agreement with humans", f"{cal.agreement:.0f}%", f"{cal.agree}/{cal.total}")
@@ -1903,10 +1863,6 @@ def _flow_help():
     )
     st.caption("It's a **risk-based assessment at the chosen depth, not an absolute guarantee** — "
                "honest by design. Speed/latency is reported alongside but never changes the grade.")
-
-    st.markdown("#### Risk dimensions covered")
-    st.markdown('<div>' + "".join(f'<span class="chip">{c}</span>' for c in core.categories()) + '</div>',
-                unsafe_allow_html=True)
 
     st.markdown("#### 📖 Glossary — every term on this site, defined")
     _GLOSSARY = {
@@ -2095,9 +2051,6 @@ with tab_certify:
 
 with tab_eval:
     st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
-    st.caption("For the fixed risk-dimension battery + a grade/certificate, use the **🏅 Certify** "
-              "tab (its Quick level runs the identical battery). These modes are for testing a "
-              "specific dimension on its own.")
     eval_mode = st.radio(
         "How do you want to evaluate?",
         ["📋 Against your ground truth — upload input → expected (most trustworthy)",
