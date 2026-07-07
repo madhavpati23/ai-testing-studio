@@ -516,7 +516,18 @@ def _flow_certify(wizard_golden_cases: list | None = None):
         gcases = list(wizard_golden_cases) + _domain_cases
         if gcases:
             st.caption(f"✅ **{len(wizard_golden_cases)}** custom test cases from Step 1 are included.")
+        _custom_only = st.radio(
+            "Test suite mode",
+            ["Add to standard battery", "Run my test cases only"],
+            index=0,
+            key="certify_custom_mode",
+            help="**Add to standard battery** — your cases run alongside the built-in checks (more coverage). "
+                 "**Run my test cases only** — skip the built-in battery and certify on your test suite alone.",
+            horizontal=True,
+        )
     else:
+        _custom_only = "Add to standard battery"
+
         with st.expander("➕ Add your own ground truth (optional)"):
             st.caption("Upload a CSV of `prompt, expected` answers you trust; they're folded into the "
                        "certificate. Leave empty to certify on the standard battery alone.")
@@ -572,11 +583,13 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                 _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
                 st.session_state["certify_badge"] = _cb
                 _t0 = time.time()
+                _skip_bat = (_custom_only == "Run my test cases only") and bool(gcases)
                 st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
                     golden_cases=gcases or None, judge=_cj,
                     level=_level, repeat=_runs, stress_n=_stress,
                     agent_checks=st.session_state.get("certify_agent_checks") or None,
+                    skip_battery=_skip_bat,
                     on_progress=_on_progress)
                 st.session_state["certify_elapsed_s"] = time.time() - _t0
             except Exception as exc:
@@ -2227,10 +2240,15 @@ with tab_wizard:
     elif _wiz_step == 1:
         # Step 2: Test behaviors
         st.subheader("Step 2 — Test specific behaviors")
-        st.caption(
-            "*(optional)* Run targeted checks beyond the standard battery. "
-            "Click **\"Add to certificate\"** on any result to fold it into your final grade."
+        c_msg, c_skip = st.columns([3, 1])
+        c_msg.info(
+            "**Want to test multi-turn memory, RAG grounding, or agent tool use?** Do it here and "
+            "the result folds into your certificate. "
+            "**Not relevant for your AI?** Just skip to the next step."
         )
+        if c_skip.button("Skip this step →", key="wz_skip_1", use_container_width=True):
+            st.session_state["wizard_step"] = 2
+            st.rerun()
         beh_mode = st.radio(
             "Which behaviour?",
             ["🔁 Multi-turn — memory, context & scope across a conversation",
@@ -2251,10 +2269,15 @@ with tab_wizard:
     elif _wiz_step == 2:
         # Step 3: Calibrate judge
         st.subheader("Step 3 — Calibrate your judge")
-        st.caption(
-            "*(optional)* If you plan to grade open-ended quality with an LLM, calibrate it "
-            "against your own human labels first. Skip if you're not using LLM grading."
+        c_msg, c_skip = st.columns([3, 1])
+        c_msg.info(
+            "**Grading open-ended answers with an LLM?** Calibrate it against your own labels "
+            "here so the grade reflects *your* quality bar, not the model's default. "
+            "**Using exact-match or regex checks only?** You don't need this — skip ahead."
         )
+        if c_skip.button("Skip this step →", key="wz_skip_2", use_container_width=True):
+            st.session_state["wizard_step"] = 3
+            st.rerun()
         st.divider()
         _flow_judge()
 
