@@ -8,6 +8,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import time
 from typing import Any
 
 import pandas as pd
@@ -469,7 +470,7 @@ def _flow_feature():
 
 # ---- Evaluate · across risk dimensions (deploy-readiness certification) ------
 # ---- Certify (the common-man front door: one click -> a certificate) --------
-def _flow_certify():
+def _flow_certify(wizard_golden_cases: list | None = None):
     st.subheader("🏅 Certify an AI")
     st.markdown("Run a full evaluation across every risk dimension and get a **shareable "
                 "certificate** — in one click.")
@@ -505,20 +506,25 @@ def _flow_certify():
     else:
         st.caption(f"Certifying **{backend}** — your key stays in your session, never stored.")
 
-    with st.expander("➕ Add your own ground truth (optional)"):
-        st.caption("Upload a CSV of `prompt, expected` answers you trust; they're folded into the "
-                   "certificate. Leave empty to certify on the standard battery alone.")
-        up = st.file_uploader("Golden set CSV", type=["csv"], key="certify_golden")
-    gcases = []
-    if up is not None:
-        try:
-            gcases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
-            if gerr:
-                st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerr))
-            if gcases:
-                st.caption(f"Added **{len(gcases)}** of your own check(s).")
-        except Exception as exc:
-            st.error(f"Could not read the CSV: {exc}")
+    if wizard_golden_cases is not None:
+        gcases = wizard_golden_cases
+        if gcases:
+            st.caption(f"✅ **{len(gcases)}** test cases from Step 1 are included.")
+    else:
+        with st.expander("➕ Add your own ground truth (optional)"):
+            st.caption("Upload a CSV of `prompt, expected` answers you trust; they're folded into the "
+                       "certificate. Leave empty to certify on the standard battery alone.")
+            up = st.file_uploader("Golden set CSV", type=["csv"], key="certify_golden")
+        gcases = []
+        if up is not None:
+            try:
+                gcases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
+                if gerr:
+                    st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerr))
+                if gcases:
+                    st.caption(f"Added **{len(gcases)}** of your own check(s).")
+            except Exception as exc:
+                st.error(f"Could not read the CSV: {exc}")
 
     thoroughness = st.selectbox(
         "Thoroughness", list(_THOROUGH), index=1, key="certify_level",
@@ -537,15 +543,13 @@ def _flow_certify():
             st.session_state["certify_agent_check_sources"] = []
             st.rerun()
     elif _kind in ("claude", "http_agent"):
-        # This backend CAN act on tools — so a clean certificate that never checked tool-use
-        # is a real gap, not a minor caveat. Make that loud rather than a quiet footnote.
+        _beh_ref = "Step 2 — Test behaviors" if wizard_golden_cases is not None else "🔁 Behaviors → Agent actions / Agent loops"
         st.warning("⚠️ **This certificate will not reflect tool-use safety.** `" + backend + "` can "
-                  "act on tools, but no Agent-action/loop checks are queued — go to **🔁 Behaviors "
-                  "→ Agent actions / Agent loops**, run a check, and click *\"Add this result to my "
-                  "certificate\"* first. Otherwise an agent that misuses a real tool can still earn "
-                  "a clean grade here, because nothing below tests that.")
+                  "act on tools, but no Agent-action/loop checks are queued — go to **" + _beh_ref + "**, "
+                  "run a check, and click *\"Add this result to my certificate\"* first.")
     else:
-        st.caption("💡 Run a check in **🔁 Behaviors** (Multi-turn, RAG grounding, Agent actions, "
+        _beh_ref = "Step 2 — Test behaviors" if wizard_golden_cases is not None else "🔁 Behaviors"
+        st.caption(f"💡 Run a check in **{_beh_ref}** (Multi-turn, RAG grounding, Agent actions, "
                   "Agent loops) and click *\"Add this result to my certificate\"* to fold it into "
                   "this grade — otherwise it only reflects the standard battery.")
 
@@ -560,12 +564,14 @@ def _flow_certify():
             try:
                 _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
                 st.session_state["certify_badge"] = _cb
+                _t0 = time.time()
                 st.session_state["certify"] = core.run_full_evaluation(
                     core.make_model(_kind, backend_opts),
                     golden_cases=gcases or None, judge=_cj,
                     level=_level, repeat=_runs, stress_n=_stress,
                     agent_checks=st.session_state.get("certify_agent_checks") or None,
                     on_progress=_on_progress)
+                st.session_state["certify_elapsed_s"] = time.time() - _t0
             except Exception as exc:
                 st.session_state.pop("certify", None)
                 st.error(f"Certification failed against **{backend}**: {exc}")
@@ -575,10 +581,15 @@ def _flow_certify():
     fe = st.session_state.get("certify")
     if fe:
         letter, status = core.certification_grade(fe.pass_rate, fe.verdict)
-        gm1, gm2, gm3 = st.columns(3)
+        _elapsed = st.session_state.get("certify_elapsed_s")
+        gm1, gm2, gm3, gm4 = st.columns(4)
         gm1.metric("Grade", letter)
         gm2.metric("Status", status)
         gm3.metric("Score", f"{fe.pass_rate:.0f}%")
+        if _elapsed:
+            _avg_ms = (_elapsed / fe.total * 1000) if fe.total else 0
+            gm4.metric("Avg latency", f"{_avg_ms:.0f} ms/check",
+                       help=f"Total run time {_elapsed:.1f}s across {fe.total} checks")
         _sv = {"CERTIFIED": "success", "CONDITIONALLY CERTIFIED": "warning", "NOT CERTIFIED": "error"}
         getattr(st, _sv.get(status, "info"))(
             f"**{status} — Grade {letter}** · {fe.passed}/{fe.total} checks passed · "
@@ -2039,51 +2050,145 @@ _JOURNEY_STEPS = [
 
 
 # ============================================================================
+# Wizard helpers
+# ============================================================================
+
+_WIZARD_STEPS = [
+    ("Add test cases",  "optional"),
+    ("Test behaviors",  "optional"),
+    ("Calibrate judge", "optional"),
+    ("Certify",         ""),
+]
+
+
+def _wizard_header(step: int) -> None:
+    cols = st.columns(len(_WIZARD_STEPS))
+    for i, (label, hint) in enumerate(_WIZARD_STEPS):
+        with cols[i]:
+            if i < step:
+                st.markdown(f"✅ **Step {i + 1}**  \n{label}")
+            elif i == step:
+                st.markdown(f"**● Step {i + 1}**  \n**{label}**")
+            else:
+                tag = " *(optional)*" if hint else ""
+                st.markdown(f"○ Step {i + 1}  \n{label}{tag}")
+
+
+def _wizard_nav(step: int) -> None:
+    c1, _, c3 = st.columns([1, 2, 1])
+    if step > 0:
+        if c1.button("← Back", key=f"wz_back_{step}"):
+            st.session_state["wizard_step"] = step - 1
+            st.rerun()
+    if step < 3:
+        lbl = "Continue to Certify →" if step == 2 else "Continue →"
+        if c3.button(lbl, type="primary", key=f"wz_next_{step}"):
+            st.session_state["wizard_step"] = step + 1
+            st.rerun()
+
+
+def _wizard_step_cases() -> None:
+    st.subheader("Step 1 — Add your own test cases")
+    st.info(
+        "**Don't have test cases yet? No problem.** The Studio ships with a built-in battery "
+        "of **22 to 145+ checks** depending on the thoroughness level you choose in Step 4:\n\n"
+        "| Level | Checks | What it covers |\n"
+        "|-------|--------|----------------|\n"
+        "| **Quick** | ~22 | Core safety, hallucination, reasoning |\n"
+        "| **Standard** | ~48 | + sycophancy, bias, red team, format, robustness |\n"
+        "| **Thorough** | ~48 × 3 runs | Same checks repeated — catches flaky answers |\n"
+        "| **Deep** | ~48 + 80 stress + 16 extra | + privacy, long context, multilingual, "
+        "advanced red team (unicode tricks, payload splitting, CoT manipulation) |\n\n"
+        "Upload your own CSV here **only** if you want to add checks specific to *your* use case "
+        "on top of the standard battery — e.g. product-specific facts, domain accuracy, custom refusals."
+    )
+    st.markdown(
+        "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
+        "`severity` (optional).\n"
+        "- `validator` (default **contains**): `contains` · `not_contains` · `regex` · `equals_number`\n"
+        "- `expected` is the substring / regex / number the answer must satisfy."
+    )
+    st.download_button("⬇️ Download CSV template", core.GOLDEN_TEMPLATE,
+                       "golden-set-template.csv", "text/csv", key="wiz_dl_tmpl")
+
+    up = st.file_uploader("Upload your golden-set CSV", type=["csv"], key="wiz_golden_csv")
+    if up is not None:
+        try:
+            gcases, gerrs = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
+            st.session_state["wizard_golden_cases"] = gcases
+            if gerrs:
+                st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerrs))
+            if gcases:
+                st.success(f"✅ **{len(gcases)}** test cases loaded — will be included in your certificate.")
+        except Exception as exc:
+            st.error(f"Could not read the CSV: {exc}")
+    elif st.session_state.get("wizard_golden_cases"):
+        n = len(st.session_state["wizard_golden_cases"])
+        st.success(f"✅ **{n}** test cases queued from a previous upload.")
+        if st.button("Remove test cases", key="wiz_remove_cases"):
+            del st.session_state["wizard_golden_cases"]
+            st.rerun()
+    else:
+        st.caption("No file uploaded — the Studio will certify using its built-in 48-probe battery. That's enough to get started.")
+
+
+# ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_certify, tab_eval, tab_behav, tab_judge, tab_leaderboard,
- tab_audit, tab_help) = st.tabs(
-    ["🏅 Certify", "🎯 Evaluate", "🔁 Behaviors",
-     "⚖️ Judge", "🏆 Leaderboard", "📄 Real test reports", "ℹ️ How it works"]
+(tab_wizard, tab_leaderboard, tab_audit, tab_help) = st.tabs(
+    ["🧪 Certify an AI", "🏆 Leaderboard", "📄 Real test reports", "ℹ️ How it works"]
 )
 
-with tab_certify:
-    _flow_certify()
-
-with tab_eval:
-    st.markdown("**Put an AI under test and get a verdict.** Choose how you want to judge it:")
-    eval_mode = st.radio(
-        "How do you want to evaluate?",
-        ["📋 Against your ground truth — upload input → expected (most trustworthy)",
-         "🧪 From a feature description — generate a draft suite, then run it"],
-        key="eval_mode")
+with tab_wizard:
+    _wiz_step = st.session_state.get("wizard_step", 0)
+    _wizard_header(_wiz_step)
     st.divider()
-    if eval_mode.startswith("📋"):
-        _flow_golden()
-    else:
-        _flow_feature()
 
-with tab_behav:
-    st.markdown("**Specialised checks for agent behaviour** — beyond a single question.")
-    beh_mode = st.radio(
-        "Which behaviour?",
-        ["🔁 Multi-turn — memory, context & scope across a conversation",
-         "📚 RAG grounding — is the answer faithful to a provided source?",
-         "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?",
-         "🔗 Agent loops — does it verify a precondition before acting, across multiple steps?"],
-        key="beh_mode")
+    if _wiz_step == 0:
+        # Step 1: Add test cases
+        _wizard_step_cases()
+
+    elif _wiz_step == 1:
+        # Step 2: Test behaviors
+        st.subheader("Step 2 — Test specific behaviors")
+        st.caption(
+            "*(optional)* Run targeted checks beyond the standard battery. "
+            "Click **\"Add to certificate\"** on any result to fold it into your final grade."
+        )
+        beh_mode = st.radio(
+            "Which behaviour?",
+            ["🔁 Multi-turn — memory, context & scope across a conversation",
+             "📚 RAG grounding — is the answer faithful to a provided source?",
+             "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?",
+             "🔗 Agent loops — does it verify a precondition before acting, across multiple steps?"],
+            key="beh_mode")
+        st.divider()
+        if beh_mode.startswith("🔁"):
+            _flow_multiturn()
+        elif beh_mode.startswith("📚"):
+            _flow_rag()
+        elif beh_mode.startswith("🛠️"):
+            _flow_agent_action()
+        else:
+            _flow_agent_loop()
+
+    elif _wiz_step == 2:
+        # Step 3: Calibrate judge
+        st.subheader("Step 3 — Calibrate your judge")
+        st.caption(
+            "*(optional)* If you plan to grade open-ended quality with an LLM, calibrate it "
+            "against your own human labels first. Skip if you're not using LLM grading."
+        )
+        st.divider()
+        _flow_judge()
+
+    else:
+        # Step 4: Certify
+        _flow_certify(wizard_golden_cases=st.session_state.get("wizard_golden_cases"))
+
     st.divider()
-    if beh_mode.startswith("🔁"):
-        _flow_multiturn()
-    elif beh_mode.startswith("📚"):
-        _flow_rag()
-    elif beh_mode.startswith("🛠️"):
-        _flow_agent_action()
-    else:
-        _flow_agent_loop()
+    _wizard_nav(_wiz_step)
 
-with tab_judge:
-    _flow_judge()
 with tab_leaderboard:
     _flow_leaderboard()
 with tab_audit:
