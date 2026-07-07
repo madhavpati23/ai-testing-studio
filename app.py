@@ -506,23 +506,30 @@ def _flow_certify(wizard_golden_cases: list | None = None):
     else:
         st.caption(f"Certifying **{backend}** — your key stays in your session, never stored.")
 
+    _domain = st.session_state.get("wizard_domain", "general")
+    _domain_cases = core.build_domain_cases(_domain) if _domain != "general" else []
+    if _domain_cases:
+        st.caption(f"✅ **{len(_domain_cases)}** domain checks for "
+                   f"**{core.DOMAIN_LABELS.get(_domain, _domain)}** are included.")
+
     if wizard_golden_cases is not None:
-        gcases = wizard_golden_cases
+        gcases = list(wizard_golden_cases) + _domain_cases
         if gcases:
-            st.caption(f"✅ **{len(gcases)}** test cases from Step 1 are included.")
+            st.caption(f"✅ **{len(wizard_golden_cases)}** custom test cases from Step 1 are included.")
     else:
         with st.expander("➕ Add your own ground truth (optional)"):
             st.caption("Upload a CSV of `prompt, expected` answers you trust; they're folded into the "
                        "certificate. Leave empty to certify on the standard battery alone.")
             up = st.file_uploader("Golden set CSV", type=["csv"], key="certify_golden")
-        gcases = []
+        gcases = list(_domain_cases)
         if up is not None:
             try:
-                gcases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
+                _ucases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
                 if gerr:
                     st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerr))
-                if gcases:
-                    st.caption(f"Added **{len(gcases)}** of your own check(s).")
+                gcases += _ucases
+                if _ucases:
+                    st.caption(f"Added **{len(_ucases)}** of your own check(s).")
             except Exception as exc:
                 st.error(f"Could not read the CSV: {exc}")
 
@@ -612,6 +619,24 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                              help="Save this, then re-certify later (after a prompt/model change) "
                                   "and compare the two snapshots below to see exactly which checks "
                                   "regressed — not just whether the score moved.")
+
+        # Shareable summary link — encodes grade/score/model into URL params so
+        # the recipient sees a read-only summary without needing API access.
+        import urllib.parse as _up
+        _share_params = _up.urlencode({
+            "grade": letter, "score": f"{fe.pass_rate:.0f}",
+            "status": status, "model": fe.model_name,
+            "checks": fe.total, "passed": fe.passed,
+            "level": fe.level,
+        })
+        _share_url = f"https://ai-testing-studio-jsrj4bqyatgfc7jzz8qzgz.streamlit.app/?{_share_params}"
+        st.markdown(
+            f"**🔗 Shareable result link** — paste this in LinkedIn, a PR, or a README:\n\n"
+            f"```\n{_share_url}\n```",
+            help="Anyone opening this link will see a summary card of this result. "
+                 "Your API key is never included."
+        )
+
         st.markdown("**Your certificate**")
         components.html(cert_html, height=560, scrolling=True)
 
@@ -1975,6 +2000,27 @@ def _flow_help():
             for term, definition in terms.items():
                 st.markdown(f"**{term}** — {definition}")
 
+    st.divider()
+    st.markdown("#### About this project")
+    st.markdown(
+        "Built by **Madhav Patibandla** — an AI tester making the career pivot from manual/automation "
+        "testing to AI evaluation.\n\n"
+        "The problem this solves is real: most teams ship AI on vibes. They ask it a few questions, "
+        "it answers well, they ship. Then in production it hallucinates a fact, gets tricked by a "
+        "bad prompt, or gives a confidently wrong answer — not because the AI is bad, but because "
+        "nobody tested it properly.\n\n"
+        "This Studio exists to replace vibes with evidence. It runs a structured battery of checks "
+        "across every risk dimension that matters, grades the result, and issues a certificate — "
+        "one artefact that says: *this AI was tested, here is what passed and what didn't, "
+        "here is the grade.*\n\n"
+        "The **Real test reports** tab shows real runs with this methodology — not mockups. "
+        "Including a full adversarial audit of Claude (92%, one documented defect) run by hand "
+        "before a single line of this tool existed, to prove the methodology works independent "
+        "of the tool.\n\n"
+        "📬 [linkedin.com/in/madhavpatibandla](https://linkedin.com/in/madhavpatibandla) · "
+        "📦 [github.com/madhavpati23/ai-testing-studio](https://github.com/madhavpati23/ai-testing-studio)"
+    )
+
 
 # ---- The 12-step AI/agent testing methodology, tracked live (used inside Certify) ----
 # A checklist, not a locked wizard: every other tab stays fully reachable, and
@@ -2088,20 +2134,52 @@ def _wizard_nav(step: int) -> None:
 
 
 def _wizard_step_cases() -> None:
-    st.subheader("Step 1 — Add your own test cases")
+    st.subheader("Step 1 — Set up your AI under test")
+
+    # ── Domain selector ──────────────────────────────────────────────────────
+    st.markdown("#### What type of AI are you testing?")
+    st.caption("This adds domain-specific checks on top of the standard battery — "
+               "e.g. a medical AI gets tested for safe referral behaviour; a coding assistant "
+               "for hallucinated APIs and malware refusal.")
+    domain = st.radio(
+        "Domain",
+        list(core.DOMAIN_LABELS.keys()),
+        format_func=lambda k: core.DOMAIN_LABELS[k],
+        key="wizard_domain",
+        horizontal=False,
+    )
+    st.session_state["wizard_domain"] = domain
+    if domain != "general":
+        _dcases = core.DOMAIN_CASES.get(domain, [])
+        st.success(f"✅ **{len(_dcases)} domain-specific checks** will be added for "
+                   f"**{core.DOMAIN_LABELS[domain]}** on top of the standard battery.")
+        with st.expander("Preview domain checks"):
+            for c in _dcases:
+                st.markdown(f"- `{c['id']}` ({c['severity']}) — {c['prompt'][:80]}…")
+
+    st.divider()
+
+    # ── Standard battery info ─────────────────────────────────────────────────
+    st.markdown("#### Built-in battery")
     st.info(
-        "**Don't have test cases yet? No problem.** The Studio ships with a built-in battery "
-        "of **22 to 145+ checks** depending on the thoroughness level you choose in Step 4:\n\n"
+        "The Studio ships with **22 to 145+ checks** depending on the thoroughness level "
+        "you choose in Step 4:\n\n"
         "| Level | Checks | What it covers |\n"
         "|-------|--------|----------------|\n"
         "| **Quick** | ~22 | Core safety, hallucination, reasoning |\n"
         "| **Standard** | ~48 | + sycophancy, bias, red team, format, robustness |\n"
         "| **Thorough** | ~48 × 3 runs | Same checks repeated — catches flaky answers |\n"
         "| **Deep** | ~48 + 80 stress + 16 extra | + privacy, long context, multilingual, "
-        "advanced red team (unicode tricks, payload splitting, CoT manipulation) |\n\n"
-        "Upload your own CSV here **only** if you want to add checks specific to *your* use case "
-        "on top of the standard battery — e.g. product-specific facts, domain accuracy, custom refusals."
+        "advanced red team (unicode tricks, payload splitting, CoT manipulation) |"
     )
+
+    st.divider()
+
+    # ── Custom ground truth ───────────────────────────────────────────────────
+    st.markdown("#### Add your own test cases *(optional)*")
+    st.caption("Upload a CSV of `prompt, expected` pairs specific to your use case — "
+               "product facts, custom refusals, domain accuracy. These fold into the certificate "
+               "alongside the standard battery.")
     st.markdown(
         "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
         "`severity` (optional).\n"
@@ -2119,17 +2197,17 @@ def _wizard_step_cases() -> None:
             if gerrs:
                 st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerrs))
             if gcases:
-                st.success(f"✅ **{len(gcases)}** test cases loaded — will be included in your certificate.")
+                st.success(f"✅ **{len(gcases)}** custom test cases loaded.")
         except Exception as exc:
             st.error(f"Could not read the CSV: {exc}")
     elif st.session_state.get("wizard_golden_cases"):
         n = len(st.session_state["wizard_golden_cases"])
-        st.success(f"✅ **{n}** test cases queued from a previous upload.")
+        st.success(f"✅ **{n}** custom test cases queued from a previous upload.")
         if st.button("Remove test cases", key="wiz_remove_cases"):
             del st.session_state["wizard_golden_cases"]
             st.rerun()
     else:
-        st.caption("No file uploaded — the Studio will certify using its built-in 48-probe battery. That's enough to get started.")
+        st.caption("No file — the built-in battery is enough to get started.")
 
 
 # ============================================================================
