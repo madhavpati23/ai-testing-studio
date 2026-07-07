@@ -2148,7 +2148,6 @@ def _wizard_step_cases() -> None:
         key="wizard_domain",
         horizontal=False,
     )
-    st.session_state["wizard_domain"] = domain
     if domain != "general":
         _dcases = core.DOMAIN_CASES.get(domain, [])
         st.success(f"✅ **{len(_dcases)} domain-specific checks** will be added for "
