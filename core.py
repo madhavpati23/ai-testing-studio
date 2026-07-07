@@ -2009,6 +2009,74 @@ def build_golden(text: str) -> tuple[list, list[str]]:
     return validated.cases, parse_errors + list(validated.errors)
 
 
+def build_golden_from_file(content: bytes, filename: str) -> tuple[list, list[str]]:
+    """Parse Excel, PDF, or CSV bytes into golden cases.
+
+    Accepts .csv / .xlsx / .xls / .pdf. All formats must produce the same
+    column layout as the CSV template (prompt, expected required; validator,
+    category, severity optional). PDF files are expected to contain a table
+    with those columns; plain-text PDFs produce prompt-only rows (no expected).
+    """
+    ext = filename.rsplit(".", 1)[-1].lower()
+
+    if ext in ("xlsx", "xls"):
+        import io
+        import pandas as pd
+        try:
+            df = pd.read_excel(io.BytesIO(content), dtype=str).fillna("")
+            df.columns = [c.strip().lower() for c in df.columns]
+            csv_text = df.to_csv(index=False)
+            return build_golden(csv_text)
+        except Exception as exc:
+            return [], [f"Could not read Excel file: {exc}"]
+
+    if ext == "pdf":
+        try:
+            import io as _io
+            from pypdf import PdfReader
+            reader = PdfReader(_io.BytesIO(content))
+            lines = []
+            for page in reader.pages:
+                page_text = page.extract_text() or ""
+                lines.extend(page_text.splitlines())
+            # Try to detect CSV-like structure (tab or comma separated with header)
+            candidate = "\n".join(l for l in lines if l.strip())
+            # If first line looks like a header with 'prompt', treat as CSV
+            first = candidate.split("\n")[0].lower() if candidate else ""
+            if "prompt" in first:
+                return build_golden(candidate)
+            # Otherwise treat each non-empty line as a prompt with no expected
+            import csv as _csv
+            rows = []
+            errors: list[str] = []
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if not line:
+                    continue
+                rows.append({"id": f"pdf-row-{i}", "prompt": line,
+                             "validator": "contains", "args": {"value": ""},
+                             "category": "custom", "severity": "medium"})
+            if not rows:
+                return [], ["No text could be extracted from the PDF."]
+            errors.append(
+                "PDF parsed as plain text — no 'expected' column found. "
+                "Each line becomes a prompt with no pass/fail rule. "
+                "For full test cases, use CSV or Excel with prompt + expected columns."
+            )
+            validated = validate_all(rows)
+            return validated.cases, errors + list(validated.errors)
+        except ImportError:
+            return [], ["pypdf is not installed — PDF support unavailable."]
+        except Exception as exc:
+            return [], [f"Could not read PDF: {exc}"]
+
+    # Default: treat as CSV
+    try:
+        return build_golden(content.decode("utf-8", errors="replace"))
+    except Exception as exc:
+        return [], [f"Could not read file: {exc}"]
+
+
 # ---- LLM-as-judge (backend-agnostic) + calibration -------------------------
 
 _JUDGE_SYSTEM = (

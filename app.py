@@ -520,18 +520,18 @@ def _flow_certify(wizard_golden_cases: list | None = None):
         with st.expander("➕ Add your own ground truth (optional)"):
             st.caption("Upload a CSV of `prompt, expected` answers you trust; they're folded into the "
                        "certificate. Leave empty to certify on the standard battery alone.")
-            up = st.file_uploader("Golden set CSV", type=["csv"], key="certify_golden")
+            up = st.file_uploader("Golden set (CSV, Excel, or PDF)", type=["csv", "xlsx", "xls", "pdf"], key="certify_golden")
         gcases = list(_domain_cases)
         if up is not None:
             try:
-                _ucases, gerr = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
+                _ucases, gerr = core.build_golden_from_file(up.getvalue(), up.name)
                 if gerr:
-                    st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerr))
+                    st.warning("Notes:\n\n- " + "\n- ".join(gerr))
                 gcases += _ucases
                 if _ucases:
                     st.caption(f"Added **{len(_ucases)}** of your own check(s).")
             except Exception as exc:
-                st.error(f"Could not read the CSV: {exc}")
+                st.error(f"Could not read file: {exc}")
 
     thoroughness = st.selectbox(
         "Thoroughness", list(_THOROUGH), index=1, key="certify_level",
@@ -830,14 +830,13 @@ def _flow_golden():
     st.download_button("⬇️ Download a CSV template", core.GOLDEN_TEMPLATE,
                        "golden-set-template.csv", "text/csv")
 
-    up = st.file_uploader("Upload your golden-set CSV", type=["csv"], key="golden_csv")
+    up = st.file_uploader("Upload your golden-set file (CSV, Excel, or PDF)", type=["csv", "xlsx", "xls", "pdf"], key="golden_csv")
     gcases, gerrors = [], []
     if up is not None:
         try:
-            _text = up.getvalue().decode("utf-8", errors="replace")
-            gcases, gerrors = core.build_golden(_text)
+            gcases, gerrors = core.build_golden_from_file(up.getvalue(), up.name)
         except Exception as exc:
-            st.error(f"Could not read the CSV: {exc}")
+            st.error(f"Could not read file: {exc}")
     if gerrors:
         st.warning("Skipped some rows:\n\n- " + "\n- ".join(gerrors))
     if gcases:
@@ -2188,17 +2187,17 @@ def _wizard_step_cases() -> None:
     st.download_button("⬇️ Download CSV template", core.GOLDEN_TEMPLATE,
                        "golden-set-template.csv", "text/csv", key="wiz_dl_tmpl")
 
-    up = st.file_uploader("Upload your golden-set CSV", type=["csv"], key="wiz_golden_csv")
+    up = st.file_uploader("Upload your test cases (CSV, Excel, or PDF)", type=["csv", "xlsx", "xls", "pdf"], key="wiz_golden_csv")
     if up is not None:
         try:
-            gcases, gerrs = core.build_golden(up.getvalue().decode("utf-8", errors="replace"))
+            gcases, gerrs = core.build_golden_from_file(up.getvalue(), up.name)
             st.session_state["wizard_golden_cases"] = gcases
             if gerrs:
-                st.warning("Some rows skipped:\n\n- " + "\n- ".join(gerrs))
+                st.warning("Notes:\n\n- " + "\n- ".join(gerrs))
             if gcases:
                 st.success(f"✅ **{len(gcases)}** custom test cases loaded.")
         except Exception as exc:
-            st.error(f"Could not read the CSV: {exc}")
+            st.error(f"Could not read file: {exc}")
     elif st.session_state.get("wizard_golden_cases"):
         n = len(st.session_state["wizard_golden_cases"])
         st.success(f"✅ **{n}** custom test cases queued from a previous upload.")
