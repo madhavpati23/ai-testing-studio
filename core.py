@@ -1267,11 +1267,13 @@ def run_full_evaluation(model, golden_cases: list | None = None,
         if r.passed:
             bucket[0] += 1
             passed += 1
+    _any_section = next((s for _, s in sections if hasattr(s, "model_name")), None)
+    _model_name = _any_section.model_name if _any_section else str(model)
     return FullEvalResult(
         sections=sections,
         by_category={k: (v[0], v[1]) for k, v in by_cat.items()},
         verdict=decide(pooled).decision,
-        passed=passed, total=len(pooled), model_name=cert.model_name,
+        passed=passed, total=len(pooled), model_name=_model_name,
         level=level, runs=repeat, agent_checks=agent_checks)
 
 
