@@ -1750,18 +1750,27 @@ def _flow_judge():
     with st.container(border=True):
         st.markdown("##### 📥 Your labelled examples")
         st.markdown(
-            "**CSV columns:** `criterion`, `answer`, `human_pass` (true/false) — your human "
-            "judgement of whether each answer satisfies the criterion."
+            "**Columns:** `criterion`, `answer`, `human_pass` (true/false) — your human "
+            "judgement of whether each answer satisfies the criterion. CSV or Excel accepted."
         )
         st.download_button("⬇️ Download a calibration template", core.CALIBRATION_TEMPLATE,
                            "judge-calibration-template.csv", "text/csv")
-        cup = st.file_uploader("Upload your labelled calibration CSV", type=["csv"], key="calib_csv")
+        cup = st.file_uploader("Upload your labelled calibration CSV", type=["csv", "xlsx", "xls"], key="calib_csv")
     crows, cerrors = [], []
     if cup is not None:
         try:
-            crows, cerrors = core.parse_calibration_csv(cup.getvalue().decode("utf-8", errors="replace"))
+            _ext = cup.name.rsplit(".", 1)[-1].lower()
+            if _ext in ("xlsx", "xls"):
+                import io as _io
+                import pandas as _pd
+                _df = _pd.read_excel(_io.BytesIO(cup.getvalue()), dtype=str).fillna("")
+                _df.columns = [c.strip().lower() for c in _df.columns]
+                _csv_text = _df.to_csv(index=False)
+            else:
+                _csv_text = cup.getvalue().decode("utf-8", errors="replace")
+            crows, cerrors = core.parse_calibration_csv(_csv_text)
         except Exception as exc:
-            st.error(f"Could not read the CSV: {exc}")
+            st.error(f"Could not read the file: {exc}")
     if cerrors:
         st.warning("Skipped some rows:\n\n- " + "\n- ".join(cerrors))
     if crows:
