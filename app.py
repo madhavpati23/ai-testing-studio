@@ -8,6 +8,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -161,7 +162,7 @@ with st.sidebar:
                    "Re-run against the new backend.")
     st.session_state["_last_backend"] = backend
 
-    backend_opts: dict[str, str | bool] = {}
+    backend_opts: dict[str, Any] = {}
     if backend != "Demo bot (offline)":
         st.caption("🔑 **Bring your own key.** It's kept only in *your* browser session and sent "
                    "directly to the provider per request — never written to the server's "
@@ -179,7 +180,7 @@ with st.sidebar:
             st.session_state.setdefault(_k, _d)
 
         def _apply_http_preset():
-            p = _HTTP_PRESETS.get(st.session_state.get("http_preset"))
+            p = _HTTP_PRESETS.get(st.session_state.get("http_preset") or "")
             if p:
                 st.session_state["http_url"] = p["url"]
                 st.session_state["http_body"] = p["body"]
@@ -699,7 +700,7 @@ def _flow_leaderboard():
                     st.session_state.setdefault(_k, _d)
 
                 def _apply_lb_preset(i=i):
-                    p = _HTTP_PRESETS.get(st.session_state.get(f"lb_preset_{i}"))
+                    p = _HTTP_PRESETS.get(st.session_state.get(f"lb_preset_{i}") or "")
                     if p:
                         st.session_state[f"lb_url_{i}"] = p["url"]
                         st.session_state[f"lb_body_{i}"] = p["body"]
