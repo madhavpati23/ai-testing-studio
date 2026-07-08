@@ -16,7 +16,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import core
-import analytics
 
 # Keys are session-scoped (built per request via core.make_model, never written
 # to the process env), so a shared instance can offer bring-your-own-key safely.
@@ -123,11 +122,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# ---- analytics: fire session_start once per browser session ---------------
-if not st.session_state.get("_analytics_session_fired"):
-    analytics.event("session_start", {"backend": "Demo bot (offline)"})
-    st.session_state["_analytics_session_fired"] = True
 
 # ---- form state (shared across tabs) --------------------------------------
 for _key, _default in {"feature_input": "", "aitype_input": "(none)",
@@ -598,20 +592,6 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                     skip_battery=_skip_bat,
                     on_progress=_on_progress)
                 st.session_state["certify_elapsed_s"] = time.time() - _t0
-                _fe = st.session_state.get("certify")
-                if _fe:
-                    analytics.event("certify_run", {
-                        "backend": backend,
-                        "level": _level,
-                        "verdict": _fe.verdict,
-                        "pass_rate": round(_fe.pass_rate, 1),
-                        "total_checks": _fe.total,
-                        "custom_cases": len(gcases or []),
-                        "skip_battery": _skip_bat,
-                        "domain": st.session_state.get("wizard_domain", "general"),
-                        "ai_type": st.session_state.get("wizard_ai_state", "chatbot"),
-                        "elapsed_s": round(time.time() - _t0, 1),
-                    })
             except Exception as exc:
                 st.session_state.pop("certify", None)
                 st.error(f"Certification failed against **{backend}**: {exc}")
@@ -2047,7 +2027,6 @@ def _flow_stateful_session():
                     isolation_forbidden=iso_forbidden,
                     model=_model,
                 )
-                analytics.event("behavior_test_run", {"behavior": "stateful_session"})
             except Exception as exc:
                 st.session_state.pop("stateful_run", None)
                 st.error(f"Stateful session test failed: {exc}")
@@ -2508,12 +2487,6 @@ def _wizard_nav(step: int) -> None:
     if step < 3:
         lbl = "Continue to Certify →" if step == 2 else "Continue →"
         if c3.button(lbl, type="primary", key=f"wz_next_{step}"):
-            analytics.event("wizard_step_complete", {
-                "step": step,
-                "ai_type": st.session_state.get("wizard_ai_state", "chatbot"),
-                "domain": st.session_state.get("wizard_domain", "general"),
-                "custom_cases": len(st.session_state.get("wizard_golden_cases") or []),
-            })
             st.session_state["wizard_step"] = step + 1
             st.rerun()
 
