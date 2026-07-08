@@ -2514,69 +2514,64 @@ _AI_TYPES = {
 
 
 def _wizard_step_cases() -> None:
-    st.subheader("Step 1 — Set up your AI under test")
+    st.subheader("Step 1 — Tell us about your AI")
+    st.caption("Two questions. Your answers shape the entire test suite — which checks run and which Step 2 behaviors are recommended.")
 
-    # ── AI type selector ──────────────────────────────────────────────────────
-    st.markdown("#### What type of AI are you testing?")
-    st.caption("This tells the Studio which tests to recommend and which gaps the standard battery won't cover.")
-    ai_type_label = st.radio(
-        "AI type",
-        list(_AI_TYPES.keys()),
-        key="wizard_ai_type",
-        horizontal=False,
-    )
-    _ai_cfg = _AI_TYPES[ai_type_label]
-    st.session_state["wizard_ai_state"] = _ai_cfg["key"]   # keep backward compat
-    st.info(f"**{ai_type_label}** — {_ai_cfg['desc']}\n\n💡 {_ai_cfg['tip']}")
+    # ── Unified AI setup card ─────────────────────────────────────────────────
+    with st.container(border=True):
+        col_type, col_domain = st.columns(2)
 
-    st.divider()
+        with col_type:
+            st.markdown("**What kind of AI is it?**")
+            ai_type_label = st.radio(
+                "AI kind",
+                list(_AI_TYPES.keys()),
+                key="wizard_ai_type",
+                label_visibility="collapsed",
+            )
 
-    # ── Bridge explanation ────────────────────────────────────────────────────
-    st.info(
-        "**These two selectors work together, not instead of each other.**\n\n"
-        "- **AI type** (above) → controls *how* we test: which Step 2 behavior checks are "
-        "recommended (tool hallucination for agents, stateful session for assistants, etc.)\n"
-        "- **Domain** (below) → controls *what* we test: adds domain-specific prompts on top "
-        "of the standard battery (a medical agent gets drug interaction checks; a coding agent "
-        "gets malware and hallucinated-API checks).\n\n"
-        "Pick both to get the most meaningful certificate."
-    )
+        with col_domain:
+            st.markdown("**What domain is it in?**")
+            domain = st.radio(
+                "Domain",
+                list(core.DOMAIN_LABELS.keys()),
+                format_func=lambda k: core.DOMAIN_LABELS[k],
+                key="wizard_domain",
+                label_visibility="collapsed",
+            )
 
-    # ── Domain selector ──────────────────────────────────────────────────────
-    st.markdown("#### What domain is your AI in?")
-    st.caption("This adds domain-specific checks on top of the standard battery — "
-               "e.g. a medical AI gets tested for safe referral behaviour; a coding assistant "
-               "for hallucinated APIs and malware refusal.")
-    domain = st.radio(
-        "Domain",
-        list(core.DOMAIN_LABELS.keys()),
-        format_func=lambda k: core.DOMAIN_LABELS[k],
-        key="wizard_domain",
-        horizontal=False,
-    )
-    if domain != "general":
-        _dcases = core.DOMAIN_CASES.get(domain, [])
-        st.success(f"✅ **{len(_dcases)} domain-specific checks** will be added for "
-                   f"**{core.DOMAIN_LABELS[domain]}** on top of the standard battery.")
-        with st.expander("Preview domain checks"):
-            for c in _dcases:
-                st.markdown(f"- `{c['id']}` ({c['severity']}) — {c['prompt'][:80]}…")
+        _ai_cfg = _AI_TYPES[ai_type_label]
+        st.session_state["wizard_ai_state"] = _ai_cfg["key"]
 
-    st.divider()
+        # ── Live summary ──────────────────────────────────────────────────────
+        st.divider()
+        _domain_label = core.DOMAIN_LABELS.get(domain, domain)
+        _domain_n = len(core.DOMAIN_CASES.get(domain, []))
+        _step2_options = {
+            "chatbot":  "Multi-turn, RAG grounding",
+            "stateful": "Stateful session (carry + isolation)",
+            "agent":    "Tool hallucination, Human-in-the-loop, Parallel tools, Memory persistence",
+        }
+        _step2_rec = _step2_options.get(_ai_cfg["key"], "")
+        _standard_n = 48  # standard level
 
-    # ── Standard battery info ─────────────────────────────────────────────────
-    st.markdown("#### Built-in battery")
-    st.info(
-        "The Studio ships with **22 to 145+ checks** depending on the thoroughness level "
-        "you choose in Step 4:\n\n"
-        "| Level | Checks | What it covers |\n"
-        "|-------|--------|----------------|\n"
-        "| **Quick** | ~22 | Core safety, hallucination, reasoning |\n"
-        "| **Standard** | ~48 | + sycophancy, bias, red team, format, robustness |\n"
-        "| **Thorough** | ~48 × 3 runs | Same checks repeated — catches flaky answers |\n"
-        "| **Deep** | ~48 + 80 stress + 16 extra | + privacy, long context, multilingual, "
-        "advanced red team (unicode tricks, payload splitting, CoT manipulation) |"
-    )
+        sc1, sc2, sc3 = st.columns(3)
+        sc1.metric("Standard checks", _standard_n)
+        sc2.metric("Domain checks added", _domain_n if domain != "general" else 0,
+                   help=f"{_domain_label} domain checks" if domain != "general" else "Select a domain to add checks")
+        sc3.metric("Total checks", _standard_n + (_domain_n if domain != "general" else 0))
+
+        st.info(
+            f"**Your setup:** {ai_type_label} · {_domain_label}\n\n"
+            f"**Step 2 will recommend:** {_step2_rec}\n\n"
+            f"**Domain checks:** {'none — standard battery only' if domain == 'general' else f'{_domain_n} {_domain_label}-specific checks added'}"
+        )
+
+        if domain != "general":
+            with st.expander(f"Preview {_domain_n} {_domain_label} checks"):
+                for c in core.DOMAIN_CASES.get(domain, []):
+                    sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(c["severity"], "⚪")
+                    st.markdown(f"{sev_icon} {c['prompt'][:90]}{'…' if len(c['prompt']) > 90 else ''}")
 
     st.divider()
 
