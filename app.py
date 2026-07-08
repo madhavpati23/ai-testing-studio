@@ -2531,6 +2531,17 @@ def _wizard_step_cases() -> None:
 
     st.divider()
 
+    # ── Bridge explanation ────────────────────────────────────────────────────
+    st.info(
+        "**These two selectors work together, not instead of each other.**\n\n"
+        "- **AI type** (above) → controls *how* we test: which Step 2 behavior checks are "
+        "recommended (tool hallucination for agents, stateful session for assistants, etc.)\n"
+        "- **Domain** (below) → controls *what* we test: adds domain-specific prompts on top "
+        "of the standard battery (a medical agent gets drug interaction checks; a coding agent "
+        "gets malware and hallucinated-API checks).\n\n"
+        "Pick both to get the most meaningful certificate."
+    )
+
     # ── Domain selector ──────────────────────────────────────────────────────
     st.markdown("#### What domain is your AI in?")
     st.caption("This adds domain-specific checks on top of the standard battery — "
