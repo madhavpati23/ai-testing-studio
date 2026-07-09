@@ -691,6 +691,22 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                 _rows["passed"].append(f"{p}/{t}")
                 _rows["result"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
             st.table(_rows)
+            # Collect all individual results across sections
+            _all_results = []
+            for _name, _run in fe.sections:
+                for _r in _run.results:
+                    _all_results.append({
+                        "✓": "✅" if _r.passed else "❌",
+                        "id": _r.case.id,
+                        "category": _r.case.category,
+                        "severity": _r.case.severity,
+                        "prompt": _r.case.prompt[:80] + ("…" if len(_r.case.prompt) > 80 else ""),
+                        "response": (_r.answer or "")[:120],
+                    })
+            if _all_results:
+                _show_passed = st.checkbox("Show passed checks too", value=False, key="show_passed_checks")
+                _display = _all_results if _show_passed else [r for r in _all_results if r["✓"] == "❌"]
+                st.dataframe(pd.DataFrame(_display), hide_index=True, use_container_width=True)
             for _name, _run in fe.sections:
                 st.markdown(f"**{_name}** — {_run.summary.passed}/{_run.summary.total} · {_run.verdict}")
                 components.html(_run.html, height=360, scrolling=True)
