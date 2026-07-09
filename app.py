@@ -93,7 +93,7 @@ _HTTP_PRESETS = {
         "url": "https://gandalf.lakera.ai/api/send-message",
         "body": '{"defender": "baseline", "prompt": {PROMPT}}',
         "response_path": "answer",
-        "headers": "{}",
+        "headers": '{"Content-Type": "application/json"}',
     },
     "Groq (free, OpenAI-compatible)": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
@@ -207,6 +207,7 @@ with st.sidebar:
             _gl = st.selectbox("Gandalf difficulty level", list(_gandalf_levels), key="gandalf_level")
             _gd = _gandalf_levels[_gl]
             st.session_state["http_body"] = f'{{"defender": "{_gd}", "prompt": {{PROMPT}}}}'
+            st.session_state["http_headers"] = '{"Content-Type": "application/json"}'
             backend_opts["body"] = st.session_state["http_body"]
             st.info("**What this tests:** Gandalf is a red-team challenge where the AI guards a "
                     "secret password. The studio will probe it with prompt injection, jailbreaks, "
