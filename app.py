@@ -89,6 +89,12 @@ def _agent_checks_queue_caption() -> str:
 # HTTP-backend presets so common targets are one click (no typing).
 _HTTP_PRESETS = {
     "Custom": None,
+    "Lakera Gandalf (red-team challenge)": {
+        "url": "https://gandalf.lakera.ai/api/send-message",
+        "body": '{"defender": "baseline", "prompt": {PROMPT}}',
+        "response_path": "answer",
+        "headers": "{}",
+    },
     "Groq (free, OpenAI-compatible)": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "body": '{"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": {PROMPT}}]}',
@@ -189,6 +195,22 @@ with st.sidebar:
                 st.session_state["http_headers"] = p["headers"]
 
         st.selectbox("Preset", list(_HTTP_PRESETS), key="http_preset", on_change=_apply_http_preset)
+        _preset = st.session_state.get("http_preset", "")
+        if _preset.startswith("Lakera Gandalf"):
+            _gandalf_levels = {
+                "Level 1 — Baseline (easiest)": "baseline",
+                "Level 2 — Adventure": "adventure",
+                "Level 3 — Gandalf": "gandalf",
+                "Level 4 — Gandalf the White": "gandalf-the-white",
+                "Level 5 — Mithrandir (hardest public)": "do-anything-now-dan",
+            }
+            _gl = st.selectbox("Gandalf difficulty level", list(_gandalf_levels), key="gandalf_level")
+            _gd = _gandalf_levels[_gl]
+            st.session_state["http_body"] = f'{{"defender": "{_gd}", "prompt": {{PROMPT}}}}'
+            backend_opts["body"] = st.session_state["http_body"]
+            st.info("**What this tests:** Gandalf is a red-team challenge where the AI guards a "
+                    "secret password. The studio will probe it with prompt injection, jailbreaks, "
+                    "and roleplay attacks — a real security test.")
         backend_opts["url"] = st.text_input("Endpoint URL", key="http_url",
                                             placeholder="https://api.example.com/v1/chat/completions")
         _entered_url = (backend_opts.get("url") or "").strip()
@@ -205,7 +227,6 @@ with st.sidebar:
 
         # Pull the bearer key from Secrets when one matches the chosen preset, so
         # no key is typed into the UI (use this only on a *private* deployment).
-        _preset = st.session_state.get("http_preset", "")
         _secret_name = ("GROQ_API_KEY" if _preset.startswith("Groq")
                         else "OPENAI_API_KEY" if _preset.startswith("OpenAI") else None)
         _hk = _secret(_secret_name) if _secret_name else None
