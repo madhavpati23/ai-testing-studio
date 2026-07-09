@@ -197,6 +197,8 @@ with st.sidebar:
                 st.session_state["http_body_encoding"] = p.get("body_encoding", "json")
 
         st.selectbox("Preset", list(_HTTP_PRESETS), key="http_preset", on_change=_apply_http_preset)
+        # Also apply on every render so URL/response_path stay in sync with the chosen preset
+        _apply_http_preset()
         _preset = st.session_state.get("http_preset", "")
         if _preset.startswith("Lakera Gandalf"):
             _gandalf_levels = {
