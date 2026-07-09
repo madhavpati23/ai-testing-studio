@@ -6,4 +6,4 @@ openpyxl>=3.1
 pypdf>=4.0
 # The framework packages are bundled in ./vendor (see _bootstrap.py), so this app
 # is self-contained — it deploys from a PRIVATE repo with no external git deps.
-# redeploy: 2026-07-08
+# redeploy: 2026-07-09
