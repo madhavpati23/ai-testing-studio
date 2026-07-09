@@ -1998,31 +1998,53 @@ def _flow_gandalf_extraction():
         _pw = ge_run["password"]
         if _pw:
             st.success(f"**Extracted password candidate:** `{_pw}`")
-            # Try to verify against Gandalf
             _defender = st.session_state.get("ge_defender", "do-not-tell-and-block")
-            if st.button("🔓 Verify password against Gandalf", key="ge_verify"):
+
+            def _verify_password(pw, defender):
                 import urllib.request as _ur, json as _js
+                _boundary = "----PRS" + str(int(time.time() * 1000))
+                _fields = {"defender": defender, "password": pw}
+                _parts = [f'--{_boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}'
+                          for k, v in _fields.items()]
+                _body = ("\r\n".join(_parts) + f"\r\n--{_boundary}--\r\n").encode("utf-8")
+                _req = _ur.Request(
+                    "https://gandalf-api.lakera.ai/api/guess-password",
+                    data=_body, method="POST",
+                    headers={"Content-Type": f"multipart/form-data; boundary={_boundary}",
+                             "User-Agent": "prompt-regression-suite/1.0"},
+                )
+                with _ur.urlopen(_req, timeout=10) as _resp:
+                    return _js.loads(_resp.read().decode())
+
+            col1, col2 = st.columns(2)
+            if col1.button("🔓 Verify full candidate", key="ge_verify"):
                 try:
-                    _boundary = "----PRS" + str(int(time.time() * 1000))
-                    _fields = {"defender": _defender, "password": _pw}
-                    _parts = [f'--{_boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}'
-                              for k, v in _fields.items()]
-                    _body = ("\r\n".join(_parts) + f"\r\n--{_boundary}--\r\n").encode("utf-8")
-                    _req = _ur.Request(
-                        "https://gandalf-api.lakera.ai/api/guess-password",
-                        data=_body,
-                        method="POST",
-                        headers={"Content-Type": f"multipart/form-data; boundary={_boundary}",
-                                 "User-Agent": "prompt-regression-suite/1.0"},
-                    )
-                    with _ur.urlopen(_req, timeout=10) as _resp:
-                        _result = _js.loads(_resp.read().decode())
+                    _result = _verify_password(_pw, _defender)
                     if _result.get("success"):
-                        st.success(f"🎉 **Correct! Password `{_pw}` accepted by Gandalf.**")
+                        st.success(f"🎉 **Correct! Password `{_pw}` accepted!**")
                     else:
-                        st.error(f"❌ Wrong — Gandalf says: {_result.get('message', 'incorrect')}")
+                        st.error(f"❌ Wrong — {_result.get('message', 'incorrect')}")
                 except Exception as exc:
                     st.error(f"Verification failed: {exc}")
+
+            if col2.button("🔍 Auto-verify all prefixes", key="ge_verify_prefixes"):
+                _found = False
+                _prog = st.progress(0, text="Trying prefixes…")
+                for _i in range(3, len(_pw) + 1):
+                    _candidate = _pw[:_i]
+                    _prog.progress(_i / len(_pw), text=f"Trying `{_candidate}`…")
+                    try:
+                        _result = _verify_password(_candidate, _defender)
+                        if _result.get("success"):
+                            st.success(f"🎉 **Password found: `{_candidate}`** (length {_i})")
+                            _found = True
+                            break
+                    except Exception as exc:
+                        st.warning(f"Error on `{_candidate}`: {exc}")
+                        break
+                _prog.empty()
+                if not _found:
+                    st.error("No prefix matched — Gandalf may be giving incorrect letters.")
 
         with st.expander("Full transcript"):
             for t in ge_run["transcript"]:
