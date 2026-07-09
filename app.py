@@ -2656,9 +2656,6 @@ with tab_wizard:
         st.subheader("Step 2 — Test specific behaviors")
         c_msg, c_skip = st.columns([3, 1])
         _ai_state = st.session_state.get("wizard_ai_state", "chatbot")
-        _ai_type_label = next((k for k, v in _AI_TYPES.items() if v["key"] == _ai_state), list(_AI_TYPES.keys())[0])
-        _ai_cfg = _AI_TYPES[_ai_type_label]
-
         if _ai_state == "agent":
             c_msg.info(
                 "Your AI is an **Agent** — the 4 agent-specific checks below are highly recommended. "
@@ -2682,6 +2679,10 @@ with tab_wizard:
             st.session_state["wizard_step"] = 2
             st.rerun()
 
+        _kind = _BACKEND_KIND[backend]
+        _is_http = _kind in ("http", "http_agent")
+        _TOOL_NATIVE = {"🔮", "🙋", "⚡", "🧠"}  # require native tool-use, blocked for HTTP
+
         _beh_options = [
             "🔁 Multi-turn — memory, context & scope across a conversation",
             "📚 RAG grounding — is the answer faithful to a provided source?",
@@ -2693,32 +2694,37 @@ with tab_wizard:
             "⚡ Parallel tool calls — does the agent fire all needed tools in one turn?",
             "🧠 Memory persistence — does the agent recall stored info and keep sessions isolated?",
         ]
-        _beh_default = _ai_cfg.get("step2_default", 0)
-        beh_mode = st.radio(
-            "Which behaviour?",
-            _beh_options,
-            index=_beh_default,
-            key="beh_mode")
+        st.markdown("**Which behaviours?** *(select one or more)*")
+        _selected_behs = []
+        for _opt in _beh_options:
+            _emoji = _opt[0]
+            _blocked = _is_http and _emoji in _TOOL_NATIVE
+            _label = _opt + " *(needs Claude/native tool-use backend)*" if _blocked else _opt
+            _checked = st.checkbox(_label, key=f"beh_{_emoji}", disabled=_blocked)
+            if _checked and not _blocked:
+                _selected_behs.append(_opt)
+
         st.divider()
-        beh_mode_str = beh_mode or ""
-        if beh_mode_str.startswith("🔁"):
-            _flow_multiturn()
-        elif beh_mode_str.startswith("📚"):
-            _flow_rag()
-        elif beh_mode_str.startswith("🛠️"):
-            _flow_agent_action()
-        elif beh_mode_str.startswith("🔗"):
-            _flow_agent_loop()
-        elif beh_mode_str.startswith("🔄"):
-            _flow_stateful_session()
-        elif beh_mode_str.startswith("🔮"):
-            _flow_tool_hallucination()
-        elif beh_mode_str.startswith("🙋"):
-            _flow_hitl()
-        elif beh_mode_str.startswith("⚡"):
-            _flow_parallel_tools()
-        else:
-            _flow_memory_persistence()
+        for _beh in _selected_behs:
+            if _beh.startswith("🔁"):
+                _flow_multiturn()
+            elif _beh.startswith("📚"):
+                _flow_rag()
+            elif _beh.startswith("🛠️"):
+                _flow_agent_action()
+            elif _beh.startswith("🔗"):
+                _flow_agent_loop()
+            elif _beh.startswith("🔄"):
+                _flow_stateful_session()
+            elif _beh.startswith("🔮"):
+                _flow_tool_hallucination()
+            elif _beh.startswith("🙋"):
+                _flow_hitl()
+            elif _beh.startswith("⚡"):
+                _flow_parallel_tools()
+            elif _beh.startswith("🧠"):
+                _flow_memory_persistence()
+            st.divider()
 
     elif _wiz_step == 2:
         # Step 3: Calibrate judge
