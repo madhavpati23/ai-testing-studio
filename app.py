@@ -2087,10 +2087,18 @@ def _flow_gandalf_extraction():
                     st.error("No prefix matched — Gandalf may be giving incorrect letters.")
 
         with st.expander("Full transcript"):
+            _txt_lines = []
             for t in ge_run["transcript"]:
                 _label = t.get("strategy") or f"Turn {t['turn']}"
                 st.markdown(f"**{_label}:** {t['prompt']}")
                 st.caption(t["reply"])
+                _txt_lines.append(f"[{_label}]\nPrompt: {t['prompt']}\nReply:  {t['reply']}\n")
+            st.download_button(
+                "⬇️ Download transcript",
+                data="\n".join(_txt_lines),
+                file_name="gandalf_transcript.txt",
+                mime="text/plain",
+            )
 
 
 def _flow_memory_persistence():
