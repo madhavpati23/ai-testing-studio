@@ -201,10 +201,14 @@ with st.sidebar:
         if _preset.startswith("Lakera Gandalf"):
             _gandalf_levels = {
                 "Level 1 — Baseline (easiest)": "baseline",
-                "Level 2 — Adventure": "adventure",
-                "Level 3 — Gandalf": "gandalf",
-                "Level 4 — Gandalf the White": "gandalf-the-white",
-                "Level 5 — Mithrandir (hardest public)": "do-anything-now-dan",
+                "Level 2 — Do Not Tell": "do-not-tell",
+                "Level 3 — Do Not Tell and Block": "do-not-tell-and-block",
+                "Level 4 — GPT is Password Encoded": "gpt-is-password-encoded",
+                "Level 5 — Word Blacklist": "word-blacklist",
+                "Level 6 — GPT Blacklist": "gpt-blacklist",
+                "Level 7 — Gandalf": "gandalf",
+                "Final Level — Gandalf the White": "gandalf-the-white",
+                "Adventures": "adventure",
             }
             _gl = st.selectbox("Gandalf difficulty level", list(_gandalf_levels), key="gandalf_level")
             _gd = _gandalf_levels[_gl]
