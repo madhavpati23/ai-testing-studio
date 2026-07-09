@@ -90,10 +90,11 @@ def _agent_checks_queue_caption() -> str:
 _HTTP_PRESETS = {
     "Custom": None,
     "Lakera Gandalf (red-team challenge)": {
-        "url": "https://gandalf.lakera.ai/api/send-message",
+        "url": "https://gandalf-api.lakera.ai/api/send-message",
         "body": '{"defender": "baseline", "prompt": {PROMPT}}',
         "response_path": "answer",
-        "headers": '{"Content-Type": "application/json"}',
+        "headers": "{}",
+        "body_encoding": "form",
     },
     "Groq (free, OpenAI-compatible)": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
@@ -193,6 +194,7 @@ with st.sidebar:
                 st.session_state["http_body"] = p["body"]
                 st.session_state["http_response_path"] = p["response_path"]
                 st.session_state["http_headers"] = p["headers"]
+                st.session_state["http_body_encoding"] = p.get("body_encoding", "json")
 
         st.selectbox("Preset", list(_HTTP_PRESETS), key="http_preset", on_change=_apply_http_preset)
         _preset = st.session_state.get("http_preset", "")
@@ -207,7 +209,7 @@ with st.sidebar:
             _gl = st.selectbox("Gandalf difficulty level", list(_gandalf_levels), key="gandalf_level")
             _gd = _gandalf_levels[_gl]
             st.session_state["http_body"] = f'{{"defender": "{_gd}", "prompt": {{PROMPT}}}}'
-            st.session_state["http_headers"] = '{"Content-Type": "application/json"}'
+            st.session_state["http_body_encoding"] = "form"
             backend_opts["body"] = st.session_state["http_body"]
             st.info("**What this tests:** Gandalf is a red-team challenge where the AI guards a "
                     "secret password. The studio will probe it with prompt injection, jailbreaks, "
@@ -250,6 +252,7 @@ with st.sidebar:
                  "can't be used to reach private infrastructure. Tick only for an endpoint "
                  "you run and trust on your own machine/network.")
         backend_opts["block_private"] = not _allow_local
+        backend_opts["body_encoding"] = st.session_state.get("http_body_encoding", "json")
     elif backend == "Your deployed agent (HTTP)":
         st.caption("📡 For testing **your own production agent** — Agent actions / Agent loops "
                    "(Behaviors) point at this. Your endpoint must accept "

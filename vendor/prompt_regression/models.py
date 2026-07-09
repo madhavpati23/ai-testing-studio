@@ -465,7 +465,8 @@ class HttpModel:
 
     def __init__(self, url: str, body_template: str = '{"prompt": {PROMPT}}',
                  response_path: str = "output", headers: dict[str, str] | None = None,
-                 method: str = "POST", timeout: float = 60.0, block_private: bool = False):
+                 method: str = "POST", timeout: float = 60.0, block_private: bool = False,
+                 body_encoding: str = "json"):
         _assert_safe_url(url, block_private=False)  # fail fast on a bad scheme/host
         self.name = f"http:{re.sub(r'^https?://', '', url).split('/')[0]}"
         self.url = url
@@ -475,13 +476,27 @@ class HttpModel:
         self.method = method
         self.timeout = timeout
         self.block_private = block_private
+        self.body_encoding = body_encoding  # "json" or "form"
         self._opener = (urllib.request.build_opener(_NoRedirect())
                         if block_private else urllib.request.build_opener())
 
-    @staticmethod
-    def render_body(template: str, prompt: str) -> bytes:
-        """Substitute {PROMPT} with the JSON-encoded prompt (safe escaping)."""
-        return template.replace("{PROMPT}", json.dumps(prompt)).encode("utf-8")
+    def render_body(self, template: str, prompt: str) -> tuple[bytes, str]:
+        """Substitute {PROMPT} and encode as JSON or multipart form-data."""
+        if self.body_encoding == "form":
+            # template is a JSON object like {"defender": "baseline", "prompt": {PROMPT}}
+            # parse it, substitute prompt value, encode as multipart/form-data
+            fields = json.loads(template.replace("{PROMPT}", json.dumps(prompt)))
+            boundary = "----PRS" + str(int(time.time() * 1000))
+            parts = []
+            for k, v in fields.items():
+                parts.append(
+                    f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}'
+                )
+            body = ("\r\n".join(parts) + f"\r\n--{boundary}--\r\n").encode("utf-8")
+            content_type = f"multipart/form-data; boundary={boundary}"
+            return body, content_type
+        body = template.replace("{PROMPT}", json.dumps(prompt)).encode("utf-8")
+        return body, "application/json"
 
     @staticmethod
     def extract(raw_text: str, response_path: str) -> str:
@@ -493,13 +508,14 @@ class HttpModel:
 
     def ask(self, prompt: str) -> str:
         _assert_safe_url(self.url, block_private=self.block_private)  # re-check (DNS may change)
+        body, content_type = self.render_body(self.body_template, prompt)
         # A real User-Agent avoids Cloudflare bot blocks (HTTP 403, error 1010)
         # that fire on urllib's default "Python-urllib/x.y". Caller can override.
         request = urllib.request.Request(
             self.url,
-            data=self.render_body(self.body_template, prompt),
+            data=body,
             method=self.method,
-            headers={"Content-Type": "application/json",
+            headers={"Content-Type": content_type,
                      "User-Agent": "prompt-regression-suite/1.0 (+https://github.com/madhavpati23)",
                      **self.headers},
         )

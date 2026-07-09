@@ -139,6 +139,7 @@ def make_model(kind: str, opts: dict | None = None):
             headers=headers,
             method=opts.get("method", "POST"),
             block_private=bool(opts.get("block_private", True)),   # safe default: block SSRF
+            body_encoding=opts.get("body_encoding", "json"),
         )
     if kind == "http_agent":
         from prompt_regression.models import HttpAgentModel
