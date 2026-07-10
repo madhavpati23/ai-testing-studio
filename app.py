@@ -194,6 +194,66 @@ _HTTP_PRESETS = {
 _HTTP_PRESETS["Lakera Gandalf"] = _HTTP_PRESETS["Lakera Gandalf (red-team target)"]
 _BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http",
                  "Your deployed agent (HTTP)": "http_agent"}
+
+# Compliance framework mapping: test category → which article/control it evidences.
+# Used to generate the compliance readiness panel in the certificate view.
+_COMPLIANCE_MAP: dict[str, dict[str, list[str]]] = {
+    "safety": {
+        "EU AI Act":    ["Art. 9 — Risk management system",
+                         "Art. 13 — Transparency & provision of information",
+                         "Art. 15 — Accuracy, robustness & cybersecurity"],
+        "NIST AI RMF":  ["GOVERN 1.2", "MANAGE 2.2", "MAP 5.1"],
+        "ISO 42001":    ["§ 6.1 Actions to address risks", "§ 8.4 AI system operation"],
+    },
+    "red_team": {
+        "EU AI Act":    ["Art. 9 — Risk management system",
+                         "Art. 15 — Accuracy, robustness & cybersecurity (adversarial robustness)"],
+        "NIST AI RMF":  ["MEASURE 2.5 — Adversarial testing", "MANAGE 2.4"],
+        "ISO 42001":    ["§ 8.5 AI system security"],
+    },
+    "hallucination": {
+        "EU AI Act":    ["Art. 13 — Transparency", "Art. 15 — Accuracy"],
+        "NIST AI RMF":  ["MEASURE 2.1 — Trustworthiness", "MEASURE 2.6"],
+        "ISO 42001":    ["§ 9.1 Monitoring, measurement, analysis"],
+    },
+    "accuracy": {
+        "EU AI Act":    ["Art. 15 — Accuracy, robustness & cybersecurity"],
+        "NIST AI RMF":  ["MEASURE 2.1", "MEASURE 2.6"],
+        "ISO 42001":    ["§ 8.4 AI system operation"],
+    },
+    "reasoning": {
+        "EU AI Act":    ["Art. 15 — Accuracy"],
+        "NIST AI RMF":  ["MEASURE 2.1"],
+        "ISO 42001":    ["§ 9.1 Monitoring"],
+    },
+    "consistency": {
+        "EU AI Act":    ["Art. 15 — Accuracy, robustness"],
+        "NIST AI RMF":  ["MEASURE 2.1", "MEASURE 2.6"],
+        "ISO 42001":    ["§ 9.1 Monitoring"],
+    },
+    "robustness": {
+        "EU AI Act":    ["Art. 15 — Accuracy, robustness & cybersecurity"],
+        "NIST AI RMF":  ["MEASURE 2.5 — Adversarial testing"],
+        "ISO 42001":    ["§ 8.5 AI system security"],
+    },
+    "bias": {
+        "EU AI Act":    ["Art. 10 — Data & data governance (non-discrimination)",
+                         "Art. 71 — Penalties (prohibited AI practices)"],
+        "NIST AI RMF":  ["GOVERN 1.7 — Fairness", "MEASURE 2.9 — Bias"],
+        "ISO 42001":    ["§ 6.1.2 Bias risk assessment", "§ 8.3 Responsible AI"],
+    },
+    "privacy": {
+        "EU AI Act":    ["Art. 10 — Data & data governance",
+                         "Art. 13 — Transparency"],
+        "NIST AI RMF":  ["GOVERN 1.6 — Privacy", "MAP 5.2"],
+        "ISO 42001":    ["§ 8.3 Responsible AI", "§ 6.1.2 Risk assessment"],
+    },
+    "data_validation": {
+        "EU AI Act":    ["Art. 15 — Accuracy"],
+        "NIST AI RMF":  ["MEASURE 2.1"],
+        "ISO 42001":    ["§ 9.1 Monitoring"],
+    },
+}
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 _THOROUGH = {
     "Quick — ~22 checks, 1 run (fast smoke test)": ("quick", 1, 0),
@@ -202,15 +262,41 @@ _THOROUGH = {
     "Deep — ~48 + 80 randomized stress probes (hardest to game)": ("deep", 1, 80),
 }
 
-st.set_page_config(page_title="AI Evaluation Studio", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
 
-st.markdown(
-    """
-    <style>
+st.markdown("""
+<style>
+.hero-badge {
+    display: inline-block; background: #1a1a2e; color: #7c83fd;
+    border: 1px solid #7c83fd; border-radius: 20px;
+    padding: 3px 12px; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.05em; margin-bottom: 8px;
+}
+.hero-title {
+    font-size: 2.6rem; font-weight: 800; line-height: 1.2;
+    background: linear-gradient(135deg, #ffffff 30%, #7c83fd 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin: 0 0 10px 0;
+}
+.hero-sub {
+    font-size: 1.05rem; color: #94a3b8; margin: 0 0 20px 0; max-width: 680px;
+}
+.pill {
+    display: inline-block; background: rgba(124,131,253,0.12);
+    color: #a5b4fc; border-radius: 20px; padding: 4px 12px;
+    font-size: 0.82rem; font-weight: 500; margin: 2px;
+}
+[data-testid="stAppViewContainer"] { background: #0d1117; }
+[data-testid="stSidebar"] { background: #161b22; }
+@media (prefers-color-scheme: light) {
+    .hero-title { background: linear-gradient(135deg, #1e293b 30%, #4f46e5 100%);
+                  -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero-sub { color: #475569; }
+    .hero-badge { background: #ede9fe; color: #4f46e5; border-color: #c4b5fd; }
+    .pill { background: #ede9fe; color: #4f46e5; }
+}
 </style>
-    """,
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 
 # ---- form state (shared across tabs) --------------------------------------
@@ -811,17 +897,124 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                  "Your API key is never included."
         )
 
+        # ── Executive summary ─────────────────────────────────────────────────
+        _critical_fails = [
+            r for _, _run in fe.sections
+            for r in _run.results
+            if not r.passed and r.case.severity == "critical"
+        ]
+        _high_fails = [
+            r for _, _run in fe.sections
+            for r in _run.results
+            if not r.passed and r.case.severity == "high"
+        ]
+        with st.container(border=True):
+            st.markdown("### 📋 Executive Summary")
+            _risk = ("🔴 HIGH RISK" if _critical_fails
+                     else "🟠 MODERATE RISK" if _high_fails
+                     else "🟢 LOW RISK")
+            st.markdown(f"**Risk level:** {_risk} &nbsp;·&nbsp; "
+                        f"**Model:** `{fe.model_name}` &nbsp;·&nbsp; "
+                        f"**Checks:** {fe.passed}/{fe.total} passed &nbsp;·&nbsp; "
+                        f"**Grade:** {letter} — {status}")
+            if _critical_fails:
+                st.error(
+                    f"⛔ **{len(_critical_fails)} CRITICAL failure(s)** — these must be fixed before "
+                    f"any production deployment:\n\n" +
+                    "\n".join(f"- `{r.case.id}` · {r.case.prompt[:80]}…" for r in _critical_fails[:5])
+                )
+            if _high_fails:
+                st.warning(
+                    f"⚠️ **{len(_high_fails)} HIGH-severity failure(s)** — significant risk, "
+                    f"address before GA release:\n\n" +
+                    "\n".join(f"- `{r.case.id}` · {r.case.prompt[:70]}…" for r in _high_fails[:5])
+                )
+            if not _critical_fails and not _high_fails:
+                st.success("✅ No critical or high-severity failures. Review medium/low findings below.")
+
+            # Remediation table
+            _rem_rows = []
+            _REMEDIATION = {
+                "safety":          "Harden system prompt with explicit refusal instructions; add a safety layer (e.g. Llama Guard, Lakera Guard).",
+                "red_team":        "Adopt a constitutional AI / rule-based refusal approach; run automated red-teaming in CI.",
+                "hallucination":   "Add retrieval-augmented generation (RAG) with source citations; consider a hallucination-detection filter.",
+                "accuracy":        "Improve few-shot examples or fine-tune on domain data; add a fact-verification post-processing step.",
+                "reasoning":       "Use chain-of-thought prompting; consider a reasoning-optimised model (o1, claude-3-opus).",
+                "consistency":     "Lower temperature; add output normalisation; use a consistency-checking post-processor.",
+                "robustness":      "Sanitise inputs; add input validation; test with fuzzing tools.",
+                "bias":            "Audit training data for demographic imbalance; add a bias-detection filter; apply RLHF with fairness rewards.",
+                "privacy":         "Strip PII from prompts before sending; add output filtering for PII patterns.",
+                "data_validation": "Add schema validation on model outputs; use structured output mode (JSON mode / function calling).",
+            }
+            for cat, (p, t) in sorted(fe.by_category.items()):
+                if p < t and cat in _REMEDIATION:
+                    _rem_rows.append({"category": cat, "passed": f"{p}/{t}",
+                                      "remediation": _REMEDIATION[cat]})
+            if _rem_rows:
+                st.markdown("**Remediation recommendations**")
+                st.dataframe(pd.DataFrame(_rem_rows), hide_index=True, use_container_width=True)
+
+        # ── Compliance framework panel ────────────────────────────────────────
+        with st.expander("📜 Compliance readiness — EU AI Act · NIST AI RMF · ISO 42001"):
+            st.caption(
+                "Each test category is mapped to the regulatory articles and controls it provides "
+                "evidence for. A ✅ means all checks in that category passed — you have automated "
+                "evidence. A ❌ means you have a gap that may need addressing for compliance."
+            )
+            _frameworks = ["EU AI Act", "NIST AI RMF", "ISO 42001"]
+            _comp_rows = []
+            for cat, (p, t) in sorted(fe.by_category.items()):
+                _mapping = _COMPLIANCE_MAP.get(cat, {})
+                if not _mapping:
+                    continue
+                _icon = "✅" if p == t else ("⚠️" if p else "❌")
+                for fw in _frameworks:
+                    for article in _mapping.get(fw, []):
+                        _comp_rows.append({
+                            "status": _icon,
+                            "category": cat,
+                            "score": f"{p}/{t}",
+                            "framework": fw,
+                            "article / control": article,
+                        })
+            if _comp_rows:
+                _fw_filter = st.selectbox("Filter by framework", ["All"] + _frameworks,
+                                          key="comp_fw_filter")
+                _df_comp = pd.DataFrame(_comp_rows)
+                if _fw_filter != "All":
+                    _df_comp = _df_comp[_df_comp["framework"] == _fw_filter]
+                st.dataframe(_df_comp, hide_index=True, use_container_width=True)
+
+                # Compliance score per framework
+                st.markdown("**Compliance coverage per framework**")
+                _fw_cols = st.columns(3)
+                for _idx, fw in enumerate(_frameworks):
+                    _fw_rows = [r for r in _comp_rows if r["framework"] == fw]
+                    _unique_cats = {r["category"] for r in _fw_rows}
+                    _passed_cats = {r["category"] for r in _fw_rows if r["status"] == "✅"}
+                    _pct = int(100 * len(_passed_cats) / len(_unique_cats)) if _unique_cats else 0
+                    _fw_cols[_idx].metric(fw, f"{_pct}%",
+                                          f"{len(_passed_cats)}/{len(_unique_cats)} categories clean")
+
+                # Download compliance report as CSV
+                _comp_csv = _df_comp.to_csv(index=False)
+                st.download_button("⬇️ Download compliance report (CSV)", _comp_csv,
+                                   f"compliance-report-{fe.model_name.replace(':', '-')}.csv",
+                                   "text/csv", key="dl_compliance_csv")
+            else:
+                st.info("Run a Standard or higher evaluation to generate compliance mapping.")
+
+        # ── Certificate & full breakdown ──────────────────────────────────────
         st.markdown("**Your certificate**")
         components.html(cert_html, height=560, scrolling=True)
 
-        with st.expander("See the full breakdown (which checks, and what failed)"):
+        with st.expander("🔍 Full breakdown — which checks, what failed, raw responses"):
             _rows = {"risk dimension": [], "passed": [], "result": []}
             for c, (p, t) in sorted(fe.by_category.items()):
                 _rows["risk dimension"].append(c)
                 _rows["passed"].append(f"{p}/{t}")
                 _rows["result"].append("✅ pass" if p == t else ("⚠️ partial" if p else "❌ fail"))
             st.table(_rows)
-            # Collect all individual results across sections
             _all_results = []
             for _name, _run in fe.sections:
                 for _r in _run.results:
@@ -848,6 +1041,82 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                                   "✓": "✅" if c.passed else "❌", "detail": c.detail}
                                  for c in fe.agent_checks]),
                     hide_index=True, use_container_width=True)
+
+        # ── CI/CD integration ─────────────────────────────────────────────────
+        with st.expander("🔗 CI/CD integration — run this evaluation in your pipeline"):
+            st.markdown(
+                "Copy the script below into your CI pipeline. It runs the same battery "
+                "headlessly using the `core` module and exits non-zero if the model fails — "
+                "so a broken deployment blocks the merge."
+            )
+            _ci_model = fe.model_name
+            _ci_level = fe.level
+            _ci_script = f'''#!/usr/bin/env python3
+"""
+AI Testing Studio — CI/CD evaluation script
+Auto-generated from your last run ({_ci_model} · {_ci_level})
+
+Usage:
+  pip install anthropic  # or set OPENAI_API_KEY for your provider
+  python evaluate.py
+  # exits 0 = CERTIFIED, exits 1 = NOT CERTIFIED / CONDITIONALLY CERTIFIED
+"""
+import sys, os
+sys.path.insert(0, "ai-testing-studio")   # path to this repo
+import core
+
+model = core.make_model(
+    "claude",                              # or "http" for OpenAI/Gemini/Groq
+    {{"api_key": os.environ["ANTHROPIC_API_KEY"]}},
+)
+result = core.run_full_evaluation(model, level="{_ci_level}")
+grade, status = core.certification_grade(result.pass_rate, result.verdict)
+
+print(f"Grade: {{grade}} | Status: {{status}} | Score: {{result.pass_rate:.1f}}%")
+for cat, (p, t) in sorted(result.by_category.items()):
+    icon = "✅" if p == t else ("⚠️" if p else "❌")
+    print(f"  {{icon}} {{cat}}: {{p}}/{{t}}")
+
+if status != "CERTIFIED":
+    print("\\n❌ Evaluation FAILED — blocking deployment.")
+    sys.exit(1)
+print("\\n✅ CERTIFIED — safe to deploy.")
+'''
+            st.code(_ci_script, language="python")
+            st.download_button("⬇️ Download evaluate.py", _ci_script,
+                               "evaluate.py", "text/plain", key="dl_ci_script")
+
+            st.markdown("**GitHub Actions workflow**")
+            _gh_actions = f'''name: AI Evaluation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install anthropic streamlit pandas
+      - name: Run AI evaluation ({_ci_level})
+        env:
+          ANTHROPIC_API_KEY: ${{{{ secrets.ANTHROPIC_API_KEY }}}}
+        run: python evaluate.py
+      - name: Upload evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-evaluation-report
+          path: ai-evaluation-certificate.html
+'''
+            st.code(_gh_actions, language="yaml")
+            st.download_button("⬇️ Download .github/workflows/evaluate.yml",
+                               _gh_actions, "evaluate.yml", "text/plain", key="dl_gh_actions")
 
         with st.expander("📈 Compare to a previous snapshot — did anything regress?"):
             st.caption("Upload an older snapshot (the **baseline**) and a newer one (e.g. after "
@@ -3282,6 +3551,29 @@ def _wizard_step_cases() -> None:
     else:
         st.caption("No file — the built-in battery is enough to get started.")
 
+
+# ============================================================================
+# Hero section — shown on every tab, sets commercial tone
+# ============================================================================
+st.markdown("""
+<div style="padding: 28px 0 18px 0;">
+  <div class="hero-badge">🧪 AI TESTING STUDIO</div>
+  <div class="hero-title">Test. Certify. Ship with confidence.</div>
+  <div class="hero-sub">
+    The evaluation platform built for teams shipping AI products —
+    benchmark any model or agent across safety, accuracy, reasoning, bias,
+    and compliance. Get a defensible <strong>SHIP / NO-SHIP verdict</strong> in minutes.
+  </div>
+  <span class="pill">🛡️ Safety & red-team</span>
+  <span class="pill">🌀 Hallucination</span>
+  <span class="pill">⚖️ Bias & fairness</span>
+  <span class="pill">🤖 Agent tool-use</span>
+  <span class="pill">📋 EU AI Act mapping</span>
+  <span class="pill">🔄 Regression tracking</span>
+  <span class="pill">🏆 Multi-model comparison</span>
+  <span class="pill">🔗 CI/CD integration</span>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
