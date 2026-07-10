@@ -870,20 +870,20 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             st.session_state["wizard_step"] = 0
             st.rerun()
 
-    st.markdown("#### What we're testing and why")
-    for _name, _count, _sev, _why in _TEST_PLAN:
-        _sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(_sev, "⚪")
-        with st.expander(f"{_sev_icon} **{_name}** — {_count}"):
-            st.markdown(_why)
-    if _domain != "general":
-        with st.expander(f"🔵 **Domain: {_domain_label}** — {len(_domain_cases)} checks"):
-            st.markdown(f"Checks specific to the **{_domain_label}** domain added because you selected it in Step 1.")
-    if _ai_state == "agent":
-        with st.expander("🤖 **Agent checks** — from Step 2"):
-            st.markdown(
-                "Tool hallucination, HITL, parallel tool calls, and memory persistence checks "
-                "are folded in from Step 2. Without these, tool-use safety is not graded."
-            )
+    with st.expander("📋 What we're testing and why", expanded=False):
+        for _name, _count, _sev, _why in _TEST_PLAN:
+            _sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(_sev, "⚪")
+            with st.expander(f"{_sev_icon} **{_name}** — {_count}"):
+                st.markdown(_why)
+        if _domain != "general":
+            with st.expander(f"🔵 **Domain: {_domain_label}** — {len(_domain_cases)} checks"):
+                st.markdown(f"Checks specific to the **{_domain_label}** domain added because you selected it in Step 1.")
+        if _ai_state == "agent":
+            with st.expander("🤖 **Agent checks** — from Step 2"):
+                st.markdown(
+                    "Tool hallucination, HITL, parallel tool calls, and memory persistence checks "
+                    "are folded in from Step 2. Without these, tool-use safety is not graded."
+                )
     _aq_caption = _agent_checks_queue_caption()
     if _aq_caption:
         st.info(_aq_caption + "  \nWithout these, the grade only reflects the standard battery — "
