@@ -93,29 +93,105 @@ def _agent_checks_queue_caption() -> str:
            f"failing) — from: {parts}")
 
 
-# HTTP-backend presets so common targets are one click (no typing).
+# HTTP-backend presets — one click to reach any major AI provider.
+# All OpenAI-compatible endpoints share the same body/response_path pattern.
+_OAI_BODY = '{"model": "{MODEL}", "messages": [{"role": "user", "content": {PROMPT}}]}'
+_OAI_PATH = "choices.0.message.content"
+
 _HTTP_PRESETS = {
     "Custom": None,
-    "Lakera Gandalf": {
+    # ── OpenAI ────────────────────────────────────────────────────────────────
+    "OpenAI — GPT-4o": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "gpt-4o"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer sk-..."}',
+        "secret": "OPENAI_API_KEY",
+    },
+    "OpenAI — GPT-4o mini": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "gpt-4o-mini"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer sk-..."}',
+        "secret": "OPENAI_API_KEY",
+    },
+    "OpenAI — o3-mini": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "o3-mini"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer sk-..."}',
+        "secret": "OPENAI_API_KEY",
+    },
+    # ── Google Gemini (OpenAI-compatible endpoint) ─────────────────────────
+    "Gemini — 2.0 Flash": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "gemini-2.0-flash"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer AIza..."}',
+        "secret": "GEMINI_API_KEY",
+    },
+    "Gemini — 1.5 Pro": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "gemini-1.5-pro"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer AIza..."}',
+        "secret": "GEMINI_API_KEY",
+    },
+    "Gemini — 2.5 Pro": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "gemini-2.5-pro-preview-06-05"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer AIza..."}',
+        "secret": "GEMINI_API_KEY",
+    },
+    # ── Groq — free tier, fast inference ──────────────────────────────────
+    "Groq — Llama 3.3 70B (free)": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "llama-3.3-70b-versatile"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer gsk_..."}',
+        "secret": "GROQ_API_KEY",
+    },
+    "Groq — Llama 4 Scout (free)": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "meta-llama/llama-4-scout-17b-16e-instruct"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer gsk_..."}',
+        "secret": "GROQ_API_KEY",
+    },
+    "Groq — Gemma 3 27B (free)": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "gemma2-9b-it"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer gsk_..."}',
+        "secret": "GROQ_API_KEY",
+    },
+    # ── Mistral ────────────────────────────────────────────────────────────
+    "Mistral — Large": {
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "mistral-large-latest"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer ..."}',
+        "secret": "MISTRAL_API_KEY",
+    },
+    "Mistral — Small 3.2": {
+        "url": "https://api.mistral.ai/v1/chat/completions",
+        "body": _OAI_BODY.replace("{MODEL}", "mistral-small-latest"),
+        "response_path": _OAI_PATH,
+        "headers": '{"Authorization": "Bearer ..."}',
+        "secret": "MISTRAL_API_KEY",
+    },
+    # ── Special ────────────────────────────────────────────────────────────
+    "Lakera Gandalf (red-team target)": {
         "url": "https://gandalf-api.lakera.ai/api/send-message",
         "body": '{"defender": "baseline", "prompt": {PROMPT}}',
         "response_path": "answer",
         "headers": "{}",
         "body_encoding": "form",
     },
-    "Groq (free, OpenAI-compatible)": {
-        "url": "https://api.groq.com/openai/v1/chat/completions",
-        "body": '{"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": {PROMPT}}]}',
-        "response_path": "choices.0.message.content",
-        "headers": '{"Authorization": "Bearer gsk_..."}',
-    },
-    "OpenAI-compatible": {
-        "url": "https://api.openai.com/v1/chat/completions",
-        "body": '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": {PROMPT}}]}',
-        "response_path": "choices.0.message.content",
-        "headers": '{"Authorization": "Bearer sk-..."}',
-    },
 }
+# Keep legacy key working (used by Gandalf red-team flow)
+_HTTP_PRESETS["Lakera Gandalf"] = _HTTP_PRESETS["Lakera Gandalf (red-team target)"]
 _BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http",
                  "Your deployed agent (HTTP)": "http_agent"}
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
@@ -223,8 +299,8 @@ with st.sidebar:
 
         # Pull the bearer key from Secrets when one matches the chosen preset, so
         # no key is typed into the UI (use this only on a *private* deployment).
-        _secret_name = ("GROQ_API_KEY" if _preset.startswith("Groq")
-                        else "OPENAI_API_KEY" if _preset.startswith("OpenAI") else None)
+        _preset_cfg = _HTTP_PRESETS.get(_preset) or {}
+        _secret_name = _preset_cfg.get("secret")
         _hk = _secret(_secret_name) if _secret_name else None
         if _hk:
             backend_opts["headers"] = json.dumps({"Authorization": f"Bearer {_hk}"})
@@ -232,9 +308,16 @@ with st.sidebar:
         else:
             backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
                                                     placeholder='{"Authorization": "Bearer ..."}')
-        if _preset.startswith("Groq") and not _hk:
-            st.caption("Free key: sign up at console.groq.com → API Keys → create one "
-                       "(starts `gsk_`) and paste it into the Authorization header above.")
+        _key_hint = {
+            "GROQ_API_KEY": ("Groq (free)", "console.groq.com → API Keys", "gsk_"),
+            "OPENAI_API_KEY": ("OpenAI", "platform.openai.com → API keys", "sk-"),
+            "GEMINI_API_KEY": ("Gemini", "aistudio.google.com → Get API key", "AIza"),
+            "MISTRAL_API_KEY": ("Mistral", "console.mistral.ai → API Keys", ""),
+        }.get(_secret_name or "")
+        if _key_hint and not _hk:
+            _, _url, _prefix = _key_hint
+            st.caption(f"Get key: {_url} — paste it{f' (starts `{_prefix}`)' if _prefix else ''} "
+                       f"into the Authorization header above.")
 
         # SSRF guard ON by default; private/loopback/metadata addresses are refused
         # unless the user explicitly allows them (only for a trusted local endpoint).
@@ -817,13 +900,53 @@ _LB_SLOTS = 4
 _LB_BACKENDS = ["Demo bot (offline)", "Claude API", "HTTP endpoint", "Your deployed agent (HTTP)"]
 
 
+_QUICK_COMPARE_MODELS = [
+    ("Claude (Anthropic)",   "claude",  {}),
+    ("GPT-4o (OpenAI)",      "http",    {"_preset": "OpenAI — GPT-4o"}),
+    ("Gemini 2.0 Flash",     "http",    {"_preset": "Gemini — 2.0 Flash"}),
+    ("Llama 3.3 70B (Groq)", "http",    {"_preset": "Groq — Llama 3.3 70B (free)"}),
+]
+
+
+def _apply_quick_compare():
+    """Pre-fill leaderboard slots with the top-AI presets."""
+    for i, (name, kind, opts) in enumerate(_QUICK_COMPARE_MODELS):
+        st.session_state[f"lb_on_{i}"] = True
+        st.session_state[f"lb_name_{i}"] = name
+        st.session_state[f"lb_kind_{i}"] = (
+            "Claude API" if kind == "claude" else "HTTP endpoint"
+        )
+        if kind == "http":
+            preset_key = opts["_preset"]
+            p = _HTTP_PRESETS[preset_key]
+            st.session_state[f"lb_preset_{i}"] = preset_key
+            st.session_state[f"lb_url_{i}"] = p["url"]
+            st.session_state[f"lb_body_{i}"] = p["body"]
+            st.session_state[f"lb_resp_{i}"] = p["response_path"]
+            st.session_state[f"lb_headers_{i}"] = p["headers"]
+
+
 def _flow_leaderboard():
-    st.subheader("🏆 Leaderboard — the same battery, several models")
-    st.markdown("Certify answers *\"is this model good?\"* This answers *\"which of these is "
-                "best, and where exactly do they differ?\"* — run the **same** certification "
-                "battery against several backends in one go, ranked side by side.")
-    st.caption("⚠️ Each contestant runs a full certification — mind API costs/rate limits with "
-              "more than 1-2 real backends. Use **Demo bot** slots to try this for free.")
+    st.subheader("🏆 Leaderboard — benchmark any AI against the rest")
+    st.markdown(
+        "Run the **same test battery** against Claude, ChatGPT, Gemini, Llama and more — "
+        "side by side. Get a ranked score per model, with a per-category breakdown showing "
+        "exactly where each one wins or loses."
+    )
+
+    with st.container(border=True):
+        st.markdown("#### ⚡ Quick compare — top AI models")
+        st.caption("Pre-fills Claude · GPT-4o · Gemini 2.0 Flash · Llama 3.3 70B. "
+                   "Add your API keys in the contestant slots below, then run.")
+        qc1, qc2 = st.columns([2, 1])
+        if qc1.button("🚀 Set up top-AI comparison", key="quick_compare_fill",
+                      use_container_width=True, type="primary"):
+            _apply_quick_compare()
+            st.rerun()
+        qc2.caption("Each model needs its own key. Groq is free — console.groq.com.")
+
+    st.caption("⚠️ Each contestant runs a full certification — mind API costs/rate limits. "
+               "Use **Demo bot** slots to try the flow for free first.")
 
     if st.button("🔄 Reset leaderboard", key="reset_leaderboard"):
         st.session_state.pop("leaderboard", None)
@@ -873,15 +996,12 @@ def _flow_leaderboard():
                 opts["response_path"] = st.text_input("Response path", key=f"lb_resp_{i}")
 
                 _preset_name = st.session_state.get(f"lb_preset_{i}", "")
-                _secret_name = ("GROQ_API_KEY" if _preset_name.startswith("Groq")
-                                else "OPENAI_API_KEY" if _preset_name.startswith("OpenAI") else None)
+                _preset_cfg_lb = _HTTP_PRESETS.get(_preset_name) or {}
+                _secret_name = _preset_cfg_lb.get("secret")
                 _hk = _secret(_secret_name) if _secret_name else None
                 if _hk:
                     opts["headers"] = json.dumps({"Authorization": f"Bearer {_hk}"})
                     st.caption(f"🔐 Using **{_secret_name}** from Secrets for the Authorization header.")
-                elif _preset_name.startswith("Groq"):
-                    st.caption("Free key: console.groq.com → API Keys → create one (starts `gsk_`) "
-                              "and paste it into the Authorization header above.")
                 opts["block_private"] = True
             elif kind == "http_agent":
                 opts["url"] = st.text_input("Agent endpoint URL", key=f"lb_aurl_{i}",
