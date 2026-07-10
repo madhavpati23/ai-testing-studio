@@ -3116,7 +3116,7 @@ def _wizard_step_cases() -> None:
 
         st.info(
             f"**Your setup:** {ai_type_label} · {_domain_label} · {_thorough_key.split(' —')[0]}\n\n"
-            f"**Step 2 will recommend:** {_step2_rec}\n\n"
+            f"**Step 2 pre-selects ⭐:** {_step2_rec}\n\n"
             f"**Domain checks:** {'none — standard battery only' if domain == 'general' else f'{_domain_n} {_domain_label}-specific checks added'}"
         )
 
@@ -3232,12 +3232,33 @@ with tab_wizard:
             "📐 Instruction following — does the AI obey precise formatting instructions?",
             "♻️ Consistency — does the AI give the same answer to the same question?",
         ]
-        st.markdown("**Which behaviours?** *(select one or more)*")
+
+        # Pre-check recommended behaviors based on AI type from Step 1
+        _recommended = {
+            "chatbot":  {"🔁", "📚"},
+            "stateful": {"🔄"},
+            "agent":    {"🔮", "🙋", "⚡", "🧠"},
+        }.get(_ai_state, set())
+
+        # Seed defaults when AI type changes or on first visit — don't override user
+        # changes within the same AI-type selection
+        _seed_key = f"_beh_defaults_seeded_{_ai_state}"
+        if not st.session_state.get(_seed_key):
+            # Clear all beh_ keys first so switching AI type resets cleanly
+            for _opt in _beh_options:
+                _e = _opt[0]
+                st.session_state[f"beh_{_e}"] = _e in _recommended
+            st.session_state[_seed_key] = True
+
+        st.markdown("**Which behaviours?** *(pre-selected based on your AI type — adjust as needed)*")
         _selected_behs = []
         for _opt in _beh_options:
             _emoji = _opt[0]
             _blocked = _is_http and _emoji in _TOOL_NATIVE
-            _label = _opt + " *(needs Claude or deployed-agent backend — generic HTTP has no tool-call channel)*" if _blocked else _opt
+            _is_rec = _emoji in _recommended
+            _label = ("⭐ " if _is_rec else "") + _opt
+            if _blocked:
+                _label += " *(needs Claude or deployed-agent backend — generic HTTP has no tool-call channel)*"
             _checked = st.checkbox(_label, key=f"beh_{_emoji}", disabled=_blocked)
             if _checked and not _blocked:
                 _selected_behs.append(_opt)
