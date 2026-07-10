@@ -3658,7 +3658,7 @@ with tab_wizard:
         if not st.session_state.get(_seed_key):
             # Wipe all previous beh_ seed sentinels so the next switch re-seeds too
             for _k in list(st.session_state.keys()):
-                if _k.startswith("_beh_defaults_seeded_"):
+                if isinstance(_k, str) and _k.startswith("_beh_defaults_seeded_"):
                     del st.session_state[_k]
             for _opt in _beh_options:
                 _e = _opt[0]
