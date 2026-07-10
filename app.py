@@ -561,13 +561,74 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             except Exception as exc:
                 st.error(f"Could not read file: {exc}")
 
-    thoroughness = st.selectbox(
-        "Thoroughness", list(_THOROUGH), index=1, key="certify_level",
-        help="More checks + more runs = a more defensible grade, but more API calls "
-             "(mind free-tier rate limits). Deep draws 80 fresh probes from a 500+ bank, "
-             "so no two Deep runs are identical.")
-    _level, _runs, _stress = _THOROUGH[thoroughness]
+    # ── Test plan summary — no re-selection, chosen in Step 1 ───────────────
+    _thorough_keys = list(_THOROUGH.keys())
+    _thorough_key: str = _thorough_keys[st.session_state.get("wizard_thorough_idx", 1)]
+    _level, _runs, _stress = _THOROUGH[_thorough_key]
+    _t_checks = 22 if _level == "quick" else 48
+    _ai_state = st.session_state.get("wizard_ai_state", "chatbot")
+    _domain = st.session_state.get("wizard_domain", "general")
+    _domain_label = core.DOMAIN_LABELS.get(_domain, _domain)
 
+    _TEST_PLAN = [
+        ("🛡️ Safety & refusals", "6 checks", "critical",
+         "Prompt injection, PII leakage, unsafe content, medical/legal boundary. "
+         "A single failure here can expose users or break compliance."),
+        ("🗡️ Red-team / jailbreak", "9 checks", "critical",
+         "Persona override, indirect injection, DAN, base64 smuggling, continuation "
+         "tricks. Tests whether the model can be manipulated into bypassing its own guardrails."),
+        ("🌀 Hallucination", "6 checks", "high",
+         "Fabricated entities, fake citations, anachronisms, made-up statistics. "
+         "Hallucinations erode trust faster than any other failure mode."),
+        ("🎯 Factual accuracy", "4–8 checks", "high",
+         "Counting, numeric reasoning, unit conversion, spelling. Basic facts the model "
+         "must get right to be useful at all."),
+        ("🧮 Reasoning", "3 checks", "medium",
+         "Classic logic puzzles (bat-and-ball, syllogisms, sequences). Tests whether "
+         "the model reasons or pattern-matches."),
+        ("♻️ Consistency", "3 checks", "medium",
+         "Same question asked multiple ways — the answer must not contradict itself. "
+         "Inconsistency signals unstable internal representations."),
+        ("💪 Robustness", "5 checks", "medium",
+         "Over-refusal on benign requests, symbol-heavy inputs, contradictory prompts. "
+         "A model that refuses too much is as broken as one that refuses too little."),
+        ("⚖️ Bias & fairness", "5 checks", "high",
+         "Gender, race, age, religion, nationality, income-level stereotypes. "
+         "Checked for differential treatment across groups."),
+        ("🔒 Privacy", "2 checks", "high",
+         "PII echo-back and inference attacks. Tests whether the model leaks or "
+         "infers sensitive personal data it shouldn't touch."),
+        ("📋 Data / format validation", "3 checks", "medium",
+         "JSON output, boolean parsing, array formatting. Critical for any AI that "
+         "feeds structured data into downstream systems."),
+    ]
+    if _level == "quick":
+        _TEST_PLAN = [r for r in _TEST_PLAN if r[2] == "critical"]
+
+    with st.container(border=True):
+        _t_total = _t_checks * _runs + _stress + len(_domain_cases)
+        c_t1, c_t2, c_t3 = st.columns(3)
+        c_t1.metric("Thoroughness", _thorough_key.split(" —")[0])
+        c_t2.metric("Total checks", _t_total)
+        c_t3.metric("Runs per check", _runs)
+        if st.button("← Change thoroughness", key="certify_change_level"):
+            st.session_state["wizard_step"] = 0
+            st.rerun()
+
+    st.markdown("#### What we're testing and why")
+    for _name, _count, _sev, _why in _TEST_PLAN:
+        _sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(_sev, "⚪")
+        with st.expander(f"{_sev_icon} **{_name}** — {_count}"):
+            st.markdown(_why)
+    if _domain != "general":
+        with st.expander(f"🔵 **Domain: {_domain_label}** — {len(_domain_cases)} checks"):
+            st.markdown(f"Checks specific to the **{_domain_label}** domain added because you selected it in Step 1.")
+    if _ai_state == "agent":
+        with st.expander("🤖 **Agent checks** — from Step 2"):
+            st.markdown(
+                "Tool hallucination, HITL, parallel tool calls, and memory persistence checks "
+                "are folded in from Step 2. Without these, tool-use safety is not graded."
+            )
     _aq_caption = _agent_checks_queue_caption()
     if _aq_caption:
         st.info(_aq_caption + "  \nWithout these, the grade only reflects the standard battery — "
@@ -3027,16 +3088,34 @@ def _wizard_step_cases() -> None:
             "agent":    "Tool hallucination, Human-in-the-loop, Parallel tools, Memory persistence",
         }
         _step2_rec = _step2_options.get(_ai_cfg["key"], "")
-        _standard_n = 48  # standard level
+
+        # ── Thoroughness ──────────────────────────────────────────────────────
+        st.divider()
+        st.markdown("**How thorough should the test be?**")
+        _thorough_keys = list(_THOROUGH.keys())
+        _thorough_key: str = st.radio(  # type: ignore[assignment]
+            "Thoroughness level",
+            _thorough_keys,
+            index=st.session_state.get("wizard_thorough_idx", 1),
+            key="wizard_thoroughness",
+            label_visibility="collapsed",
+            help="Quick = fast smoke test. Standard = recommended balance. "
+                 "Thorough = each check runs 3 times. Deep = 80+ randomized stress probes.",
+        ) or _thorough_keys[1]
+        st.session_state["wizard_thorough_idx"] = _thorough_keys.index(_thorough_key)
+        _t_level, _t_runs, _t_stress = _THOROUGH[_thorough_key]
+        _t_checks = 22 if _t_level == "quick" else 48
+        _t_total = (_t_checks + _domain_n) * _t_runs + _t_stress
 
         sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("Standard checks", _standard_n)
+        sc1.metric("Checks selected", _t_checks if _t_level != "deep" else f"{_t_checks} + {_t_stress} stress")
         sc2.metric("Domain checks added", _domain_n if domain != "general" else 0,
                    help=f"{_domain_label} domain checks" if domain != "general" else "Select a domain to add checks")
-        sc3.metric("Total checks", _standard_n + (_domain_n if domain != "general" else 0))
+        sc3.metric("Total test runs", _t_total,
+                   help=f"{_t_checks} checks × {_t_runs} run(s)" + (f" + {_t_stress} stress probes" if _t_stress else ""))
 
         st.info(
-            f"**Your setup:** {ai_type_label} · {_domain_label}\n\n"
+            f"**Your setup:** {ai_type_label} · {_domain_label} · {_thorough_key.split(' —')[0]}\n\n"
             f"**Step 2 will recommend:** {_step2_rec}\n\n"
             f"**Domain checks:** {'none — standard battery only' if domain == 'general' else f'{_domain_n} {_domain_label}-specific checks added'}"
         )
@@ -3130,7 +3209,11 @@ with tab_wizard:
 
         _kind = _BACKEND_KIND[backend]
         _is_http = _kind in ("http", "http_agent")
-        _TOOL_NATIVE = {"🔮", "🙋", "⚡", "🧠"}  # require native tool-use, blocked for HTTP
+        # Generic HTTP endpoints raise NotImplementedError on model.act() — only
+        # tool-hallucination (🔮) and parallel-tools (⚡) use model.act().
+        # HITL (🙋) and memory (🧠) use model.complete()/transcript() which HTTP supports.
+        # Deployed agents (http_agent) expose their own act() via JSON contract — no block.
+        _TOOL_NATIVE = {"🔮", "⚡"} if _kind == "http" else set()
 
         _beh_options = [
             "🔁 Multi-turn — memory, context & scope across a conversation",
@@ -3154,7 +3237,7 @@ with tab_wizard:
         for _opt in _beh_options:
             _emoji = _opt[0]
             _blocked = _is_http and _emoji in _TOOL_NATIVE
-            _label = _opt + " *(needs Claude/native tool-use backend)*" if _blocked else _opt
+            _label = _opt + " *(needs Claude or deployed-agent backend — generic HTTP has no tool-call channel)*" if _blocked else _opt
             _checked = st.checkbox(_label, key=f"beh_{_emoji}", disabled=_blocked)
             if _checked and not _blocked:
                 _selected_behs.append(_opt)
