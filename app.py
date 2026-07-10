@@ -3240,14 +3240,18 @@ with tab_wizard:
             "agent":    {"🔮", "🙋", "⚡", "🧠"},
         }.get(_ai_state, set())
 
-        # Seed defaults when AI type changes or on first visit — don't override user
-        # changes within the same AI-type selection
-        _seed_key = f"_beh_defaults_seeded_{_ai_state}"
+        # Re-seed whenever AI type OR backend changes — the combination determines
+        # both what's recommended and what's available (blocked for generic HTTP).
+        _seed_key = f"_beh_defaults_seeded_{_ai_state}_{_kind}"
         if not st.session_state.get(_seed_key):
-            # Clear all beh_ keys first so switching AI type resets cleanly
+            # Wipe all previous beh_ seed sentinels so the next switch re-seeds too
+            for _k in list(st.session_state.keys()):
+                if _k.startswith("_beh_defaults_seeded_"):
+                    del st.session_state[_k]
             for _opt in _beh_options:
                 _e = _opt[0]
-                st.session_state[f"beh_{_e}"] = _e in _recommended
+                _is_blocked = _kind == "http" and _e in _TOOL_NATIVE
+                st.session_state[f"beh_{_e}"] = (_e in _recommended) and not _is_blocked
             st.session_state[_seed_key] = True
 
         st.markdown("**Which behaviours?** *(pre-selected based on your AI type — adjust as needed)*")
