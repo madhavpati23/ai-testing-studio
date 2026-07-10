@@ -301,38 +301,25 @@ st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wid
 
 st.markdown("""
 <style>
-/* ── Teal theme ─────────────────────────────────────────────────────────── */
-:root {
-    --teal: #0d9488;
-    --teal-light: #14b8a6;
-    --teal-dim: rgba(13,148,136,0.15);
-    --teal-border: rgba(13,148,136,0.4);
-    --bg: #0a0f14;
-    --surface: #111827;
-    --surface2: #1a2332;
-    --text-muted: #6b7280;
-    --text-body: #d1d5db;
-}
-
-/* backgrounds follow the Streamlit theme — don't force dark */
+/* ── Teal theme (light) ──────────────────────────────────────────────────── */
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 .hero-wrap { padding: 2rem 0 1.2rem 0; }
 .hero-badge {
-    display: inline-block; background: var(--teal-dim); color: var(--teal-light);
-    border: 1px solid var(--teal-border); border-radius: 20px;
+    display: inline-block; background: #ccfbf1; color: #0d9488;
+    border: 1px solid #99f6e4; border-radius: 20px;
     padding: 3px 12px; font-size: 11px; font-weight: 700;
     letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;
 }
 .hero-title {
     font-size: 2.4rem; font-weight: 800; line-height: 1.15;
-    background: linear-gradient(135deg, #ffffff 20%, var(--teal-light) 100%);
+    background: linear-gradient(135deg, #0f172a 20%, #0d9488 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     margin: 0 0 8px 0;
 }
-.hero-sub { font-size: 1rem; color: var(--text-muted); margin: 0 0 16px 0; }
+.hero-sub { font-size: 1rem; color: #475569; margin: 0 0 16px 0; }
 .pill {
-    display: inline-block; background: var(--teal-dim); color: var(--teal-light);
+    display: inline-block; background: #ccfbf1; color: #0f766e;
     border-radius: 20px; padding: 3px 11px; font-size: 0.8rem; font-weight: 500; margin: 2px;
 }
 
@@ -341,34 +328,22 @@ st.markdown("""
 .step-item {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 16px; border-radius: 8px; font-size: 0.88rem; font-weight: 500;
-    color: var(--text-muted); background: transparent; flex-shrink: 0;
+    color: #94a3b8; background: transparent; flex-shrink: 0;
 }
-.step-item.done { color: var(--teal-light); }
+.step-item.done { color: #0d9488; }
 .step-item.active {
-    background: var(--teal-dim); color: #fff; font-weight: 700;
-    border: 1px solid var(--teal-border);
+    background: #ccfbf1; color: #0f172a; font-weight: 700;
+    border: 1px solid #99f6e4;
 }
 .step-num {
     width: 24px; height: 24px; border-radius: 50%; display: inline-flex;
     align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700;
-    background: #1f2937; color: var(--text-muted); flex-shrink: 0;
+    background: #e2e8f0; color: #64748b; flex-shrink: 0;
 }
-.step-item.done .step-num { background: var(--teal); color: #fff; }
-.step-item.active .step-num { background: var(--teal-light); color: #0a0f14; }
-.step-connector { flex: 1; height: 1px; background: #1f2937; margin: 0 4px; }
-.step-connector.done { background: var(--teal); }
-
-/* ── AI type cards ──────────────────────────────────────────────────────── */
-.ai-card {
-    border: 1px solid #1f2937; border-radius: 10px; padding: 14px 16px;
-    cursor: pointer; transition: all 0.15s; background: var(--surface);
-    margin-bottom: 8px;
-}
-.ai-card:hover { border-color: var(--teal-border); background: var(--teal-dim); }
-.ai-card.selected { border-color: var(--teal-light); background: var(--teal-dim); }
-.ai-card-icon { font-size: 1.4rem; margin-bottom: 4px; }
-.ai-card-title { font-weight: 700; font-size: 0.95rem; color: #f9fafb; }
-.ai-card-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.step-item.done .step-num { background: #0d9488; color: #fff; }
+.step-item.active .step-num { background: #14b8a6; color: #fff; }
+.step-connector { flex: 1; height: 1px; background: #e2e8f0; margin: 0 4px; }
+.step-connector.done { background: #0d9488; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar-label {
@@ -376,18 +351,6 @@ st.markdown("""
     letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px;
 }
 
-@media (prefers-color-scheme: light) {
-    :root {
-        --bg: #f8fafc; --surface: #ffffff; --surface2: #f1f5f9;
-        --text-muted: #64748b; --text-body: #1e293b;
-    }
-    [data-testid="stAppViewContainer"] { background: var(--bg); }
-    [data-testid="stSidebar"] { background: var(--surface); }
-    .hero-title { background: linear-gradient(135deg, #0f172a 20%, #0d9488 100%);
-                  -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .step-num { background: #e2e8f0; }
-    .ai-card { background: #ffffff; }
-}
 </style>
 """, unsafe_allow_html=True)
 
