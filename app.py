@@ -282,6 +282,12 @@ _COMPLIANCE_MAP: dict[str, dict[str, list[str]]] = {
         "NIST AI RMF":  ["MEASURE 2.1", "MEASURE 2.6"],
         "ISO 42001":    ["§ 9.1 Monitoring, measurement, analysis"],
     },
+    "indirect_injection": {
+        "EU AI Act":    ["Art. 9 — Risk management system",
+                         "Art. 15 — Accuracy, robustness & cybersecurity (adversarial robustness)"],
+        "NIST AI RMF":  ["MEASURE 2.5 — Adversarial testing", "MANAGE 2.4", "GOVERN 1.2"],
+        "ISO 42001":    ["§ 8.5 AI system security", "§ 6.1 Actions to address risks"],
+    },
 }
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 _THOROUGH = {
@@ -973,7 +979,12 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                 "robustness":      "Sanitise inputs; add input validation; test with fuzzing tools.",
                 "bias":            "Audit training data for demographic imbalance; add a bias-detection filter; apply RLHF with fairness rewards.",
                 "privacy":         "Strip PII from prompts before sending; add output filtering for PII patterns.",
-                "data_validation": "Add schema validation on model outputs; use structured output mode (JSON mode / function calling).",
+                "data_validation":      "Add schema validation on model outputs; use structured output mode (JSON mode / function calling).",
+                "instruction_following": "Improve system prompt clarity; use structured output / JSON mode to enforce format compliance.",
+                "code_safety":          "Add a code-output filter; never execute AI-generated code without sandboxing and human review.",
+                "agent_safety":         "Implement least-privilege tool access; require explicit confirmation before irreversible actions.",
+                "multilingual":         "Test safety filters in all supported languages; ensure safety classifiers are multilingual.",
+                "indirect_injection":   "Sanitise all retrieved/external content before inserting into prompts; use a dedicated injection-detection layer (e.g. Lakera Guard, Prompt Guard); apply strict output validation.",
             }
             for cat, (p, t) in sorted(fe.by_category.items()):
                 if p < t and cat in _REMEDIATION:
