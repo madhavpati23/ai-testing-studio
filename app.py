@@ -1244,15 +1244,25 @@ jobs:
 
         st.divider()
         rb1, rb2 = st.columns(2)
-        if rb1.button("🔄 Test a different AI / re-run", key="certify_reset", use_container_width=True):
-            for _k in ["certify", "certify_elapsed_s", "certify_badge",
-                       "certify_agent_checks", "certify_agent_check_sources",
-                       "wizard_golden_cases", "wizard_step", "wizard_domain",
-                       "wizard_ai_state", "convo_run", "convo_trace",
-                       "stateful_run", "al_run", "aa_rep", "aa_search"]:
+        if rb1.button("↩ Start over — back to Step 1", key="certify_reset", use_container_width=True):
+            # Clear all wizard state so Step 1 shows fresh defaults
+            _keys_to_clear = [
+                "certify", "certify_elapsed_s", "certify_badge",
+                "certify_agent_checks", "certify_agent_check_sources",
+                "wizard_golden_cases", "wizard_ai_state",
+                "wizard_ai_type", "wizard_domain", "wizard_thoroughness", "wizard_thorough_idx",
+                "convo_run", "convo_trace", "stateful_run",
+                "al_run", "aa_rep", "aa_search", "aa_run", "aa_plan", "aa_plan_results",
+                "rag_run", "rag_multi_run", "golden_run",
+            ]
+            for _k in _keys_to_clear:
                 st.session_state.pop(_k, None)
+            # Clear all behavior seed sentinels so Step 2 re-seeds on next visit
+            for _k in [k for k in st.session_state if isinstance(k, str) and k.startswith("_beh_defaults_seeded_")]:
+                del st.session_state[_k]
+            st.session_state["wizard_step"] = 0
             st.rerun()
-        rb2.caption("Clears the current results and takes you back to Step 1 — your sidebar settings stay.")
+        rb2.caption("Resets the wizard to Step 1. Your sidebar (backend & API key) stays.")
 
 
 # ---- Leaderboard (the same battery, several models, one comparison) --------
