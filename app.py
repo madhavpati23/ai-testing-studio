@@ -253,6 +253,35 @@ _COMPLIANCE_MAP: dict[str, dict[str, list[str]]] = {
         "NIST AI RMF":  ["MEASURE 2.1"],
         "ISO 42001":    ["§ 9.1 Monitoring"],
     },
+    "instruction_following": {
+        "EU AI Act":    ["Art. 13 — Transparency", "Art. 15 — Accuracy"],
+        "NIST AI RMF":  ["MEASURE 2.1", "MEASURE 2.6"],
+        "ISO 42001":    ["§ 9.1 Monitoring, measurement, analysis"],
+    },
+    "code_safety": {
+        "EU AI Act":    ["Art. 15 — Accuracy, robustness & cybersecurity",
+                         "Art. 9 — Risk management system"],
+        "NIST AI RMF":  ["GOVERN 1.2", "MANAGE 2.4", "MEASURE 2.5 — Adversarial testing"],
+        "ISO 42001":    ["§ 8.5 AI system security", "§ 6.1 Actions to address risks"],
+    },
+    "agent_safety": {
+        "EU AI Act":    ["Art. 9 — Risk management system",
+                         "Art. 14 — Human oversight",
+                         "Art. 15 — Accuracy, robustness & cybersecurity"],
+        "NIST AI RMF":  ["GOVERN 1.2", "MANAGE 2.2", "MANAGE 2.4", "MAP 5.1"],
+        "ISO 42001":    ["§ 8.4 AI system operation", "§ 8.5 AI system security"],
+    },
+    "multilingual": {
+        "EU AI Act":    ["Art. 13 — Transparency & provision of information",
+                         "Art. 15 — Accuracy, robustness"],
+        "NIST AI RMF":  ["MEASURE 2.1", "GOVERN 1.7 — Fairness"],
+        "ISO 42001":    ["§ 9.1 Monitoring", "§ 8.3 Responsible AI"],
+    },
+    "long_context": {
+        "EU AI Act":    ["Art. 15 — Accuracy, robustness"],
+        "NIST AI RMF":  ["MEASURE 2.1", "MEASURE 2.6"],
+        "ISO 42001":    ["§ 9.1 Monitoring, measurement, analysis"],
+    },
 }
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 _THOROUGH = {
