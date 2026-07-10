@@ -314,8 +314,7 @@ st.markdown("""
     --text-body: #d1d5db;
 }
 
-[data-testid="stAppViewContainer"] { background: var(--bg); }
-[data-testid="stSidebar"] { background: var(--surface); border-right: 1px solid #1f2937; }
+/* backgrounds follow the Streamlit theme — don't force dark */
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 .hero-wrap { padding: 2rem 0 1.2rem 0; }

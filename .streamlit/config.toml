@@ -1,8 +1,8 @@
 [theme]
 base = "light"
-primaryColor = "#10b981"          # emerald — matches the SHIP verdict
+primaryColor = "#0d9488"
 backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f1f5f9"
+secondaryBackgroundColor = "#f0fdfa"
 textColor = "#0f172a"
 font = "sans serif"
 
