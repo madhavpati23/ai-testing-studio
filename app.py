@@ -313,10 +313,10 @@ st.markdown("""
 }
 .hero-title {
     font-size: 2.4rem; font-weight: 800; line-height: 1.15;
-    background: linear-gradient(135deg, #0f172a 20%, #0d9488 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    color: #0f172a;
     margin: 0 0 8px 0;
 }
+.hero-title span { color: #0d9488; }
 .hero-sub { font-size: 1rem; color: #475569; margin: 0 0 16px 0; }
 .pill {
     display: inline-block; background: #ccfbf1; color: #0f766e;
@@ -3608,7 +3608,7 @@ def _wizard_step_cases() -> None:
 st.markdown("""
 <div style="padding: 28px 0 18px 0;">
   <div class="hero-badge">🧪 AI TESTING STUDIO</div>
-  <div class="hero-title">Test. Certify. Ship with confidence.</div>
+  <div class="hero-title">Test. Certify. <span>Ship with confidence.</span></div>
   <div class="hero-sub">
     The evaluation platform built for teams shipping AI products —
     benchmark any model or agent across safety, accuracy, reasoning, bias,
