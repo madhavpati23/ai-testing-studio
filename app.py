@@ -3670,86 +3670,72 @@ with tab_wizard:
         _wizard_step_cases()
 
     elif _wiz_step == 1:
-        # Step 2: Choose additional tests (behaviors)
-        st.markdown("### Step 2 — Choose your tests")
+        # Step 2: Preview what will be tested
+        st.markdown("### Step 2 — What will be tested")
         _ai_state = st.session_state.get("wizard_ai_state", "chatbot")
-        _kind = _BACKEND_KIND[backend]
-        _is_http = _kind in ("http", "http_agent")
-        _TOOL_NATIVE = {"🔮", "⚡"} if _kind == "http" else set()
 
-        _beh_options = [
-            ("🔁", "Multi-turn memory",        "Does it remember context across a conversation?",              {"chatbot"}),
-            ("📚", "RAG grounding",             "Are answers faithful to a provided document/source?",          {"chatbot", "rag"}),
-            ("🛠️", "Agent tool use",            "Does it call the right tool and refuse dangerous ones?",       {"agent"}),
-            ("🔗", "Agent loops",               "Does it verify preconditions before acting over multiple steps?", {"agent"}),
-            ("🔄", "Stateful session",          "Does state carry within sessions and stay isolated between them?", {"stateful"}),
-            ("🔮", "Tool hallucination",        "Does it invent tools that aren't in its schema?",              {"agent"}),
-            ("🙋", "Human-in-the-loop",         "Does it ask before taking irreversible actions?",              {"agent"}),
-            ("⚡", "Parallel tool calls",       "Does it fire all needed tools in one turn when possible?",     {"agent"}),
-            ("🧠", "Memory persistence",        "Does it recall stored info and keep sessions isolated?",       {"agent", "stateful"}),
-            ("🗝️", "Red-team extraction",       "Can it be tricked into leaking its system prompt or jailbreaking?", set()),
-            ("🎯", "Factual accuracy",          "Does it know basic facts correctly?",                          set()),
-            ("🚫", "Harmful content refusal",   "Does it refuse dangerous or harmful requests?",                set()),
-            ("💪", "Robustness",                "Does it handle typos, gibberish, and edge inputs gracefully?", set()),
-            ("📐", "Instruction following",     "Does it follow precise formatting instructions?",              set()),
-            ("♻️", "Consistency",               "Does it give the same answer to the same question?",           set()),
+        st.success(
+            "Everything below runs **automatically** in Step 3. "
+            "No setup needed — just review and continue."
+        )
+
+        # ── What the battery covers ───────────────────────────────────────────
+        _always_tested = [
+            ("🛡️", "Safety",                "Won't generate harmful, violent, or illegal content"),
+            ("🔴", "Red-team attacks",       "Resists jailbreaks, prompt injection, and manipulation"),
+            ("🌀", "Hallucination",          "Admits when it doesn't know rather than making things up"),
+            ("🎯", "Accuracy",               "Gets basic facts, maths, and reasoning correct"),
+            ("⚖️", "Bias & fairness",        "Doesn't discriminate by gender, race, religion, or disability"),
+            ("🔒", "Privacy",                "Won't leak or reproduce personal data"),
+            ("💉", "Indirect injection",     "Resists attacks hidden inside documents or tool outputs"),
+            ("📐", "Instruction following",  "Obeys formatting and output constraints"),
+            ("🌍", "Multilingual",           "Safe and accurate across 11 languages"),
+            ("🔗", "Consistency",            "Gives the same answer to the same question"),
         ]
 
-        _recommended = {
-            "chatbot":  {"🔁", "📚"},
-            "stateful": {"🔄", "🧠"},
-            "agent":    {"🔮", "🙋", "⚡", "🧠", "🛠️"},
-        }.get(_ai_state, set())
+        _ai_extras = {
+            "agent": [
+                ("🔮", "Tool hallucination",    "Doesn't invent tools that aren't in its schema"),
+                ("🙋", "Human-in-the-loop",     "Asks before taking irreversible actions"),
+                ("🧠", "Memory isolation",      "Keeps sessions isolated — no data leaks between users"),
+                ("🔐", "Agent safety",          "Refuses permission escalation and data exfiltration"),
+            ],
+            "stateful": [
+                ("🔄", "Session state",         "Carries context within a session, resets between sessions"),
+                ("🧠", "Memory isolation",      "No data bleeds between different user sessions"),
+            ],
+            "chatbot": [
+                ("🔁", "Multi-turn context",    "Remembers what was said earlier in a conversation"),
+                ("📚", "RAG grounding",         "Answers stay faithful to retrieved source documents"),
+            ],
+        }
 
-        _seed_key = f"_beh_defaults_seeded_{_ai_state}_{_kind}"
-        if not st.session_state.get(_seed_key):
-            for _k in list(st.session_state.keys()):
-                if isinstance(_k, str) and _k.startswith("_beh_defaults_seeded_"):
-                    del st.session_state[_k]
-            for _e, *_ in _beh_options:
-                _is_blocked = _kind == "http" and _e in _TOOL_NATIVE
-                st.session_state[f"beh_{_e}"] = (_e in _recommended) and not _is_blocked
-            st.session_state[_seed_key] = True
+        st.markdown("**Always included in every test:**")
+        c1, c2 = st.columns(2)
+        for i, (icon, title, desc) in enumerate(_always_tested):
+            (c1 if i % 2 == 0 else c2).markdown(f"{icon} **{title}** — {desc}")
 
-        # ── Recommended section ───────────────────────────────────────────────
-        _rec_opts = [o for o in _beh_options if o[0] in _recommended]
-        _other_opts = [o for o in _beh_options if o[0] not in _recommended]
+        _extras = _ai_extras.get(_ai_state, [])
+        if _extras:
+            st.markdown(f"**Also included for your AI type:**")
+            c3, c4 = st.columns(2)
+            for i, (icon, title, desc) in enumerate(_extras):
+                (c3 if i % 2 == 0 else c4).markdown(f"{icon} **{title}** — {desc}")
 
-        if _rec_opts:
-            st.markdown("**Recommended for your AI type** *(pre-selected)*")
-            cols = st.columns(2)
-            for idx, (_e, _title, _desc, _) in enumerate(_rec_opts):
-                _blocked = _is_http and _e in _TOOL_NATIVE
-                _label = f"**{_title}**  \n{_desc}"
-                if _blocked:
-                    _label += "  \n*(requires Claude or deployed-agent backend)*"
-                cols[idx % 2].checkbox(_label, key=f"beh_{_e}", disabled=_blocked)
+        # Show domain extras if selected
+        _domain = st.session_state.get("wizard_domain", "general")
+        _domain_label = core.DOMAIN_LABELS.get(_domain, _domain)
+        _domain_n = len(core.DOMAIN_CASES.get(_domain, []))
+        if _domain != "general" and _domain_n:
+            st.markdown(f"**Plus {_domain_n} {_domain_label}-specific checks.**")
 
-        with st.expander("➕ Add more tests (optional)"):
-            cols2 = st.columns(2)
-            for idx, (_e, _title, _desc, _) in enumerate(_other_opts):
-                _blocked = _is_http and _e in _TOOL_NATIVE
-                _label = f"**{_title}**  \n{_desc}"
-                if _blocked:
-                    _label += "  \n*(requires Claude backend)*"
-                cols2[idx % 2].checkbox(_label, key=f"beh_{_e}", disabled=_blocked)
-
-        # ── Run selected behavior flows ───────────────────────────────────────
-        _selected_behs = [o[0] for o in _beh_options
-                          if st.session_state.get(f"beh_{o[0]}") and not (_is_http and o[0] in _TOOL_NATIVE)]
-        if _selected_behs:
-            st.divider()
-            _flow_map = {
-                "🔁": _flow_multiturn, "📚": _flow_rag, "🛠️": _flow_agent_action,
-                "🔗": _flow_agent_loop, "🔄": _flow_stateful_session, "🔮": _flow_tool_hallucination,
-                "🙋": _flow_hitl, "⚡": _flow_parallel_tools, "🧠": _flow_memory_persistence,
-                "🗝️": _flow_red_team, "🎯": _flow_factual_accuracy, "🚫": _flow_harmful_refusal,
-                "💪": _flow_robustness, "📐": _flow_instruction_following, "♻️": _flow_consistency,
-            }
-            for _e in _selected_behs:
-                if _e in _flow_map:
-                    _flow_map[_e]()
-                    st.divider()
+        # ── Thoroughness reminder ─────────────────────────────────────────────
+        _thorough_keys = list(_THOROUGH.keys())
+        _thorough_key = _thorough_keys[st.session_state.get("wizard_thorough_idx", 1)]
+        _t_level, _t_runs, _t_stress = _THOROUGH[_thorough_key]
+        _t_checks = 22 if _t_level == "quick" else 48
+        _t_total = (_t_checks + _domain_n) * _t_runs + _t_stress
+        st.info(f"**{_t_total} total test runs** at {_thorough_key.split(' —')[0]} level. ← Change this in Step 1 if needed.")
 
     else:
         # Step 3: Run & certify
