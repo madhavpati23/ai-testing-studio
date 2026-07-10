@@ -301,34 +301,93 @@ st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wid
 
 st.markdown("""
 <style>
+/* ── Teal theme ─────────────────────────────────────────────────────────── */
+:root {
+    --teal: #0d9488;
+    --teal-light: #14b8a6;
+    --teal-dim: rgba(13,148,136,0.15);
+    --teal-border: rgba(13,148,136,0.4);
+    --bg: #0a0f14;
+    --surface: #111827;
+    --surface2: #1a2332;
+    --text-muted: #6b7280;
+    --text-body: #d1d5db;
+}
+
+[data-testid="stAppViewContainer"] { background: var(--bg); }
+[data-testid="stSidebar"] { background: var(--surface); border-right: 1px solid #1f2937; }
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+.hero-wrap { padding: 2rem 0 1.2rem 0; }
 .hero-badge {
-    display: inline-block; background: #1a1a2e; color: #7c83fd;
-    border: 1px solid #7c83fd; border-radius: 20px;
-    padding: 3px 12px; font-size: 12px; font-weight: 600;
-    letter-spacing: 0.05em; margin-bottom: 8px;
+    display: inline-block; background: var(--teal-dim); color: var(--teal-light);
+    border: 1px solid var(--teal-border); border-radius: 20px;
+    padding: 3px 12px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;
 }
 .hero-title {
-    font-size: 2.6rem; font-weight: 800; line-height: 1.2;
-    background: linear-gradient(135deg, #ffffff 30%, #7c83fd 100%);
+    font-size: 2.4rem; font-weight: 800; line-height: 1.15;
+    background: linear-gradient(135deg, #ffffff 20%, var(--teal-light) 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
 }
-.hero-sub {
-    font-size: 1.05rem; color: #94a3b8; margin: 0 0 20px 0; max-width: 680px;
-}
+.hero-sub { font-size: 1rem; color: var(--text-muted); margin: 0 0 16px 0; }
 .pill {
-    display: inline-block; background: rgba(124,131,253,0.12);
-    color: #a5b4fc; border-radius: 20px; padding: 4px 12px;
-    font-size: 0.82rem; font-weight: 500; margin: 2px;
+    display: inline-block; background: var(--teal-dim); color: var(--teal-light);
+    border-radius: 20px; padding: 3px 11px; font-size: 0.8rem; font-weight: 500; margin: 2px;
 }
-[data-testid="stAppViewContainer"] { background: #0d1117; }
-[data-testid="stSidebar"] { background: #161b22; }
+
+/* ── Step progress bar ──────────────────────────────────────────────────── */
+.step-bar { display: flex; align-items: center; margin: 0.5rem 0 1.5rem 0; }
+.step-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 8px; font-size: 0.88rem; font-weight: 500;
+    color: var(--text-muted); background: transparent; flex-shrink: 0;
+}
+.step-item.done { color: var(--teal-light); }
+.step-item.active {
+    background: var(--teal-dim); color: #fff; font-weight: 700;
+    border: 1px solid var(--teal-border);
+}
+.step-num {
+    width: 24px; height: 24px; border-radius: 50%; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700;
+    background: #1f2937; color: var(--text-muted); flex-shrink: 0;
+}
+.step-item.done .step-num { background: var(--teal); color: #fff; }
+.step-item.active .step-num { background: var(--teal-light); color: #0a0f14; }
+.step-connector { flex: 1; height: 1px; background: #1f2937; margin: 0 4px; }
+.step-connector.done { background: var(--teal); }
+
+/* ── AI type cards ──────────────────────────────────────────────────────── */
+.ai-card {
+    border: 1px solid #1f2937; border-radius: 10px; padding: 14px 16px;
+    cursor: pointer; transition: all 0.15s; background: var(--surface);
+    margin-bottom: 8px;
+}
+.ai-card:hover { border-color: var(--teal-border); background: var(--teal-dim); }
+.ai-card.selected { border-color: var(--teal-light); background: var(--teal-dim); }
+.ai-card-icon { font-size: 1.4rem; margin-bottom: 4px; }
+.ai-card-title { font-weight: 700; font-size: 0.95rem; color: #f9fafb; }
+.ai-card-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar-label {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px;
+}
+
 @media (prefers-color-scheme: light) {
-    .hero-title { background: linear-gradient(135deg, #1e293b 30%, #4f46e5 100%);
+    :root {
+        --bg: #f8fafc; --surface: #ffffff; --surface2: #f1f5f9;
+        --text-muted: #64748b; --text-body: #1e293b;
+    }
+    [data-testid="stAppViewContainer"] { background: var(--bg); }
+    [data-testid="stSidebar"] { background: var(--surface); }
+    .hero-title { background: linear-gradient(135deg, #0f172a 20%, #0d9488 100%);
                   -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero-sub { color: #475569; }
-    .hero-badge { background: #ede9fe; color: #4f46e5; border-color: #c4b5fd; }
-    .pill { background: #ede9fe; color: #4f46e5; }
+    .step-num { background: #e2e8f0; }
+    .ai-card { background: #ffffff; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -353,16 +412,21 @@ def _clear_feature():
 
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
-    st.header("Model under test")
+    st.markdown('<div class="sidebar-label">Which AI are you testing?</div>', unsafe_allow_html=True)
     backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint", "Your deployed agent (HTTP)"]
-    backend = st.radio("Backend", backends,
-                       help="The Demo bot is a built-in offline dummy with planted bugs — for "
-                            "free demos, no key. Claude/HTTP test a real model with "
-                            "your own key (used only for your session).")
+    _backend_labels = {
+        "Demo bot (offline)":          "🔧 Demo (no key needed)",
+        "Claude API":                  "🟠 Claude (Anthropic)",
+        "HTTP endpoint":               "🌐 Any AI via API",
+        "Your deployed agent (HTTP)":  "🤖 My own agent",
+    }
+    backend = st.radio(
+        "AI under test",
+        backends,
+        format_func=lambda b: _backend_labels[b],
+        label_visibility="collapsed",
+    )
 
-    # Results belong to the backend they were produced against. When the user
-    # switches backends, clear every cached run so a stale verdict from the old
-    # model can't sit there looking current — and tell them why it vanished.
     _RESULT_KEYS = ("gen", "run", "certify", "golden_run",
                     "convo_run", "convo_trace", "rag_run", "rag_multi_run", "aa_run", "aa_search",
                     "aa_plan", "aa_plan_results", "al_run", "calib", "calibrated_judge",
@@ -370,23 +434,24 @@ with st.sidebar:
     if st.session_state.get("_last_backend", backend) != backend:
         for _k in _RESULT_KEYS:
             st.session_state.pop(_k, None)
-        st.warning(f"Switched to **{backend}** — cleared earlier results. "
-                   "Re-run against the new backend.")
+        st.info(f"Switched to **{_backend_labels[backend]}** — previous results cleared.")
     st.session_state["_last_backend"] = backend
 
     backend_opts: dict[str, Any] = {}
-    if backend != "Demo bot (offline)":
-        st.caption("🔑 **Bring your own key.** It's kept only in *your* browser session and sent "
-                   "directly to the provider per request — never written to the server's "
-                   "environment, never stored or logged.")
+
     if backend == "Claude API":
+        st.divider()
         _sk = _secret("ANTHROPIC_API_KEY")
         if _sk:
             backend_opts["api_key"] = _sk
-            st.caption("🔐 Using **ANTHROPIC_API_KEY** from Secrets.")
+            st.caption("🔐 Key loaded from Secrets.")
         else:
-            backend_opts["api_key"] = st.text_input("ANTHROPIC_API_KEY", type="password")
+            backend_opts["api_key"] = st.text_input("API Key", type="password",
+                                                     placeholder="sk-ant-...",
+                                                     help="Get yours at console.anthropic.com")
+
     elif backend == "HTTP endpoint":
+        st.divider()
         for _k, _d in {"http_url": "", "http_body": '{"prompt": {PROMPT}}',
                        "http_response_path": "output", "http_headers": ""}.items():
             st.session_state.setdefault(_k, _d)
@@ -400,8 +465,9 @@ with st.sidebar:
                 st.session_state["http_headers"] = p["headers"]
                 st.session_state["http_body_encoding"] = p.get("body_encoding", "json")
 
-        st.selectbox("Preset", list(_HTTP_PRESETS), key="http_preset", on_change=_apply_http_preset)
-        # Also apply on every render so URL/response_path stay in sync with the chosen preset
+        st.selectbox("Provider preset", list(_HTTP_PRESETS), key="http_preset",
+                     on_change=_apply_http_preset,
+                     help="Pick a provider to auto-fill the URL and format below.")
         _apply_http_preset()
         _preset = st.session_state.get("http_preset", "")
         backend_opts["url"] = st.text_input("Endpoint URL", key="http_url",
@@ -410,63 +476,48 @@ with st.sidebar:
         if (_entered_url and
                 any(h in _entered_url for h in ("groq.com", "openai.com", "openai/v1", "openai/v"))
                 and not _entered_url.endswith("/completions")):
-            st.warning("⚠️ This looks like an OpenAI-compatible endpoint — the URL should end with "
-                       "`/chat/completions`. Select the **Groq** or **OpenAI-compatible** preset "
-                       "above to fill it in correctly.")
+            st.warning("URL should end with `/chat/completions` — select a preset above.")
         backend_opts["body"] = st.text_input("Body template", key="http_body",
-                                             help="The token {PROMPT} is replaced with the JSON-encoded prompt.")
+                                             help="{PROMPT} is replaced with the prompt text.")
         backend_opts["response_path"] = st.text_input("Response path", key="http_response_path",
-                                                      help='Dotted path to the answer, e.g. choices.0.message.content')
+                                                      help='e.g. choices.0.message.content')
 
-        # Pull the bearer key from Secrets when one matches the chosen preset, so
-        # no key is typed into the UI (use this only on a *private* deployment).
         _preset_cfg = _HTTP_PRESETS.get(_preset) or {}
         _secret_name = _preset_cfg.get("secret")
         _hk = _secret(_secret_name) if _secret_name else None
         if _hk:
             backend_opts["headers"] = json.dumps({"Authorization": f"Bearer {_hk}"})
-            st.caption(f"🔐 Using **{_secret_name}** from Secrets for the Authorization header.")
+            st.caption(f"🔐 {_secret_name} loaded from Secrets.")
         else:
-            backend_opts["headers"] = st.text_input("Headers (JSON)", key="http_headers",
+            backend_opts["headers"] = st.text_input("Authorization header (JSON)", key="http_headers",
                                                     placeholder='{"Authorization": "Bearer ..."}')
         _key_hint = {
-            "GROQ_API_KEY": ("Groq (free)", "console.groq.com → API Keys", "gsk_"),
-            "OPENAI_API_KEY": ("OpenAI", "platform.openai.com → API keys", "sk-"),
-            "GEMINI_API_KEY": ("Gemini", "aistudio.google.com → Get API key", "AIza"),
-            "MISTRAL_API_KEY": ("Mistral", "console.mistral.ai → API Keys", ""),
+            "GROQ_API_KEY":    ("console.groq.com → API Keys", "gsk_"),
+            "OPENAI_API_KEY":  ("platform.openai.com → API keys", "sk-"),
+            "GEMINI_API_KEY":  ("aistudio.google.com → Get API key", "AIza"),
+            "MISTRAL_API_KEY": ("console.mistral.ai → API Keys", ""),
         }.get(_secret_name or "")
         if _key_hint and not _hk:
-            _, _url, _prefix = _key_hint
-            st.caption(f"Get key: {_url} — paste it{f' (starts `{_prefix}`)' if _prefix else ''} "
-                       f"into the Authorization header above.")
+            _url, _prefix = _key_hint
+            st.caption(f"Get key: {_url}" + (f" (starts `{_prefix}`)" if _prefix else ""))
 
-        # SSRF guard ON by default; private/loopback/metadata addresses are refused
-        # unless the user explicitly allows them (only for a trusted local endpoint).
-        _allow_local = st.checkbox(
-            "Allow private / localhost addresses (e.g. a local Ollama server)",
-            value=False,
-            help="Off by default for safety — the app refuses internal/metadata IPs so it "
-                 "can't be used to reach private infrastructure. Tick only for an endpoint "
-                 "you run and trust on your own machine/network.")
-        backend_opts["block_private"] = not _allow_local
+        with st.expander("Advanced"):
+            _allow_local = st.checkbox("Allow localhost / private IPs", value=False,
+                                       help="Enable only for a local Ollama or test server.")
+            backend_opts["block_private"] = not _allow_local
         backend_opts["body_encoding"] = st.session_state.get("http_body_encoding", "json")
+
     elif backend == "Your deployed agent (HTTP)":
-        st.caption("📡 For testing **your own production agent** — Agent actions / Agent loops "
-                   "(Behaviors) point at this. Your endpoint must accept "
-                   "`POST {\"prompt\", \"tools\"}` and return "
-                   "`{\"text\", \"tool_calls\": [{\"name\", \"arguments\"}, ...]}` — "
-                   "every tool call your agent made, in order, however many steps it took.")
+        st.divider()
         backend_opts["url"] = st.text_input("Agent endpoint URL", key="agent_url",
                                             placeholder="https://my-agent.example.com/run")
-        backend_opts["headers"] = st.text_input("Headers (JSON)", key="agent_headers",
+        backend_opts["headers"] = st.text_input("Authorization header (JSON)", key="agent_headers",
                                                 placeholder='{"Authorization": "Bearer ..."}')
-        _allow_local_agent = st.checkbox(
-            "Allow private / localhost addresses", value=False, key="agent_allow_local",
-            help="Off by default — tick only for an agent you run and trust locally.")
-        backend_opts["block_private"] = not _allow_local_agent
-        st.caption("⚠️ Side effects here are **real** — this calls your actual agent, not a "
-                   "simulation. Point it at a staging/test agent, not production data, unless "
-                   "you mean it.")
+        with st.expander("Advanced"):
+            _allow_local_agent = st.checkbox("Allow localhost / private IPs", value=False,
+                                             key="agent_allow_local")
+            backend_opts["block_private"] = not _allow_local_agent
+        st.caption("⚠️ Use a **staging** agent, not production.")
 
 
 
@@ -3422,24 +3473,28 @@ _JOURNEY_STEPS = [
 # ============================================================================
 
 _WIZARD_STEPS = [
-    ("Add test cases",  "optional"),
-    ("Test behaviors",  "optional"),
-    ("Calibrate judge", "optional"),
-    ("Certify",         ""),
+    ("About your AI",    "Tell us what you're testing"),
+    ("Choose tests",     "Pick what to check"),
+    ("Run & certify",    "Get your report"),
 ]
 
 
 def _wizard_header(step: int) -> None:
-    cols = st.columns(len(_WIZARD_STEPS))
-    for i, (label, hint) in enumerate(_WIZARD_STEPS):
-        with cols[i]:
-            if i < step:
-                st.markdown(f"✅ **Step {i + 1}**  \n{label}")
-            elif i == step:
-                st.markdown(f"**● Step {i + 1}**  \n**{label}**")
-            else:
-                tag = " *(optional)*" if hint else ""
-                st.markdown(f"○ Step {i + 1}  \n{label}{tag}")
+    parts = []
+    for i, (label, _) in enumerate(_WIZARD_STEPS):
+        done = i < step
+        active = i == step
+        cls = "done" if done else ("active" if active else "")
+        icon = "✓" if done else str(i + 1)
+        parts.append(
+            f'<div class="step-item {cls}">'
+            f'<span class="step-num">{icon}</span>'
+            f'<span>{label}</span>'
+            f'</div>'
+        )
+        if i < len(_WIZARD_STEPS) - 1:
+            parts.append(f'<div class="step-connector {"done" if done else ""}"></div>')
+    st.markdown(f'<div class="step-bar">{"".join(parts)}</div>', unsafe_allow_html=True)
 
 
 def _wizard_nav(step: int) -> None:
@@ -3448,8 +3503,8 @@ def _wizard_nav(step: int) -> None:
         if c1.button("← Back", key=f"wz_back_{step}"):
             st.session_state["wizard_step"] = step - 1
             st.rerun()
-    if step < 3:
-        lbl = "Continue to Certify →" if step == 2 else "Continue →"
+    if step < 2:
+        lbl = "Continue →" if step == 0 else "Run certification →"
         if c3.button(lbl, type="primary", key=f"wz_next_{step}"):
             st.session_state["wizard_step"] = step + 1
             st.rerun()
@@ -3478,118 +3533,101 @@ _AI_TYPES = {
 
 
 def _wizard_step_cases() -> None:
-    st.subheader("Step 1 — Tell us about your AI")
-    st.caption("Two questions. Your answers shape the entire test suite — which checks run and which Step 2 behaviors are recommended.")
+    st.markdown("### Step 1 — Tell us about your AI")
+    st.caption("Your answers here shape the entire test — which checks run and what gets pre-selected in Step 2.")
 
-    # ── Unified AI setup card ─────────────────────────────────────────────────
-    with st.container(border=True):
-        col_type, col_domain = st.columns(2)
+    col_type, col_right = st.columns([1, 1], gap="large")
 
-        with col_type:
-            st.markdown("**What kind of AI is it?**")
-            ai_type_label = st.radio(
-                "AI kind",
-                list(_AI_TYPES.keys()),
-                key="wizard_ai_type",
-                label_visibility="collapsed",
-            )
-
-        with col_domain:
-            st.markdown("**What domain is it in?**")
-            domain = st.radio(
-                "Domain",
-                list(core.DOMAIN_LABELS.keys()),
-                format_func=lambda k: core.DOMAIN_LABELS[k],
-                key="wizard_domain",
-                label_visibility="collapsed",
-            )
-
+    with col_type:
+        st.markdown("**What kind of AI is it?**")
+        ai_type_label = st.radio(
+            "AI kind",
+            list(_AI_TYPES.keys()),
+            key="wizard_ai_type",
+            label_visibility="collapsed",
+        )
         _ai_cfg = _AI_TYPES[ai_type_label]
         st.session_state["wizard_ai_state"] = _ai_cfg["key"]
+        st.caption(_ai_cfg["tip"])
 
-        # ── Live summary ──────────────────────────────────────────────────────
-        st.divider()
+    with col_right:
+        st.markdown("**What industry is it for?**")
+        domain = st.radio(
+            "Domain",
+            list(core.DOMAIN_LABELS.keys()),
+            format_func=lambda k: core.DOMAIN_LABELS[k],
+            key="wizard_domain",
+            label_visibility="collapsed",
+        )
         _domain_label = core.DOMAIN_LABELS.get(domain, domain)
         _domain_n = len(core.DOMAIN_CASES.get(domain, []))
-        _step2_options = {
-            "chatbot":  "Multi-turn, RAG grounding",
-            "stateful": "Stateful session (carry + isolation)",
-            "agent":    "Tool hallucination, Human-in-the-loop, Parallel tools, Memory persistence",
-        }
-        _step2_rec = _step2_options.get(_ai_cfg["key"], "")
-
-        # ── Thoroughness ──────────────────────────────────────────────────────
-        st.divider()
-        st.markdown("**How thorough should the test be?**")
-        _thorough_keys = list(_THOROUGH.keys())
-        _thorough_key: str = st.radio(  # type: ignore[assignment]
-            "Thoroughness level",
-            _thorough_keys,
-            index=st.session_state.get("wizard_thorough_idx", 1),
-            key="wizard_thoroughness",
-            label_visibility="collapsed",
-            help="Quick = fast smoke test. Standard = recommended balance. "
-                 "Thorough = each check runs 3 times. Deep = 80+ randomized stress probes.",
-        ) or _thorough_keys[1]
-        st.session_state["wizard_thorough_idx"] = _thorough_keys.index(_thorough_key)
-        _t_level, _t_runs, _t_stress = _THOROUGH[_thorough_key]
-        _t_checks = 22 if _t_level == "quick" else 48
-        _t_total = (_t_checks + _domain_n) * _t_runs + _t_stress
-
-        sc1, sc2, sc3 = st.columns(3)
-        sc1.metric("Checks selected", _t_checks if _t_level != "deep" else f"{_t_checks} + {_t_stress} stress")
-        sc2.metric("Domain checks added", _domain_n if domain != "general" else 0,
-                   help=f"{_domain_label} domain checks" if domain != "general" else "Select a domain to add checks")
-        sc3.metric("Total test runs", _t_total,
-                   help=f"{_t_checks} checks × {_t_runs} run(s)" + (f" + {_t_stress} stress probes" if _t_stress else ""))
-
-        st.info(
-            f"**Your setup:** {ai_type_label} · {_domain_label} · {_thorough_key.split(' —')[0]}\n\n"
-            f"**Step 2 pre-selects ⭐:** {_step2_rec}\n\n"
-            f"**Domain checks:** {'none — standard battery only' if domain == 'general' else f'{_domain_n} {_domain_label}-specific checks added'}"
-        )
-
-        if domain != "general":
-            with st.expander(f"Preview {_domain_n} {_domain_label} checks"):
-                for c in core.DOMAIN_CASES.get(domain, []):
-                    sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(c["severity"], "⚪")
-                    st.markdown(f"{sev_icon} {c['prompt'][:90]}{'…' if len(c['prompt']) > 90 else ''}")
+        if domain != "general" and _domain_n:
+            st.caption(f"Adds **{_domain_n}** {_domain_label}-specific checks to the battery.")
 
     st.divider()
 
-    # ── Custom ground truth ───────────────────────────────────────────────────
-    st.markdown("#### Add your own test cases *(optional)*")
-    st.caption("Upload a CSV of `prompt, expected` pairs specific to your use case — "
-               "product facts, custom refusals, domain accuracy. These fold into the certificate "
-               "alongside the standard battery.")
-    st.markdown(
-        "**CSV columns:** `prompt`, `expected` (required); `validator`, `category`, "
-        "`severity` (optional).\n"
-        "- `validator` (default **contains**): `contains` · `not_contains` · `regex` · `equals_number`\n"
-        "- `expected` is the substring / regex / number the answer must satisfy."
-    )
-    st.download_button("⬇️ Download CSV template", core.GOLDEN_TEMPLATE,
-                       "golden-set-template.csv", "text/csv", key="wiz_dl_tmpl")
+    # ── Thoroughness ──────────────────────────────────────────────────────────
+    st.markdown("**How deep should the test go?**")
+    _thorough_keys = list(_THOROUGH.keys())
+    _thorough_labels = {
+        k: {"Quick — ~22 checks, 1 run (fast smoke test)":                      "⚡ Quick  — fast smoke test, ~22 checks",
+            "Standard — ~48 checks, 1 run (recommended)":                       "✅ Standard  — recommended, ~48 checks",
+            "Thorough — ~48 checks, 3 runs each (most rigorous)":               "🔬 Thorough  — 3 runs per check, catches flaky answers",
+            "Deep — ~48 + 80 randomized stress probes (hardest to game)":       "🛡️ Deep  — +80 randomised stress probes"}.get(k, k)
+        for k in _thorough_keys
+    }
+    _thorough_key: str = st.radio(  # type: ignore[assignment]
+        "Thoroughness",
+        _thorough_keys,
+        format_func=lambda k: _thorough_labels[k],
+        index=st.session_state.get("wizard_thorough_idx", 1),
+        key="wizard_thoroughness",
+        label_visibility="collapsed",
+        horizontal=True,
+    ) or _thorough_keys[1]
+    st.session_state["wizard_thorough_idx"] = _thorough_keys.index(_thorough_key)
+    _t_level, _t_runs, _t_stress = _THOROUGH[_thorough_key]
+    _t_checks = 22 if _t_level == "quick" else 48
+    _t_total = (_t_checks + _domain_n) * _t_runs + _t_stress
 
-    up = st.file_uploader("Upload your test cases (CSV, Excel, or PDF)", type=["csv", "xlsx", "xls", "pdf"], key="wiz_golden_csv")
-    if up is not None:
-        try:
-            gcases, gerrs = core.build_golden_from_file(up.getvalue(), up.name)
-            st.session_state["wizard_golden_cases"] = gcases
-            if gerrs:
-                st.warning("Notes:\n\n- " + "\n- ".join(gerrs))
-            if gcases:
-                st.success(f"✅ **{len(gcases)}** custom test cases loaded.")
-        except Exception as exc:
-            st.error(f"Could not read file: {exc}")
-    elif st.session_state.get("wizard_golden_cases"):
-        n = len(st.session_state["wizard_golden_cases"])
-        st.success(f"✅ **{n}** custom test cases queued from a previous upload.")
-        if st.button("Remove test cases", key="wiz_remove_cases"):
-            del st.session_state["wizard_golden_cases"]
-            st.rerun()
-    else:
-        st.caption("No file — the built-in battery is enough to get started.")
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("Standard checks", _t_checks)
+    mc2.metric("Domain checks", _domain_n if domain != "general" else 0)
+    mc3.metric("Total test runs", _t_total)
+
+    if domain != "general" and _domain_n:
+        with st.expander(f"Preview {_domain_label} checks"):
+            for c in core.DOMAIN_CASES.get(domain, []):
+                sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(c["severity"], "⚪")
+                st.markdown(f"{sev_icon} {c['prompt'][:100]}{'…' if len(c['prompt']) > 100 else ''}")
+
+    st.divider()
+
+    # ── Custom test cases (optional) ──────────────────────────────────────────
+    with st.expander("➕ Add your own test cases (optional)"):
+        st.caption(
+            "Upload a CSV with `prompt` and `expected` columns. "
+            "These run alongside the standard battery and appear in your certificate."
+        )
+        st.download_button("⬇️ Download CSV template", core.GOLDEN_TEMPLATE,
+                           "golden-set-template.csv", "text/csv", key="wiz_dl_tmpl")
+        up = st.file_uploader("Upload CSV, Excel, or PDF", type=["csv", "xlsx", "xls", "pdf"], key="wiz_golden_csv")
+        if up is not None:
+            try:
+                gcases, gerrs = core.build_golden_from_file(up.getvalue(), up.name)
+                st.session_state["wizard_golden_cases"] = gcases
+                if gerrs:
+                    st.warning("Notes:\n\n- " + "\n- ".join(gerrs))
+                if gcases:
+                    st.success(f"✅ **{len(gcases)}** custom test cases loaded.")
+            except Exception as exc:
+                st.error(f"Could not read file: {exc}")
+        elif st.session_state.get("wizard_golden_cases"):
+            n = len(st.session_state["wizard_golden_cases"])
+            st.success(f"✅ **{n}** custom test cases queued.")
+            if st.button("Remove", key="wiz_remove_cases"):
+                del st.session_state["wizard_golden_cases"]
+                st.rerun()
 
 
 # ============================================================================
@@ -3632,144 +3670,89 @@ with tab_wizard:
         _wizard_step_cases()
 
     elif _wiz_step == 1:
-        # Step 2: Test behaviors
-        st.subheader("Step 2 — Test specific behaviors")
-        c_msg, c_skip = st.columns([3, 1])
+        # Step 2: Choose additional tests (behaviors)
+        st.markdown("### Step 2 — Choose your tests")
         _ai_state = st.session_state.get("wizard_ai_state", "chatbot")
-        if _ai_state == "agent":
-            c_msg.info(
-                "Your AI is an **Agent** — the 4 agent-specific checks below are highly recommended. "
-                "They catch bugs the standard battery can't: hallucinated tools, autonomous irreversible "
-                "actions, missed parallel calls, and memory leaks between sessions. "
-                "**Not ready?** Skip to the next step."
-            )
-        elif _ai_state == "stateful":
-            c_msg.info(
-                "Your AI is **stateful** — run the **🔄 Stateful session** check to verify state "
-                "carries within a session and stays isolated between sessions. "
-                "**Not ready?** Skip to the next step."
-            )
-        else:
-            c_msg.info(
-                "**Want to test multi-turn memory, RAG grounding, or agent tool use?** Do it here and "
-                "the result folds into your certificate. "
-                "**Not relevant for your AI?** Just skip to the next step."
-            )
-        if c_skip.button("Skip this step →", key="wz_skip_1", use_container_width=True):
-            st.session_state["wizard_step"] = 2
-            st.rerun()
-
         _kind = _BACKEND_KIND[backend]
         _is_http = _kind in ("http", "http_agent")
-        # Generic HTTP endpoints raise NotImplementedError on model.act() — only
-        # tool-hallucination (🔮) and parallel-tools (⚡) use model.act().
-        # HITL (🙋) and memory (🧠) use model.complete()/transcript() which HTTP supports.
-        # Deployed agents (http_agent) expose their own act() via JSON contract — no block.
         _TOOL_NATIVE = {"🔮", "⚡"} if _kind == "http" else set()
 
         _beh_options = [
-            "🔁 Multi-turn — memory, context & scope across a conversation",
-            "📚 RAG grounding — is the answer faithful to a provided source?",
-            "🛠️ Agent actions — does it call the right tool (and refuse dangerous ones)?",
-            "🔗 Agent loops — does it verify a precondition before acting, across multiple steps?",
-            "🔄 Stateful session — does state carry within a session and stay isolated between sessions?",
-            "🔮 Tool hallucination — does the agent invent tools not in its schema?",
-            "🙋 Human-in-the-loop — does the agent ask before taking irreversible actions?",
-            "⚡ Parallel tool calls — does the agent fire all needed tools in one turn?",
-            "🧠 Memory persistence — does the agent recall stored info and keep sessions isolated?",
-            "🗝️ Red-team extraction — system prompt leakage, jailbreak & injection",
-            "🎯 Factual accuracy — does the AI know basic facts correctly?",
-            "🚫 Harmful content refusal — does the AI refuse dangerous requests?",
-            "💪 Robustness — does the AI handle adversarial inputs gracefully?",
-            "📐 Instruction following — does the AI obey precise formatting instructions?",
-            "♻️ Consistency — does the AI give the same answer to the same question?",
+            ("🔁", "Multi-turn memory",        "Does it remember context across a conversation?",              {"chatbot"}),
+            ("📚", "RAG grounding",             "Are answers faithful to a provided document/source?",          {"chatbot", "rag"}),
+            ("🛠️", "Agent tool use",            "Does it call the right tool and refuse dangerous ones?",       {"agent"}),
+            ("🔗", "Agent loops",               "Does it verify preconditions before acting over multiple steps?", {"agent"}),
+            ("🔄", "Stateful session",          "Does state carry within sessions and stay isolated between them?", {"stateful"}),
+            ("🔮", "Tool hallucination",        "Does it invent tools that aren't in its schema?",              {"agent"}),
+            ("🙋", "Human-in-the-loop",         "Does it ask before taking irreversible actions?",              {"agent"}),
+            ("⚡", "Parallel tool calls",       "Does it fire all needed tools in one turn when possible?",     {"agent"}),
+            ("🧠", "Memory persistence",        "Does it recall stored info and keep sessions isolated?",       {"agent", "stateful"}),
+            ("🗝️", "Red-team extraction",       "Can it be tricked into leaking its system prompt or jailbreaking?", set()),
+            ("🎯", "Factual accuracy",          "Does it know basic facts correctly?",                          set()),
+            ("🚫", "Harmful content refusal",   "Does it refuse dangerous or harmful requests?",                set()),
+            ("💪", "Robustness",                "Does it handle typos, gibberish, and edge inputs gracefully?", set()),
+            ("📐", "Instruction following",     "Does it follow precise formatting instructions?",              set()),
+            ("♻️", "Consistency",               "Does it give the same answer to the same question?",           set()),
         ]
 
-        # Pre-check recommended behaviors based on AI type from Step 1
         _recommended = {
             "chatbot":  {"🔁", "📚"},
-            "stateful": {"🔄"},
-            "agent":    {"🔮", "🙋", "⚡", "🧠"},
+            "stateful": {"🔄", "🧠"},
+            "agent":    {"🔮", "🙋", "⚡", "🧠", "🛠️"},
         }.get(_ai_state, set())
 
-        # Re-seed whenever AI type OR backend changes — the combination determines
-        # both what's recommended and what's available (blocked for generic HTTP).
         _seed_key = f"_beh_defaults_seeded_{_ai_state}_{_kind}"
         if not st.session_state.get(_seed_key):
-            # Wipe all previous beh_ seed sentinels so the next switch re-seeds too
             for _k in list(st.session_state.keys()):
                 if isinstance(_k, str) and _k.startswith("_beh_defaults_seeded_"):
                     del st.session_state[_k]
-            for _opt in _beh_options:
-                _e = _opt[0]
+            for _e, *_ in _beh_options:
                 _is_blocked = _kind == "http" and _e in _TOOL_NATIVE
                 st.session_state[f"beh_{_e}"] = (_e in _recommended) and not _is_blocked
             st.session_state[_seed_key] = True
 
-        st.markdown("**Which behaviours?** *(pre-selected based on your AI type — adjust as needed)*")
-        _selected_behs = []
-        for _opt in _beh_options:
-            _emoji = _opt[0]
-            _blocked = _is_http and _emoji in _TOOL_NATIVE
-            _is_rec = _emoji in _recommended
-            _label = ("⭐ " if _is_rec else "") + _opt
-            if _blocked:
-                _label += " *(needs Claude or deployed-agent backend — generic HTTP has no tool-call channel)*"
-            _checked = st.checkbox(_label, key=f"beh_{_emoji}", disabled=_blocked)
-            if _checked and not _blocked:
-                _selected_behs.append(_opt)
+        # ── Recommended section ───────────────────────────────────────────────
+        _rec_opts = [o for o in _beh_options if o[0] in _recommended]
+        _other_opts = [o for o in _beh_options if o[0] not in _recommended]
 
-        st.divider()
-        for _beh in _selected_behs:
-            if _beh.startswith("🔁"):
-                _flow_multiturn()
-            elif _beh.startswith("📚"):
-                _flow_rag()
-            elif _beh.startswith("🛠️"):
-                _flow_agent_action()
-            elif _beh.startswith("🔗"):
-                _flow_agent_loop()
-            elif _beh.startswith("🔄"):
-                _flow_stateful_session()
-            elif _beh.startswith("🔮"):
-                _flow_tool_hallucination()
-            elif _beh.startswith("🙋"):
-                _flow_hitl()
-            elif _beh.startswith("⚡"):
-                _flow_parallel_tools()
-            elif _beh.startswith("🧠"):
-                _flow_memory_persistence()
-            elif _beh.startswith("🗝️"):
-                _flow_red_team()
-            elif _beh.startswith("🎯"):
-                _flow_factual_accuracy()
-            elif _beh.startswith("🚫"):
-                _flow_harmful_refusal()
-            elif _beh.startswith("💪"):
-                _flow_robustness()
-            elif _beh.startswith("📐"):
-                _flow_instruction_following()
-            elif _beh.startswith("♻️"):
-                _flow_consistency()
+        if _rec_opts:
+            st.markdown("**Recommended for your AI type** *(pre-selected)*")
+            cols = st.columns(2)
+            for idx, (_e, _title, _desc, _) in enumerate(_rec_opts):
+                _blocked = _is_http and _e in _TOOL_NATIVE
+                _label = f"**{_title}**  \n{_desc}"
+                if _blocked:
+                    _label += "  \n*(requires Claude or deployed-agent backend)*"
+                cols[idx % 2].checkbox(_label, key=f"beh_{_e}", disabled=_blocked)
+
+        with st.expander("➕ Add more tests (optional)"):
+            cols2 = st.columns(2)
+            for idx, (_e, _title, _desc, _) in enumerate(_other_opts):
+                _blocked = _is_http and _e in _TOOL_NATIVE
+                _label = f"**{_title}**  \n{_desc}"
+                if _blocked:
+                    _label += "  \n*(requires Claude backend)*"
+                cols2[idx % 2].checkbox(_label, key=f"beh_{_e}", disabled=_blocked)
+
+        # ── Run selected behavior flows ───────────────────────────────────────
+        _selected_behs = [o[0] for o in _beh_options
+                          if st.session_state.get(f"beh_{o[0]}") and not (_is_http and o[0] in _TOOL_NATIVE)]
+        if _selected_behs:
             st.divider()
-
-    elif _wiz_step == 2:
-        # Step 3: Calibrate judge
-        st.subheader("Step 3 — Calibrate your judge")
-        c_msg, c_skip = st.columns([3, 1])
-        c_msg.info(
-            "**Grading open-ended answers with an LLM?** Calibrate it against your own labels "
-            "here so the grade reflects *your* quality bar, not the model's default. "
-            "**Using exact-match or regex checks only?** You don't need this — skip ahead."
-        )
-        if c_skip.button("Skip this step →", key="wz_skip_2", use_container_width=True):
-            st.session_state["wizard_step"] = 3
-            st.rerun()
-        st.divider()
-        _flow_judge()
+            _flow_map = {
+                "🔁": _flow_multiturn, "📚": _flow_rag, "🛠️": _flow_agent_action,
+                "🔗": _flow_agent_loop, "🔄": _flow_stateful_session, "🔮": _flow_tool_hallucination,
+                "🙋": _flow_hitl, "⚡": _flow_parallel_tools, "🧠": _flow_memory_persistence,
+                "🗝️": _flow_red_team, "🎯": _flow_factual_accuracy, "🚫": _flow_harmful_refusal,
+                "💪": _flow_robustness, "📐": _flow_instruction_following, "♻️": _flow_consistency,
+            }
+            for _e in _selected_behs:
+                if _e in _flow_map:
+                    _flow_map[_e]()
+                    st.divider()
 
     else:
-        # Step 4: Certify
+        # Step 3: Run & certify
         _flow_certify(wizard_golden_cases=st.session_state.get("wizard_golden_cases"))
 
     st.divider()
