@@ -16,6 +16,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import core
+from flows import (
+    _flow_factual_accuracy,
+    _flow_harmful_refusal,
+    _flow_robustness,
+    _flow_instruction_following,
+    _flow_consistency,
+)
 
 # Keys are session-scoped (built per request via core.make_model, never written
 # to the process env), so a shared instance can offer bring-your-own-key safely.
@@ -258,6 +265,10 @@ with st.sidebar:
                    "you mean it.")
 
 
+
+# Make backend context available to flow functions in flows.py
+st.session_state["_backend"] = backend
+st.session_state["_backend_opts"] = backend_opts
 
 # ============================================================================
 # Flow functions — each renders one evaluation flow. They read module globals
@@ -3132,6 +3143,11 @@ with tab_wizard:
             "⚡ Parallel tool calls — does the agent fire all needed tools in one turn?",
             "🧠 Memory persistence — does the agent recall stored info and keep sessions isolated?",
             "🗝️ Red-team extraction — system prompt leakage, jailbreak & injection",
+            "🎯 Factual accuracy — does the AI know basic facts correctly?",
+            "🚫 Harmful content refusal — does the AI refuse dangerous requests?",
+            "💪 Robustness — does the AI handle adversarial inputs gracefully?",
+            "📐 Instruction following — does the AI obey precise formatting instructions?",
+            "♻️ Consistency — does the AI give the same answer to the same question?",
         ]
         st.markdown("**Which behaviours?** *(select one or more)*")
         _selected_behs = []
@@ -3165,6 +3181,16 @@ with tab_wizard:
                 _flow_memory_persistence()
             elif _beh.startswith("🗝️"):
                 _flow_red_team()
+            elif _beh.startswith("🎯"):
+                _flow_factual_accuracy()
+            elif _beh.startswith("🚫"):
+                _flow_harmful_refusal()
+            elif _beh.startswith("💪"):
+                _flow_robustness()
+            elif _beh.startswith("📐"):
+                _flow_instruction_following()
+            elif _beh.startswith("♻️"):
+                _flow_consistency()
             st.divider()
 
     elif _wiz_step == 2:
