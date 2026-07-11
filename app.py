@@ -825,8 +825,9 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                 st.session_state["certify_badge"] = _cb
                 _t0 = time.time()
                 _skip_bat = (_custom_only == "Run my test cases only") and bool(gcases)
+                _sys_prompt = st.session_state.get("wizard_system_prompt", "").strip() or None
                 st.session_state["certify"] = core.run_full_evaluation(
-                    core.make_model(_kind, backend_opts),
+                    core.make_model(_kind, backend_opts, system_prompt=_sys_prompt),
                     golden_cases=gcases or None, judge=_cj,
                     level=_level, repeat=_runs, stress_n=_stress,
                     agent_checks=st.session_state.get("certify_agent_checks") or None,
@@ -852,9 +853,14 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             gm4.metric("Avg latency", f"{_avg_ms:.0f} ms/check",
                        help=f"Total run time {_elapsed:.1f}s across {fe.total} checks")
         _sv = {"CERTIFIED": "success", "CONDITIONALLY CERTIFIED": "warning", "NOT CERTIFIED": "error"}
+        _sys_used = st.session_state.get("wizard_system_prompt", "").strip()
         getattr(st, _sv.get(status, "info"))(
             f"**{status} — Grade {letter}** · {fe.passed}/{fe.total} checks passed · "
-            f"model `{fe.model_name}`")
+            f"model `{fe.model_name}`"
+            + (" · tested with your system prompt ✅" if _sys_used else " · ⚠️ no system prompt — results reflect base model"))
+        if _sys_used:
+            with st.expander("📋 System prompt used in this test"):
+                st.code(_sys_used, language=None)
         _cb2 = st.session_state.get("certify_badge")
         if _cb2:
             st.caption(f"⚖️ Open-ended cases graded by {_cb2}.")
@@ -1159,6 +1165,7 @@ jobs:
                 "certify_agent_checks", "certify_agent_check_sources",
                 "wizard_golden_cases", "wizard_ai_state",
                 "wizard_ai_type", "wizard_domain", "wizard_thoroughness", "wizard_thorough_idx",
+                "wizard_system_prompt",
                 "convo_run", "convo_trace", "stateful_run",
                 "al_run", "aa_rep", "aa_search", "aa_run", "aa_plan", "aa_plan_results",
                 "rag_run", "rag_multi_run", "golden_run",
@@ -3518,6 +3525,26 @@ def _wizard_step_cases() -> None:
             for c in core.DOMAIN_CASES.get(domain, []):
                 sev_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(c["severity"], "⚪")
                 st.markdown(f"{sev_icon} {c['prompt'][:100]}{'…' if len(c['prompt']) > 100 else ''}")
+
+    st.divider()
+
+    # ── System prompt ─────────────────────────────────────────────────────────
+    st.markdown("#### Your AI's system prompt *(optional but recommended)*")
+    st.caption(
+        "Paste the system prompt your AI uses in production. "
+        "Every test will run with this prompt active — so results reflect your real AI, not the bare model."
+    )
+    wizard_system_prompt = st.text_area(
+        "System prompt",
+        value=st.session_state.get("wizard_system_prompt", ""),
+        key="wizard_system_prompt",
+        height=120,
+        placeholder="You are a helpful assistant for FinanceBot. You help users with account queries. "
+                    "You never discuss competitor products. You always refer complex issues to a human agent...",
+        label_visibility="collapsed",
+    )
+    if wizard_system_prompt:
+        st.success(f"✅ System prompt set ({len(wizard_system_prompt)} chars) — all tests will use it.")
 
     st.divider()
 

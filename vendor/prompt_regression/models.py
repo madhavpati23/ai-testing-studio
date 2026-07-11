@@ -310,13 +310,12 @@ class ClaudeModel:
     """
 
     def __init__(self, model: str = "claude-opus-4-8", max_tokens: int = 1024,
-                 api_key: str | None = None):
+                 api_key: str | None = None, system_prompt: str | None = None):
         import anthropic  # imported lazily so mock-mode needs no dependency
 
         self.name = model
         self._max_tokens = max_tokens
-        # api_key=None lets the SDK fall back to ANTHROPIC_API_KEY; passing it
-        # explicitly keeps a session key out of the process environment.
+        self._system_prompt = system_prompt or None
         self._client = anthropic.Anthropic(api_key=api_key)
 
     def ask(self, prompt: str) -> str:
@@ -332,13 +331,16 @@ class ClaudeModel:
     def transcript(self, turns: list[str]) -> list[str]:
         messages: list[dict] = []
         replies: list[str] = []
+        _kwargs: dict = {"thinking": {"type": "adaptive"}}
+        if self._system_prompt:
+            _kwargs["system"] = self._system_prompt
         for turn in turns:
             messages.append({"role": "user", "content": turn})
             response = self._client.messages.create(
                 model=self.name,
                 max_tokens=self._max_tokens,
-                thinking={"type": "adaptive"},
                 messages=messages,
+                **_kwargs,
             )
             answer = "".join(b.text for b in response.content if b.type == "text").strip()
             messages.append({"role": "assistant", "content": answer})

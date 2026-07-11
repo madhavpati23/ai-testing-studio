@@ -117,39 +117,90 @@ class GenerateResult:
     generator_name: str
 
 
-def make_model(kind: str, opts: dict | None = None):
+def make_model(kind: str, opts: dict | None = None, system_prompt: str | None = None):
     """Build a model object directly from explicit config — no process environment.
 
     Keeps a per-session API key / URL out of os.environ, so a shared public app
     never leaks one user's key into another user's request.
+
+    `system_prompt` is sent as the API-level system parameter (Claude) or prepended
+    to every prompt (HTTP/mock), so every test fires against the user's real AI
+    configuration rather than the bare base model.
     """
     opts = opts or {}
     from prompt_regression.models import MockModel
     if kind == "claude":
         from prompt_regression.models import ClaudeModel
         return ClaudeModel(os.environ.get("PRS_MODEL", "claude-opus-4-8"),
-                           api_key=(opts.get("api_key") or None))
+                           api_key=(opts.get("api_key") or None),
+                           system_prompt=system_prompt or None)
     if kind == "http":
         from prompt_regression.models import HttpModel
         headers = json.loads(opts["headers"]) if opts.get("headers") else None
-        return HttpModel(
+        model = HttpModel(
             url=opts.get("url", ""),
             body_template=opts.get("body") or '{"prompt": {PROMPT}}',
             response_path=opts.get("response_path", "output"),
             headers=headers,
             method=opts.get("method", "POST"),
-            block_private=bool(opts.get("block_private", True)),   # safe default: block SSRF
+            block_private=bool(opts.get("block_private", True)),
             body_encoding=opts.get("body_encoding", "json"),
         )
+        if system_prompt:
+            return _SystemPromptWrapper(model, system_prompt)
+        return model
     if kind == "http_agent":
         from prompt_regression.models import HttpAgentModel
         headers = json.loads(opts["headers"]) if opts.get("headers") else None
-        return HttpAgentModel(
+        model = HttpAgentModel(
             url=opts.get("url", ""),
             headers=headers,
             block_private=bool(opts.get("block_private", True)),
         )
-    return MockModel()
+        if system_prompt:
+            return _SystemPromptWrapper(model, system_prompt)
+        return model
+    # Mock — prepend system prompt to rules-based replies so the demo still works
+    mock = MockModel()
+    if system_prompt:
+        return _SystemPromptWrapper(mock, system_prompt)
+    return mock
+
+
+class _SystemPromptWrapper:
+    """Wraps any model to prepend a system prompt to every ask() call.
+
+    Used for HTTP and mock backends where the API has no native system param.
+    The system prompt rides in the first user turn: 'System: ...\n\nUser: ...'
+    """
+
+    def __init__(self, inner, system_prompt: str):
+        self._inner = inner
+        self._system = system_prompt.strip()
+        self.name = getattr(inner, "name", str(inner))
+
+    def _inject(self, prompt: str) -> str:
+        return f"[System: {self._system}]\n\n{prompt}"
+
+    def ask(self, prompt: str) -> str:
+        return self._inner.ask(self._inject(prompt))
+
+    def converse(self, turns: list) -> str:
+        return self.transcript(turns)[-1]
+
+    def transcript(self, turns: list) -> list:
+        augmented = [self._inject(turns[0])] + list(turns[1:])
+        return self._inner.transcript(augmented)
+
+    def act(self, prompt: str, tools: list) -> tuple:
+        return self._inner.act(self._inject(prompt), tools)
+
+    def run_loop(self, prompt: str, tools: list, tool_executor, max_steps: int = 6) -> tuple:
+        return self._inner.run_loop(self._inject(prompt), tools, tool_executor, max_steps)
+
+    def complete(self, prompt: str) -> str:
+        fn = getattr(self._inner, "complete", None)
+        return fn(self._inject(prompt)) if fn else self._inner.ask(self._inject(prompt))
 
 
 def _http_generate(feature: str, ai_type: str | None,
