@@ -44,12 +44,15 @@ def _secret(name: str) -> str | None:
     return str(val) if val else None
 
 
-def _active_judge(kind: str, opts: dict):
+def _active_judge(kind: str, opts: dict, system_prompt: str | None = None):
     """Prefer a judge you calibrated this session; otherwise build a fresh one.
 
     This is what makes the tabs work together: calibrate a judge once (Judge tab)
     and every llm_judge grading in Evaluate / Multi-turn uses *that* validated
     judge. Returns (judge_callable, badge_text).
+
+    `system_prompt` is passed to the judge so it grades responses in the context
+    of the AI being evaluated, not as a generic quality check.
     """
     cj = st.session_state.get("calibrated_judge")
     if cj and cj.get("fn") is not None:
@@ -57,8 +60,8 @@ def _active_judge(kind: str, opts: dict):
                   if cj.get("low_confidence") else "")
         return cj["fn"], (f"your **calibrated** judge `{cj.get('model_name', '?')}` "
                           f"({cj['agreement']:.0f}% human agreement → {cj['verdict']}){_caveat}")
-    return core.make_judge(kind, opts), ("an **uncalibrated** judge — calibrate one in the "
-                                         "⚖️ Judge tab to validate it first")
+    return core.make_judge(kind, opts, system_prompt=system_prompt), (
+        "an **uncalibrated** judge — calibrate one in the ⚖️ Judge tab to validate it first")
 
 
 def _queue_agent_checks(checks: list, source_label: str) -> None:
@@ -821,7 +824,8 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             _box.caption(f"🔄 **{phase}** — check {i}/{n}: `{case_id}`")
         with st.spinner(f"Running the {_level} evaluation across every dimension…"):
             try:
-                _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts))
+                _sys_prompt_for_judge = st.session_state.get("wizard_system_prompt", "").strip() or None
+                _cj, _cb = ((None, None) if _kind == "mock" else _active_judge(_kind, backend_opts, system_prompt=_sys_prompt_for_judge))
                 st.session_state["certify_badge"] = _cb
                 _t0 = time.time()
                 _skip_bat = (_custom_only == "Run my test cases only") and bool(gcases)
@@ -958,6 +962,44 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             if _rem_rows:
                 st.markdown("**Remediation recommendations**")
                 st.dataframe(pd.DataFrame(_rem_rows), hide_index=True, use_container_width=True)
+
+        # ── System prompt fix suggester ───────────────────────────────────────
+        _all_fails = [
+            r for _, _run in fe.sections
+            for r in _run.results if not r.passed
+        ]
+        if _all_fails and _kind != "mock":
+            st.markdown("---")
+            st.markdown("### 🔧 Fix my system prompt")
+            st.caption(
+                f"**{len(_all_fails)} tests failed.** Click below and the AI will suggest "
+                "specific additions to your system prompt to fix them."
+            )
+            if st.button("✨ Suggest system prompt improvements", key="suggest_sp_fixes",
+                         type="primary", use_container_width=True):
+                _cur_sp = st.session_state.get("wizard_system_prompt", "").strip()
+                with st.spinner("Analysing failures and drafting fixes…"):
+                    try:
+                        _suggestions = core.suggest_system_prompt_fixes(
+                            failed_cases=_all_fails,
+                            current_system_prompt=_cur_sp,
+                            kind=_kind,
+                            opts=backend_opts,
+                        )
+                        st.session_state["sp_fix_suggestions"] = _suggestions
+                    except Exception as _e:
+                        st.error(f"Could not generate suggestions: {_e}")
+
+            if st.session_state.get("sp_fix_suggestions"):
+                st.markdown("**Suggested additions to your system prompt:**")
+                st.info(st.session_state["sp_fix_suggestions"])
+                st.download_button(
+                    "⬇️ Download suggestions as text",
+                    st.session_state["sp_fix_suggestions"],
+                    "system-prompt-fixes.txt", "text/plain",
+                    key="dl_sp_fixes",
+                )
+                st.caption("Copy these into your system prompt, then re-run the certification to verify the fixes.")
 
         # ── Compliance framework panel ────────────────────────────────────────
         with st.expander("📜 Compliance readiness — EU AI Act · NIST AI RMF · ISO 42001"):
