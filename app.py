@@ -100,7 +100,6 @@ _OAI_PATH = "choices.0.message.content"
 
 _HTTP_PRESETS = {
     "Custom": None,
-    # ── OpenAI ────────────────────────────────────────────────────────────────
     "OpenAI — GPT-4o": {
         "url": "https://api.openai.com/v1/chat/completions",
         "body": _OAI_BODY.replace("{MODEL}", "gpt-4o"),
@@ -108,21 +107,6 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer sk-..."}',
         "secret": "OPENAI_API_KEY",
     },
-    "OpenAI — GPT-4o mini": {
-        "url": "https://api.openai.com/v1/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "gpt-4o-mini"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer sk-..."}',
-        "secret": "OPENAI_API_KEY",
-    },
-    "OpenAI — o3-mini": {
-        "url": "https://api.openai.com/v1/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "o3-mini"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer sk-..."}',
-        "secret": "OPENAI_API_KEY",
-    },
-    # ── Google Gemini (OpenAI-compatible endpoint) ─────────────────────────
     "Gemini — 2.0 Flash": {
         "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         "body": _OAI_BODY.replace("{MODEL}", "gemini-2.0-flash"),
@@ -130,21 +114,6 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer AIza..."}',
         "secret": "GEMINI_API_KEY",
     },
-    "Gemini — 1.5 Pro": {
-        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "gemini-1.5-pro"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer AIza..."}',
-        "secret": "GEMINI_API_KEY",
-    },
-    "Gemini — 2.5 Pro": {
-        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "gemini-2.5-pro-preview-06-05"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer AIza..."}',
-        "secret": "GEMINI_API_KEY",
-    },
-    # ── Groq — free tier, fast inference ──────────────────────────────────
     "Groq — Llama 3.3 70B (free)": {
         "url": "https://api.groq.com/openai/v1/chat/completions",
         "body": _OAI_BODY.replace("{MODEL}", "llama-3.3-70b-versatile"),
@@ -152,21 +121,6 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer gsk_..."}',
         "secret": "GROQ_API_KEY",
     },
-    "Groq — Llama 4 Scout (free)": {
-        "url": "https://api.groq.com/openai/v1/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "meta-llama/llama-4-scout-17b-16e-instruct"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer gsk_..."}',
-        "secret": "GROQ_API_KEY",
-    },
-    "Groq — Gemma 3 27B (free)": {
-        "url": "https://api.groq.com/openai/v1/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "gemma2-9b-it"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer gsk_..."}',
-        "secret": "GROQ_API_KEY",
-    },
-    # ── Mistral ────────────────────────────────────────────────────────────
     "Mistral — Large": {
         "url": "https://api.mistral.ai/v1/chat/completions",
         "body": _OAI_BODY.replace("{MODEL}", "mistral-large-latest"),
@@ -174,14 +128,6 @@ _HTTP_PRESETS = {
         "headers": '{"Authorization": "Bearer ..."}',
         "secret": "MISTRAL_API_KEY",
     },
-    "Mistral — Small 3.2": {
-        "url": "https://api.mistral.ai/v1/chat/completions",
-        "body": _OAI_BODY.replace("{MODEL}", "mistral-small-latest"),
-        "response_path": _OAI_PATH,
-        "headers": '{"Authorization": "Bearer ..."}',
-        "secret": "MISTRAL_API_KEY",
-    },
-    # ── Special ────────────────────────────────────────────────────────────
     "Lakera Gandalf (red-team target)": {
         "url": "https://gandalf-api.lakera.ai/api/send-message",
         "body": '{"defender": "baseline", "prompt": {PROMPT}}',
