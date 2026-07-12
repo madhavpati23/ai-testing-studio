@@ -474,11 +474,16 @@ with st.sidebar:
                 st.session_state["http_response_path"] = p["response_path"]
                 st.session_state["http_headers"] = p["headers"]
                 st.session_state["http_body_encoding"] = p.get("body_encoding", "json")
+            st.session_state["_http_preset_applied"] = st.session_state.get("http_preset")
 
         st.selectbox("Provider preset", list(_HTTP_PRESETS), key="http_preset",
                      on_change=_apply_http_preset,
                      help="Pick a provider to auto-fill the URL and format below.")
-        _apply_http_preset()
+        # Apply the preset only when the selection actually CHANGES — never on
+        # every rerun, which would overwrite the Authorization header (your API
+        # key) back to the placeholder each time you press Enter.
+        if st.session_state.get("_http_preset_applied") != st.session_state.get("http_preset"):
+            _apply_http_preset()
         _preset = st.session_state.get("http_preset", "")
         backend_opts["url"] = st.text_input("Endpoint URL", key="http_url",
                                             placeholder="https://api.example.com/v1/chat/completions")
