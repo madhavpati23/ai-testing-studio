@@ -251,56 +251,139 @@ st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wid
 
 st.markdown("""
 <style>
-/* ── Teal theme (light) ──────────────────────────────────────────────────── */
+/* ══ Fresh look: modern dark design system ═══════════════════════════════ */
+:root {
+    --bg:        #0f1117;
+    --surface:   #171a24;
+    --surface-2: #1f2331;
+    --border:    rgba(255,255,255,0.09);
+    --border-2:  rgba(255,255,255,0.14);
+    --text:      #e7e9f0;
+    --text-muted:#9aa3b5;
+    --accent:    #7c5cff;
+    --accent-2:  #a78bfa;
+    --emerald:   #10b981;
+    --amber:     #f59e0b;
+    --rose:      #f43f5e;
+    --grad: linear-gradient(135deg, #7c5cff 0%, #a855f7 55%, #6366f1 100%);
+    --shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+
+/* App canvas: a subtle radial glow behind everything */
+.stApp {
+    background:
+        radial-gradient(1100px 500px at 12% -8%, rgba(124,92,255,0.16), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(16,185,129,0.08), transparent 55%),
+        var(--bg);
+}
+.block-container { padding-top: 2.2rem; max-width: 1180px; }
+h1, h2, h3, h4 { letter-spacing: -0.01em; }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 .hero-wrap { padding: 2rem 0 1.2rem 0; }
 .hero-badge {
-    display: inline-block; background: #dbeafe; color: #1e3a8a;
-    border: 1px solid #bfdbfe; border-radius: 20px;
-    padding: 3px 12px; font-size: 11px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;
+    display: inline-block; background: rgba(124,92,255,0.14); color: var(--accent-2);
+    border: 1px solid rgba(124,92,255,0.35); border-radius: 999px;
+    padding: 4px 14px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px;
 }
 .hero-title {
-    font-size: 2.4rem; font-weight: 800; line-height: 1.15;
-    color: #0f172a;
-    margin: 0 0 8px 0;
+    font-size: 2.7rem; font-weight: 800; line-height: 1.12;
+    color: var(--text); margin: 0 0 10px 0; letter-spacing: -0.02em;
 }
-.hero-title span { color: #1e3a8a; }
-.hero-sub { font-size: 1rem; color: #475569; margin: 0 0 16px 0; }
+.hero-title span {
+    background: var(--grad); -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.hero-sub { font-size: 1.02rem; color: var(--text-muted); margin: 0 0 18px 0; max-width: 760px; }
 .pill {
-    display: inline-block; background: #dbeafe; color: #1e40af;
-    border-radius: 20px; padding: 3px 11px; font-size: 0.8rem; font-weight: 500; margin: 2px;
+    display: inline-block; background: var(--surface-2); color: #cdd3e0;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 13px; font-size: 0.8rem; font-weight: 500; margin: 3px 3px 3px 0;
 }
+.pill:hover { border-color: rgba(124,92,255,0.45); color: #fff; }
 
 /* ── Step progress bar ──────────────────────────────────────────────────── */
-.step-bar { display: flex; align-items: center; margin: 0.5rem 0 1.5rem 0; }
+.step-bar { display: flex; align-items: center; margin: 0.5rem 0 1.6rem 0; }
 .step-item {
     display: flex; align-items: center; gap: 8px;
-    padding: 8px 16px; border-radius: 8px; font-size: 0.88rem; font-weight: 500;
-    color: #94a3b8; background: transparent; flex-shrink: 0;
+    padding: 8px 16px; border-radius: 10px; font-size: 0.88rem; font-weight: 500;
+    color: var(--text-muted); background: transparent; flex-shrink: 0;
 }
-.step-item.done { color: #1e3a8a; }
+.step-item.done { color: var(--accent-2); }
 .step-item.active {
-    background: #dbeafe; color: #0f172a; font-weight: 700;
-    border: 1px solid #bfdbfe;
+    background: rgba(124,92,255,0.13); color: #fff; font-weight: 700;
+    border: 1px solid rgba(124,92,255,0.4);
 }
 .step-num {
     width: 24px; height: 24px; border-radius: 50%; display: inline-flex;
     align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700;
-    background: #e2e8f0; color: #64748b; flex-shrink: 0;
+    background: var(--surface-2); color: var(--text-muted); flex-shrink: 0;
+    border: 1px solid var(--border);
 }
-.step-item.done .step-num { background: #1e3a8a; color: #fff; }
-.step-item.active .step-num { background: #2563eb; color: #fff; }
-.step-connector { flex: 1; height: 1px; background: #e2e8f0; margin: 0 4px; }
-.step-connector.done { background: #1e3a8a; }
+.step-item.done .step-num { background: var(--grad); color: #fff; border: none; }
+.step-item.active .step-num { background: var(--accent); color: #fff; border: none; }
+.step-connector { flex: 1; height: 2px; background: var(--border); margin: 0 4px; border-radius: 2px; }
+.step-connector.done { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #12141d 0%, #0d0f16 100%);
+    border-right: 1px solid var(--border);
+}
 .sidebar-label {
     font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px;
+    letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 6px;
 }
 
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.stButton > button, .stDownloadButton > button {
+    border-radius: 10px; border: 1px solid var(--border-2); font-weight: 600;
+    background: var(--surface-2); color: var(--text); transition: all 0.15s ease;
+}
+.stButton > button:hover, .stDownloadButton > button:hover {
+    border-color: rgba(124,92,255,0.6); color: #fff; transform: translateY(-1px);
+}
+.stButton > button[kind="primary"], .stButton > button[data-testid="baseButton-primary"] {
+    background: var(--grad); border: none; color: #fff;
+    box-shadow: 0 6px 18px rgba(124,92,255,0.35);
+}
+.stButton > button[kind="primary"]:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+/* ── Metrics as cards ───────────────────────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 18px; box-shadow: var(--shadow);
+}
+[data-testid="stMetricValue"] { font-weight: 800; letter-spacing: -0.02em; }
+[data-testid="stMetricLabel"] { color: var(--text-muted); }
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid var(--border); }
+.stTabs [data-baseweb="tab"] {
+    border-radius: 10px 10px 0 0; padding: 8px 18px; font-weight: 600; color: var(--text-muted);
+}
+.stTabs [aria-selected="true"] { color: #fff; background: rgba(124,92,255,0.12); }
+.stTabs [data-baseweb="tab-highlight"] { background: var(--accent); height: 3px; border-radius: 3px; }
+
+/* ── Bordered containers, expanders, code, inputs ───────────────────────── */
+[data-testid="stExpander"] {
+    border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+    overflow: hidden;
+}
+[data-testid="stExpander"] summary:hover { color: var(--accent-2); }
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 14px !important; border-color: var(--border) !important;
+}
+.stTextInput input, .stTextArea textarea, .stNumberInput input,
+.stSelectbox div[data-baseweb="select"] > div {
+    border-radius: 10px !important;
+}
+code { color: var(--accent-2); background: rgba(124,92,255,0.10);
+       border: 1px solid var(--border); border-radius: 6px; padding: 1px 5px; }
+hr { border-color: var(--border); }
+/* Alert boxes: softer, rounded */
+[data-testid="stAlert"] { border-radius: 12px; }
 </style>
 """, unsafe_allow_html=True)
 
