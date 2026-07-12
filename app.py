@@ -441,10 +441,24 @@ with st.sidebar:
             backend_opts["api_key"] = _sk
             st.caption("🔐 Key loaded from Secrets.")
         else:
-            backend_opts["api_key"] = st.text_input("API Key", type="password",
-                                                     placeholder="sk-ant-...",
-                                                     key="anthropic_key",
-                                                     help="Get yours at console.anthropic.com")
+            # Persist the key across reruns AND backend switches. Streamlit
+            # garbage-collects a keyed widget's state when the widget isn't
+            # rendered (e.g. you switch to another backend and back), which wiped
+            # the field. So keep the real value in a plain session slot that is
+            # never a widget key, and reseed the widget from it each time.
+            st.session_state.setdefault("api_key_persist", "")
+            if "api_key_widget" not in st.session_state:
+                st.session_state["api_key_widget"] = st.session_state["api_key_persist"]
+
+            def _sync_api_key():
+                st.session_state["api_key_persist"] = st.session_state["api_key_widget"]
+
+            st.text_input("API Key", type="password", placeholder="sk-ant-...",
+                          key="api_key_widget", on_change=_sync_api_key,
+                          help="Get yours at console.anthropic.com")
+            # keep the store in lockstep even on a plain rerun (no on_change)
+            st.session_state["api_key_persist"] = st.session_state["api_key_widget"]
+            backend_opts["api_key"] = st.session_state["api_key_persist"]
 
     elif backend == "HTTP endpoint":
         st.divider()
