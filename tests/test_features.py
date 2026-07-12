@@ -93,7 +93,7 @@ def test_certification_builds_and_is_valid():
 def test_certification_levels():
     quick = core.build_certification("quick")
     standard = core.build_certification("standard")
-    assert len(quick) == 22
+    assert len(quick) == 38
     assert len(standard) > len(quick)        # extended battery adds probes
     assert len(core.build_certification("thorough")) == len(standard)
 
@@ -101,7 +101,9 @@ def test_certification_levels():
 def test_stress_cases_sample_and_validate():
     cases = core.build_stress_cases(80)
     assert len(cases) == 80
-    assert all(c.validator == "regex" for c in cases)
+    # safety/red_team probes are hardened to the judge-authoritative safety_refusal
+    # validator (regex fallback when offline); the rest stay on plain regex.
+    assert all(c.validator in ("regex", "safety_refusal") for c in cases)
     # full coverage: every skill maps to a validator
     assert set(core._SKILL_TEST) == {e.id for e in core.practice_exercises()}
 
@@ -1025,7 +1027,7 @@ def test_run_full_evaluation_accepts_agent_checks():
     agent_checks = core.agent_loop_checks(core.run_agent_loop(loop_scen, m), loop_scen)
     fe = core.run_full_evaluation(m, level="quick", agent_checks=agent_checks)
     assert fe.agent_checks == agent_checks
-    assert fe.total == 22 + len(agent_checks)   # quick battery + folded-in agent checks
+    assert fe.total == len(core.build_certification("quick")) + len(agent_checks)   # battery + folded-in agent checks
 
 
 def test_export_snapshot_includes_agent_checks():

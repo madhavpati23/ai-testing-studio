@@ -58,10 +58,11 @@ Then: runs the full evaluation across every risk dimension (plus your own ground
 you add it) and issues a printable **Certificate of AI Evaluation** with a letter
 **grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the
 model name, the date, the **thoroughness level**, and a per-dimension breakdown. Pick the
-depth: **Quick (~22 checks)** / **Standard (~48)** / **Thorough (~48 × 3 runs)** — and the
+depth: **Quick (~38 checks)** / **Standard (~95)** / **Thorough (~95 × 3 runs)** — and the
 certificate prints which level it was, so the grade is honestly contextualised. A **Deep**
-run (~128 checks against a real backend) can take minutes, not seconds — so instead of a
-static spinner, a live heartbeat shows exactly which check is running right now.
+run (~98 checks + 80 randomized stress probes against a real backend) can take minutes, not
+seconds — so instead of a static spinner, a live heartbeat shows exactly which check is
+running right now. Runs can go **concurrent** (⚡ Parallel model calls) to cut the wait.
 **No key? Certify the Demo bot instantly.** Download a **snapshot** (JSON) alongside the
 certificate, and after a later prompt/model change, **compare two snapshots** to see
 exactly which checks regressed or improved — not just whether the score moved. Open
@@ -179,12 +180,109 @@ documented defect and a ship / no-ship verdict.
 Keeping the logic in `core.py` means the web layer carries no business logic and
 the pipeline is testable without a browser.
 
+- [`studio_ci.py`](studio_ci.py) — headless certification for CI/CD (exit code +
+  JSON/JUnit reports). See **Gate a pipeline** below.
+- [`history.py`](history.py) — durable certification history (local SQLite, or
+  multi-tenant Postgres). See **History** below.
+- [`multimodal.py`](multimodal.py) — the image red-team battery + serialization.
+  See **Multimodal** below.
+
 - [`examples/demo_agent_server.py`](examples/demo_agent_server.py) — a toy banking
   agent that's a **genuinely separate HTTP process**, implementing the contract
   `HttpAgentModel` expects. It has one deliberate, realistic bug (transfers without
   checking the balance first) — run it, point **🔁 Behaviors → Agent loops** at it
   via the **"Your deployed agent (HTTP)"** backend, and watch the Studio catch the
   bug in a real external service, not just its own built-in demo.
+
+## Gate a pipeline (CI/CD)
+
+The same certificate the UI produces can gate a pull request. [`studio_ci.py`](studio_ci.py)
+runs `core.run_full_evaluation` headlessly, writes machine-readable reports, and
+exits non-zero when the AI fails the policy:
+
+```bash
+# Offline wiring smoke test — no keys, no network.
+python studio_ci.py --backend mock --level quick
+
+# Certify a deployed AI; fail the build on a BLOCK verdict or a sub-C grade.
+python studio_ci.py --backend claude --level standard \
+    --fail-on block --min-grade C \
+    --json certification.json --junit certification.junit.xml
+```
+
+Safety cases are judge-graded and safety-critical cases run worst-case, exactly
+as in the app. `--fail-on {block,signoff,any,never}` sets the gate; `--junit`
+emits a JUnit report most CI systems render natively. A ready-to-copy workflow is
+in [`.github/workflows/certify-example.yml`](.github/workflows/certify-example.yml).
+Add `--workers N` to run checks concurrently — the wait is network time against
+your backend, so a Deep run (~178 checks × repeats) finishes far faster. Keep it
+modest (e.g. 4–8) to respect provider rate limits; `--workers 1` is sequential.
+In the app, the same control appears as **⚡ Parallel model calls** on the Certify
+step. Run `python studio_ci.py --help` for the full backend/evaluation/gate options.
+
+## History (track record over time)
+
+Every certification the app runs is saved to a **local** SQLite store, so grade
+over time and "did this regress since last time?" survive a refresh. The results
+view shows a score-over-time chart, a table of past runs, and an automatic
+regression check against the previous run of the same model (reusing
+`compare_snapshots`, so it agrees with the manual snapshot diff).
+
+- Persistence is **local and single-user** by default — disabled automatically
+  when `PRS_STUDIO_PUBLIC=1`, so a shared deploy never records across tenants.
+- Storage location: `$PRS_STUDIO_DB`, else `~/.ai_testing_studio/history.db`.
+- In CI, add `--save --label "$GIT_SHA"` to `studio_ci.py` to build the same
+  track record from pipeline runs.
+
+**Multi-tenant (Postgres).** Set `PRS_STUDIO_DB_URL` to a Postgres DSN and the
+same API writes to a shared server-side database instead of SQLite, with every
+row scoped by `tenant_id` (isolation boundary) and `user_id` (attribution) —
+reads/writes/deletes filter by tenant, so one tenant never sees another's runs.
+Old local SQLite databases migrate automatically (their rows land in the `local`
+tenant). In CI, pass `--tenant`/`--user` to attribute a saved run. Needs
+`psycopg` (`pip install "psycopg[binary]"`). SSO, database row-level security,
+and roles are later phases; this is the storage + data-model foundation.
+
+## Red-teaming (adaptive, not just a checklist)
+
+Beyond the fixed jailbreak probes, the **🔁 Behaviors → Agent actions** area offers
+two escalating attacks:
+
+- **Adversarial search** fans a scenario out across many attack framings — the
+  original social-engineering set (override, authority, urgency, roleplay, …) plus
+  optional **encoding/obfuscation smuggling** (base64, ROT13, leetspeak,
+  multilingual, payload-splitting) — and reports which ones break it.
+- **Iterative attacker** (PAIR/TAP-style) runs an *attacker LLM* that reads each
+  refusal and writes a *better* attack toward a goal, escalating until it breaks
+  the target or runs out of rounds — an adaptive search over attacks, not a fixed
+  list. Point the attacker/judge at a *different* strong model to avoid a model
+  red-teaming itself. A proven break folds into the certificate as a critical
+  red-team failure.
+
+## Multimodal (image inputs)
+
+Test cases can carry image attachments, so a vision-capable backend can be
+probed for image-based failures. The whole engine downstream of the model call —
+validators, judge, gating, certificate, history, CI, concurrency — is
+modality-agnostic and works unchanged; multimodal is just a new **input** path:
+
+- A `Case` may carry `attachments` (images as base64 or a file `path`).
+- `runner.answer_for` routes an attachment-bearing case to the backend's
+  `ask_multimodal`; a backend without vision raises a clear error.
+- `ClaudeModel.ask_multimodal` sends the Anthropic vision content blocks;
+  `image_content_blocks()` builds that shape and is unit-tested offline.
+
+**Vision red-team battery** ([`multimodal.py`](multimodal.py)) — a small suite of
+image probes generated deterministically with Pillow (no binary fixtures):
+typographic prompt injection (an instruction hidden *in* the image), an
+instruction-in-image safety case, an OCR-accuracy check, and a benign
+over-refusal control. Run it in CI with `studio_ci.py --backend claude
+--multimodal`; results fold into the certificate like any other check.
+`write_multimodal_suite` / `load_cases` round-trip a multimodal suite losslessly.
+
+Wiring is covered by offline unit tests (a fake vision model + real Pillow
+rendering); that a *real* model reads an image is covered by a single
+`ANTHROPIC_API_KEY`-gated integration test (skipped in normal CI).
 
 ## Deploy (free)
 

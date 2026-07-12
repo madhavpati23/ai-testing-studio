@@ -23,6 +23,7 @@ VALIDATOR_ARGS = {
     "json_schema": ["properties"],
     "tool_trace": ["expected"],
     "llm_judge": ["criterion"],
+    "safety_refusal": ["pattern"],
 }
 
 # Review lifecycle. Generated cases start as `draft`; only `approved` cases

@@ -31,11 +31,73 @@ class ToolCall:
     arguments: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class Attachment:
+    """A non-text input sent alongside a prompt (image today; audio later).
+
+    `data` is base64-encoded bytes and `media_type` an IANA type like
+    "image/png" — the shape a multimodal API expects, kept transport-neutral so
+    a case can carry it and any vision-capable backend can render it.
+    """
+    kind: str            # "image" | "audio"
+    media_type: str      # e.g. "image/png", "image/jpeg"
+    data: str            # base64-encoded content
+
+
+_MEDIA_TYPES = {
+    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "gif": "image/gif", "webp": "image/webp",
+    "wav": "audio/wav", "mp3": "audio/mpeg",
+}
+
+
+def attachment_from_bytes(raw: bytes, media_type: str, kind: str = "image") -> Attachment:
+    import base64
+    return Attachment(kind=kind, media_type=media_type,
+                      data=base64.b64encode(raw).decode("ascii"))
+
+
+def attachment_from_file(path: str, kind: str = "image") -> Attachment:
+    """Build an Attachment from a file, inferring the media type from its suffix."""
+    ext = path.rsplit(".", 1)[-1].lower()
+    if ext not in _MEDIA_TYPES:
+        raise ValueError(f"unsupported attachment type {ext!r} "
+                         f"(known: {', '.join(sorted(_MEDIA_TYPES))})")
+    with open(path, "rb") as fh:
+        return attachment_from_bytes(fh.read(), _MEDIA_TYPES[ext], kind)
+
+
+def image_content_blocks(prompt: str, attachments: "list[Attachment]") -> list[dict]:
+    """Assemble Anthropic message content: image block(s) first, then the text.
+
+    Pure and offline — no client, no network — so the exact content-block shape a
+    vision request depends on can be unit-tested deterministically. ClaudeModel's
+    multimodal path is just this plus a create() call.
+    """
+    blocks: list[dict] = []
+    for att in attachments:
+        if att.kind != "image":
+            raise NotImplementedError(f"attachment kind {att.kind!r} is not supported yet")
+        blocks.append({"type": "image", "source": {
+            "type": "base64", "media_type": att.media_type, "data": att.data}})
+    blocks.append({"type": "text", "text": prompt})
+    return blocks
+
+
 class Model(Protocol):
     name: str
 
     def ask(self, prompt: str) -> str:
         """Send a prompt, return the model's text answer."""
+        ...
+
+    def ask_multimodal(self, prompt: str, attachments: "list[Attachment]") -> str:
+        """Send a prompt plus non-text attachments (images), return the text answer.
+
+        Optional: a backend without vision simply doesn't implement this, and
+        `runner.answer_for` raises a clear error for an attachment-bearing case —
+        the same "this backend can't do that" pattern as native tool-use.
+        """
         ...
 
     def act(self, prompt: str, tools: list[dict]) -> tuple[str, list[ToolCall]]:
@@ -320,6 +382,19 @@ class ClaudeModel:
 
     def ask(self, prompt: str) -> str:
         return self.converse([prompt])
+
+    def ask_multimodal(self, prompt: str, attachments: list) -> str:
+        """Real vision request: send the image block(s) + text, return the reply."""
+        _kwargs: dict = {"thinking": {"type": "adaptive"}}
+        if self._system_prompt:
+            _kwargs["system"] = self._system_prompt
+        response = self._client.messages.create(
+            model=self.name,
+            max_tokens=self._max_tokens,
+            messages=[{"role": "user", "content": image_content_blocks(prompt, attachments)}],
+            **_kwargs,
+        )
+        return "".join(b.text for b in response.content if b.type == "text").strip()
 
     def converse(self, turns: list[str]) -> str:
         """Send each turn with the running conversation history (multi-turn).

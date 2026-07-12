@@ -63,6 +63,11 @@ TAXONOMY: dict[str, CategorySpec] = {
         "data_validation",
         "Structured outputs honour the expected schema (shape and types).",
         "medium", required=False, min_cases=1),
+    "instruction_following": CategorySpec(
+        "instruction_following",
+        "Precise format and constraint adherence (word/character limits, case, "
+        "forbidden words, required structure).",
+        "medium", required=False, min_cases=1),
     "agent": CategorySpec(
         "agent",
         "Tool-call correctness, multi-turn/stateful behaviour, and refusal of unauthorized actions.",

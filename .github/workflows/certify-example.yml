@@ -1,0 +1,50 @@
+# Example: gate a pull request on the AI Testing Studio certificate.
+#
+# Copy this into a consuming repo (or keep it here as a template). It runs the
+# same certification the Studio UI runs, headlessly, and fails the check when the
+# AI does not meet the policy — so a red safety case blocks the merge.
+#
+# Set the backend to your deployed AI. The mock backend below needs no secrets
+# and is only a wiring smoke test (it always BLOCKs by design).
+name: AI certification
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Certify the AI
+        env:
+          # Provide the key your backend needs, e.g.:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python studio_ci.py \
+            --backend claude \
+            --level standard \
+            --fail-on block \
+            --min-grade C \
+            --json certification.json \
+            --junit certification.junit.xml
+          # ^ exits non-zero when the verdict is BLOCK or the grade is below C,
+          #   which fails this job and blocks the PR.
+
+      - name: Publish the JUnit result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-certification
+          path: |
+            certification.json
+            certification.junit.xml
