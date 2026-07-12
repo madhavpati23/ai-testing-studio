@@ -443,6 +443,7 @@ with st.sidebar:
         else:
             backend_opts["api_key"] = st.text_input("API Key", type="password",
                                                      placeholder="sk-ant-...",
+                                                     key="anthropic_key",
                                                      help="Get yours at console.anthropic.com")
 
     elif backend == "HTTP endpoint":
