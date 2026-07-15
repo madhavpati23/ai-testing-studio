@@ -308,6 +308,44 @@ further than a fixed hosted target:
 Find it in the **🛡️ Sir Leaks-a-Lot** tab. Leak detection catches the secret even
 when smuggled out encoded, so bypassing the output filter counts as a win.
 
+## Accounts (optional login)
+
+The studio stays open with no signup — but users can **sign in with Google** to
+save their work (certification history, Sir Leaks-a-Lot progress) to their
+account so it survives across sessions and devices. Login is **off by default**
+and only appears once you configure an OIDC provider; the app runs identically
+without it.
+
+To enable it (uses Streamlit's built-in [OIDC auth](https://docs.streamlit.io/develop/concepts/connections/authentication)):
+
+1. Create OAuth credentials (e.g. Google Cloud → APIs & Services → Credentials →
+   OAuth client ID → Web application), with the redirect URI
+   `https://<your-app>.streamlit.app/oauth2callback` (or `http://localhost:8501/oauth2callback` locally).
+2. Add to `.streamlit/secrets.toml` (see [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example)):
+   ```toml
+   [auth]
+   redirect_uri = "https://<your-app>.streamlit.app/oauth2callback"
+   cookie_secret = "<a long random string>"
+   client_id = "<google client id>"
+   client_secret = "<google client secret>"
+   server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
+   ```
+3. `Authlib` (in `requirements.txt`) must be installed.
+
+A **"🔐 Sign in with Google"** button then appears in the sidebar. Signed-in
+users' certification history is scoped to their account (`tenant_id = email`);
+gauntlet scores stay on a shared leaderboard keyed by their handle.
+
+> **Durability note:** on Streamlit Community Cloud the local SQLite store is
+> ephemeral and resets on redeploy, so saved work only *truly* persists when
+> `PRS_STUDIO_DB_URL` points at a Postgres database (see **History**). Login
+> identifies the user; Postgres is what makes their work durable.
+>
+> **Security note:** this is app-level auth suitable for a portfolio/practice
+> tool. It delegates identity to Google via OIDC (no passwords stored here), but
+> it is not a hardened multi-tenant SaaS — tenant scoping is enforced in queries,
+> not by database row-level security.
+
 ## Deploy (free)
 
 Push to GitHub and deploy on [Streamlit Community Cloud](https://share.streamlit.io):

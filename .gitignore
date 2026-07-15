@@ -8,3 +8,6 @@ venv/
 .idea/
 .vscode/
 studio_suite_*/
+
+# Streamlit secrets (never commit real credentials)
+.streamlit/secrets.toml

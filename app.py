@@ -45,6 +45,31 @@ def _secret(name: str) -> str | None:
     return str(val) if val else None
 
 
+# ---- optional login (Streamlit OIDC via st.login) --------------------------
+# The demo stays open: login is optional. Signing in scopes your saved work
+# (certification history, gauntlet progress) to your account so it survives
+# across sessions. Everything here is guarded, so the app runs identically
+# whether or not an OIDC provider is configured in secrets.toml.
+USER_EMAIL: str | None = None       # set in the sidebar once auth is resolved
+USER_TENANT: str = "local"          # history/cert scope: your account when logged in
+
+
+def _auth_status():
+    """(auth_configured, logged_in, email) — never raises."""
+    try:
+        user = st.user
+        logged_in = bool(user.is_logged_in)
+    except Exception:
+        return False, False, None          # no OIDC provider configured
+    email = None
+    if logged_in:
+        try:
+            email = user.get("email") or user.get("name") or "user"
+        except Exception:
+            email = "user"
+    return True, logged_in, email
+
+
 def _active_judge(kind: str, opts: dict, system_prompt: str | None = None):
     """Prefer a judge you calibrated this session; otherwise build a fresh one.
 
@@ -407,6 +432,24 @@ def _clear_feature():
 
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
+    # Optional account — only shown if an OIDC provider is configured.
+    _auth_configured, _logged_in, _email = _auth_status()
+    if _auth_configured:
+        st.markdown('<div class="sidebar-label">Account</div>', unsafe_allow_html=True)
+        if _logged_in:
+            USER_EMAIL = _email
+            USER_TENANT = _email
+            st.markdown(f"👤 **{_email}**")
+            st.caption("Your work is saved to your account.")
+            if st.button("Log out", key="logout_btn", use_container_width=True):
+                st.logout()
+        else:
+            st.caption("Sign in to save your progress & history across sessions.")
+            if st.button("🔐 Sign in with Google", key="login_btn",
+                         type="primary", use_container_width=True):
+                st.login()
+        st.divider()
+
     st.markdown('<div class="sidebar-label">Which AI are you testing?</div>', unsafe_allow_html=True)
     backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint", "Your deployed agent (HTTP)"]
     _backend_labels = {
@@ -959,7 +1002,8 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                     try:
                         st.session_state["certify_history_id"] = history.save_run(
                             st.session_state["certify"],
-                            label=st.session_state.get("wizard_feature", "") or "")
+                            label=st.session_state.get("wizard_feature", "") or "",
+                            tenant_id=USER_TENANT)
                     except Exception:
                         st.session_state.pop("certify_history_id", None)
             except Exception as exc:
@@ -1010,14 +1054,15 @@ def _flow_certify(wizard_golden_cases: list | None = None):
 
         # ── History: grade over time + automatic regression vs the previous run ──
         if history.is_enabled():
-            _hist = history.list_runs(model=fe.model_name, limit=50)
+            _hist = history.list_runs(model=fe.model_name, limit=50, tenant_id=USER_TENANT)
             with st.expander(f"📈 History for `{fe.model_name}` ({len(_hist)} run"
                              f"{'s' if len(_hist) != 1 else ''} recorded)",
                              expanded=st.session_state.get("certify_history_id") is not None):
                 if st.session_state.get("certify_history_id"):
-                    st.caption("✅ This run was saved to your local history "
-                               "(stored on this machine only; disabled on public deploys).")
-                _diff = history.regression_since_previous(fe.model_name)
+                    st.caption("✅ This run was saved to "
+                               + (f"your account (**{USER_EMAIL}**)." if USER_EMAIL
+                                  else "local history (this machine only; sign in to keep it with your account)."))
+                _diff = history.regression_since_previous(fe.model_name, tenant_id=USER_TENANT)
                 if _diff and _diff.has_regressions:
                     st.error(f"⚠️ **Regression vs the previous run** — "
                              f"{len(_diff.newly_failed)} check(s) that passed before now fail: "
@@ -1040,7 +1085,7 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                         } for r in _hist]),
                         hide_index=True, use_container_width=True)
                     if st.button("🗑️ Clear history for all models", key="clear_history"):
-                        history.clear()
+                        history.clear(tenant_id=USER_TENANT)
                         st.rerun()
 
         # Shareable summary link — encodes grade/score/model into URL params so
@@ -1424,8 +1469,13 @@ def _flow_gauntlet():
     _hist_on = history.is_enabled()
 
     # Player handle → resume progress and appear on the leaderboard.
-    handle = st.text_input("Player handle (optional — saves your progress & rank)",
-                           key="gaunt_handle", placeholder="e.g. neo").strip()
+    # Signed-in users are identified by their account; others can type a handle.
+    if USER_EMAIL:
+        handle = USER_EMAIL
+        st.caption(f"👤 Signed in as **{handle}** — your progress saves automatically.")
+    else:
+        handle = st.text_input("Player handle (optional — saves your progress & rank)",
+                               key="gaunt_handle", placeholder="e.g. neo").strip()
     if handle and _hist_on and st.session_state.get("_gaunt_loaded") != handle:
         try:
             row = history.get_gauntlet(handle)
