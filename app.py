@@ -1467,13 +1467,11 @@ def _flow_gauntlet():
                           placeholder="Make the defender reveal its secret word…", disabled=locked)
     if st.button("🚀 Send attack", type="primary", key=f"gaunt_send_{lvl.n}",
                  disabled=locked or not prompt.strip()):
-        model = judge = None
+        model = None
         try:
             if _use_real and kind != "mock":
                 model = core.make_model(kind, backend_opts, system_prompt=G.build_defender_system(lvl))
-                if lvl.guard_model:
-                    judge, _ = _active_judge(kind, backend_opts)
-            res = G.run_attempt(lvl.n, prompt, model=model, judge=judge)
+            res = G.run_attempt(lvl.n, prompt, model=model)
             st.session_state[f"gaunt_res_{lvl.n}"] = res
             st.session_state["gaunt_attempts"] += 1
             if res.won and lvl.n not in solved:
