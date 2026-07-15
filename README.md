@@ -284,6 +284,24 @@ Wiring is covered by offline unit tests (a fake vision model + real Pillow
 rendering); that a *real* model reads an image is covered by a single
 `ANTHROPIC_API_KEY`-gated integration test (skipped in normal CI).
 
+## Red-Team Gauntlet (practice arena)
+
+A Gandalf-style prompt-injection game ([`gauntlet.py`](gauntlet.py)) for practising
+attack skills, built to go further than a fixed hosted target:
+
+- **7 levels that stack defenses** — a bare secret → reluctance → an output filter
+  that redacts the literal secret → a guard model that catches obvious leaks → an
+  input filter blocking suspicious words → the boss with everything at once. Each
+  level forces a new technique (indirection, reversing/spelling, base64/rot13/hex,
+  synonyms), with **educational feedback** naming which defense caught you.
+- **Any defender** — an offline deterministic simulator (no key, every level
+  solvable by its intended technique) *or* a live model via the sidebar backend.
+- **Defender mode** — write your own protective system prompt and the studio's
+  iterative attacker adapts against it until it breaks or gives up.
+
+Find it in the **🛡️ Red-Team Gauntlet** tab. Leak detection catches the secret
+even when smuggled out encoded, so bypassing the output filter counts as a win.
+
 ## Deploy (free)
 
 Push to GitHub and deploy on [Streamlit Community Cloud](https://share.streamlit.io):
