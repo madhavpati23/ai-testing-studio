@@ -290,11 +290,13 @@ A Gandalf-style prompt-injection game ([`gauntlet.py`](gauntlet.py)) — you try
 **Sir Leaks-a-Lot**, the world's leakiest AI guardian, spill its secret — built to go
 further than a fixed hosted target:
 
-- **10 levels on an escalating "exfiltration ladder"** — each level blocks the
+- **12 levels on an escalating "exfiltration ladder"** — each level blocks the
   technique that beat the last one, so you must climb: plaintext → reversed/spelled
-  → base64/rot13/hex → ASCII codes/morse → NATO phonetic (the boss), plus a word
-  ban that forces synonyms. Hints are deliberately vague — they never name the
-  technique — and feedback tells you *which* defense caught you and to go a rung higher.
+  → base64/rot13/hex → ASCII/morse/binary → NATO phonetic. On top of that: a **word
+  ban** forces synonyms; **stubborn** levels demand a role-play *scene as well as* an
+  encoding; lazy "ignore your rules" attacks **backfire**; and the boss bans the
+  obvious words entirely, so you must *describe* both the secret and the encoding.
+  Hints never name the technique; feedback tells you which defense caught you.
 - **Any defender** — an offline deterministic simulator (no key, every level
   solvable by its intended technique) *or* a live model via the sidebar backend.
 - **Defender mode** — write your own protective system prompt and the studio's
