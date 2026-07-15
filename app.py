@@ -1436,18 +1436,44 @@ def _flow_gauntlet():
             pass
         st.session_state["_gaunt_loaded"] = handle
 
+    # A win last run flashes a message and jumps us to the next level.
+    _flash = st.session_state.pop("gaunt_flash", None)
+    if _flash is not None:
+        st.balloons()
+        if _flash < len(G.LEVELS):
+            st.success(f"🎉 You extracted Level {_flash}'s secret! Welcome to **Level {_flash + 1}**.")
+        else:
+            st.success("🏆 **You cracked the Boss — the whole gauntlet is clear!**")
+
     st.progress(len(solved) / len(G.LEVELS),
                 text=f"Solved {len(solved)}/{len(G.LEVELS)} · "
                      f"{st.session_state['gaunt_attempts']} attempts")
 
-    def _lock_icon(l):
-        if l.n in solved:                       return "✅"
-        if l.n > 1 and (l.n - 1) not in solved: return "🔒"
+    # Process a pending auto-advance BEFORE the selectbox is instantiated (safe).
+    if "gaunt_goto" in st.session_state:
+        st.session_state["gaunt_level_select"] = st.session_state.pop("gaunt_goto")
+    st.session_state.setdefault("gaunt_level_select", 1)
+
+    def _lock_icon(n):
+        if n in solved:                      return "✅"
+        if n > 1 and (n - 1) not in solved:  return "🔒"
         return "▶️"
-    idx = st.radio("Level", range(len(G.LEVELS)), horizontal=True, key="gauntlet_level",
-                   format_func=lambda i: f"{_lock_icon(G.LEVELS[i])} L{G.LEVELS[i].n}")
-    lvl = G.LEVELS[idx]
+    sel = st.selectbox("Choose a level", list(range(1, len(G.LEVELS) + 1)),
+                       key="gaunt_level_select",
+                       format_func=lambda n: f"{_lock_icon(n)} Level {n}: {G.LEVELS[n - 1].name}")
+    lvl = G.LEVELS[sel - 1]
     locked = lvl.n > 1 and (lvl.n - 1) not in solved
+
+    # The guardian ages as the levels get harder — baby → elder → wizard.
+    _AVATARS = ["👶", "🧒", "🧑", "🧔", "👨‍🦰", "🧑‍🔬", "🕵️", "🧓", "👴", "🧙", "🧙‍♂️", "🧝‍♂️"]
+    st.markdown(
+        "<style>@keyframes gpop{0%{transform:scale(.4) rotate(-8deg);opacity:0}"
+        "60%{transform:scale(1.18) rotate(3deg)}100%{transform:scale(1) rotate(0)}}"
+        ".gavatar{font-size:74px;text-align:center;line-height:1.1;animation:gpop .55s ease}</style>"
+        f"<div class='gavatar'>{_AVATARS[(sel - 1) % len(_AVATARS)]}</div>",
+        unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center;color:var(--text-muted);margin-bottom:8px'>"
+                f"Sir Leaks-a-Lot, age {sel}/{len(G.LEVELS)}</div>", unsafe_allow_html=True)
 
     st.markdown(f"### Level {lvl.n}: {lvl.name}")
     st.info(f"🧱 **Defense:** {lvl.defense}")
@@ -1468,15 +1494,16 @@ def _flow_gauntlet():
     if st.button("🚀 Send attack", type="primary", key=f"gaunt_send_{lvl.n}",
                  disabled=locked or not prompt.strip()):
         model = None
+        _advance = False
         try:
             if _use_real and kind != "mock":
                 model = core.make_model(kind, backend_opts, system_prompt=G.build_defender_system(lvl))
             res = G.run_attempt(lvl.n, prompt, model=model)
             st.session_state[f"gaunt_res_{lvl.n}"] = res
             st.session_state["gaunt_attempts"] += 1
-            if res.won and lvl.n not in solved:
+            _newly_won = res.won and lvl.n not in solved
+            if res.won:
                 solved.add(lvl.n)
-                st.balloons()
             if handle and _hist_on:
                 try:
                     history.save_gauntlet(handle, solved=len(solved),
@@ -1484,19 +1511,23 @@ def _flow_gauntlet():
                                           best_level=max(solved) if solved else 0)
                 except Exception:
                     pass
+            if _newly_won:
+                # celebrate on the next render, then jump to the next level
+                st.session_state["gaunt_flash"] = lvl.n
+                if lvl.n < len(G.LEVELS):
+                    st.session_state["gaunt_goto"] = lvl.n + 1
+                _advance = True
         except Exception as exc:
             st.error(f"Attack failed against **{backend}**: {exc}")
+        if _advance:
+            st.rerun()
 
     res = st.session_state.get(f"gaunt_res_{lvl.n}")
-    if res:
+    if res and not res.won:
         with st.container(border=True):
             st.markdown(f"**🤖 Defender ({res.defender}) replied:**")
             st.write(res.reply)
-        (st.success if res.won else (st.error if res.blocked_by else st.warning))(res.feedback)
-        if res.won and lvl.n < len(G.LEVELS):
-            st.success(f"🎉 **Level {lvl.n} cleared** — Level {lvl.n + 1} unlocked!")
-        elif res.won:
-            st.success("🏆 **You beat the Boss — the whole Gauntlet is clear!**")
+        (st.error if res.blocked_by else st.warning)(res.feedback)
 
     # ── Leaderboard ──────────────────────────────────────────────────────────
     if _hist_on:

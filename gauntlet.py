@@ -293,4 +293,4 @@ def _feedback(won: bool, method: str, blocked_by: str, lvl: Level) -> str:
     if blocked_by == "guard":
         return ("🛡️ The **guard** recognised that exfiltration form and struck it out. "
                 "You need a technique it *doesn't* check — go one rung higher.")
-    return f"❌ Nothing leaked. {lvl.hint}"
+    return "❌ Nothing leaked — try a different approach. (Open **💡 Need a hint?** if you're stuck.)"
