@@ -158,7 +158,7 @@ def connect(path: str | None = None):
 
 
 def _init_schema(conn, sqlite_dialect: bool) -> None:
-    """Create the table, migrate columns on a legacy DB, THEN create the index.
+    """Create the tables, migrate columns on a legacy DB, THEN create the index.
 
     Order matters: the index references tenant_id, so on an old (pre-tenant) table
     the column must be added before the index is built."""
@@ -166,6 +166,16 @@ def _init_schema(conn, sqlite_dialect: bool) -> None:
     conn.execute(table_stmt)
     _migrate(conn)
     conn.execute(index_stmt)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS gauntlet ("
+        "  tenant_id  TEXT    NOT NULL DEFAULT 'local',"
+        "  player     TEXT    NOT NULL,"
+        "  solved     INTEGER NOT NULL,"
+        "  attempts   INTEGER NOT NULL,"
+        "  best_level INTEGER NOT NULL,"
+        "  updated    " + ("REAL" if sqlite_dialect else "DOUBLE PRECISION") + " NOT NULL,"
+        "  PRIMARY KEY (tenant_id, player)"
+        ")")
     conn.commit()
 
 
@@ -279,6 +289,71 @@ def regression_since_previous(model: str, conn=None, path: str | None = None,
             return None
         after, before = rows[0]["snapshot_json"], rows[1]["snapshot_json"]
         return core.compare_snapshots(before, after)
+    finally:
+        if own:
+            conn.close()
+
+
+# ---- Sir Leaks-a-Lot: player progress + leaderboard -------------------------
+
+@dataclass
+class GauntletRow:
+    player: str
+    solved: int
+    attempts: int
+    best_level: int
+    updated: float
+
+    @property
+    def iso(self) -> str:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.updated))
+
+
+def save_gauntlet(player: str, solved: int, attempts: int, best_level: int,
+                  conn=None, path: str | None = None, tenant_id: str = DEFAULT_TENANT) -> None:
+    """Upsert a player's progress (keyed by tenant + player handle)."""
+    own = conn is None
+    conn = conn or connect(path)
+    try:
+        _exec(conn,
+              "INSERT INTO gauntlet (tenant_id, player, solved, attempts, best_level, updated) "
+              "VALUES (?,?,?,?,?,?) "
+              "ON CONFLICT(tenant_id, player) DO UPDATE SET "
+              "solved=excluded.solved, attempts=excluded.attempts, "
+              "best_level=excluded.best_level, updated=excluded.updated",
+              (tenant_id, player, int(solved), int(attempts), int(best_level), time.time()))
+        conn.commit()
+    finally:
+        if own:
+            conn.close()
+
+
+def get_gauntlet(player: str, conn=None, path: str | None = None,
+                 tenant_id: str = DEFAULT_TENANT) -> GauntletRow | None:
+    """One player's saved progress, or None — used to resume where they left off."""
+    own = conn is None
+    conn = conn or connect(path)
+    try:
+        r = _exec(conn, "SELECT player, solved, attempts, best_level, updated FROM gauntlet "
+                        "WHERE tenant_id = ? AND player = ?", (tenant_id, player)).fetchone()
+        return GauntletRow(r["player"], r["solved"], r["attempts"], r["best_level"], r["updated"]) if r else None
+    finally:
+        if own:
+            conn.close()
+
+
+def gauntlet_leaderboard(limit: int = 20, conn=None, path: str | None = None,
+                         tenant_id: str = DEFAULT_TENANT) -> list[GauntletRow]:
+    """Ranked players: most levels solved first, then fewest attempts."""
+    own = conn is None
+    conn = conn or connect(path)
+    try:
+        rows = _exec(conn,
+                     "SELECT player, solved, attempts, best_level, updated FROM gauntlet "
+                     "WHERE tenant_id = ? ORDER BY solved DESC, attempts ASC, updated ASC LIMIT ?",
+                     (tenant_id, limit)).fetchall()
+        return [GauntletRow(r["player"], r["solved"], r["attempts"], r["best_level"], r["updated"])
+                for r in rows]
     finally:
         if own:
             conn.close()

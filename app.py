@@ -1414,13 +1414,31 @@ def _apply_quick_compare():
 
 def _flow_gauntlet():
     import gauntlet as G
-    st.subheader("🛡️ Red-Team Gauntlet — practice your prompt-injection skills")
-    st.caption("Extract each level's secret word. Every level stacks a new defense on the last — "
-               "beat one and the next unlocks. Learn the exact technique each defense forces.")
+    st.subheader("🛡️ Sir Leaks-a-Lot — make the AI guardian spill its secret")
+    st.caption("Sir Leaks-a-Lot guards a secret word behind escalating defenses. Extract it to "
+               "clear each level — beat one and the next unlocks. Every level teaches the exact "
+               "technique its defense forces you to use.")
 
     solved: set = st.session_state.setdefault("gauntlet_solved", set())
+    st.session_state.setdefault("gaunt_attempts", 0)
+    _hist_on = history.is_enabled()
+
+    # Player handle → resume progress and appear on the leaderboard.
+    handle = st.text_input("Player handle (optional — saves your progress & rank)",
+                           key="gaunt_handle", placeholder="e.g. neo").strip()
+    if handle and _hist_on and st.session_state.get("_gaunt_loaded") != handle:
+        try:
+            row = history.get_gauntlet(handle)
+            if row and not solved:
+                solved.update(range(1, row.best_level + 1))
+                st.session_state["gaunt_attempts"] = row.attempts
+        except Exception:
+            pass
+        st.session_state["_gaunt_loaded"] = handle
+
     st.progress(len(solved) / len(G.LEVELS),
-                text=f"Solved {len(solved)}/{len(G.LEVELS)} levels")
+                text=f"Solved {len(solved)}/{len(G.LEVELS)} · "
+                     f"{st.session_state['gaunt_attempts']} attempts")
 
     def _lock_icon(l):
         if l.n in solved:                       return "✅"
@@ -1457,9 +1475,17 @@ def _flow_gauntlet():
                     judge, _ = _active_judge(kind, backend_opts)
             res = G.run_attempt(lvl.n, prompt, model=model, judge=judge)
             st.session_state[f"gaunt_res_{lvl.n}"] = res
+            st.session_state["gaunt_attempts"] += 1
             if res.won and lvl.n not in solved:
                 solved.add(lvl.n)
                 st.balloons()
+            if handle and _hist_on:
+                try:
+                    history.save_gauntlet(handle, solved=len(solved),
+                                          attempts=st.session_state["gaunt_attempts"],
+                                          best_level=max(solved) if solved else 0)
+                except Exception:
+                    pass
         except Exception as exc:
             st.error(f"Attack failed against **{backend}**: {exc}")
 
@@ -1473,6 +1499,25 @@ def _flow_gauntlet():
             st.success(f"🎉 **Level {lvl.n} cleared** — Level {lvl.n + 1} unlocked!")
         elif res.won:
             st.success("🏆 **You beat the Boss — the whole Gauntlet is clear!**")
+
+    # ── Leaderboard ──────────────────────────────────────────────────────────
+    if _hist_on:
+        with st.expander("🏅 Leaderboard — top secret-extractors"):
+            board = history.gauntlet_leaderboard(limit=20)
+            if board:
+                _medal = {0: "🥇", 1: "🥈", 2: "🥉"}
+                st.dataframe(pd.DataFrame([{
+                    "rank": f"{_medal.get(i, '')} {i + 1}",
+                    "player": r.player,
+                    "levels": f"{r.solved}/{len(G.LEVELS)}",
+                    "attempts": r.attempts,
+                    "last played": r.iso,
+                } for i, r in enumerate(board)]), hide_index=True, use_container_width=True)
+            else:
+                st.caption("No entries yet — enter a handle and clear a level to claim the top spot.")
+    else:
+        st.caption("💾 Progress saving is off on this deploy (local history disabled). "
+                   "Set a Postgres backend to enable a shared leaderboard.")
 
     # ── Defender mode: turn our attacker on YOUR system prompt ───────────────
     st.divider()
@@ -3995,7 +4040,7 @@ st.write("")
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
 (tab_wizard, tab_leaderboard, tab_gauntlet, tab_help) = st.tabs(
-    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Red-Team Gauntlet", "ℹ️ How it works"]
+    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Sir Leaks-a-Lot", "ℹ️ How it works"]
 )
 
 with tab_wizard:

@@ -284,10 +284,11 @@ Wiring is covered by offline unit tests (a fake vision model + real Pillow
 rendering); that a *real* model reads an image is covered by a single
 `ANTHROPIC_API_KEY`-gated integration test (skipped in normal CI).
 
-## Red-Team Gauntlet (practice arena)
+## Sir Leaks-a-Lot (red-team practice arena)
 
-A Gandalf-style prompt-injection game ([`gauntlet.py`](gauntlet.py)) for practising
-attack skills, built to go further than a fixed hosted target:
+A Gandalf-style prompt-injection game ([`gauntlet.py`](gauntlet.py)) — you try to make
+**Sir Leaks-a-Lot**, the world's leakiest AI guardian, spill its secret — built to go
+further than a fixed hosted target:
 
 - **7 levels that stack defenses** — a bare secret → reluctance → an output filter
   that redacts the literal secret → a guard model that catches obvious leaks → an
@@ -298,9 +299,12 @@ attack skills, built to go further than a fixed hosted target:
   solvable by its intended technique) *or* a live model via the sidebar backend.
 - **Defender mode** — write your own protective system prompt and the studio's
   iterative attacker adapts against it until it breaks or gives up.
+- **Progress + leaderboard** — enter a handle to save your progress (resumes where
+  you left off) and rank on a leaderboard, persisted via [`history.py`](history.py)
+  (local by default; shared when a Postgres backend is configured).
 
-Find it in the **🛡️ Red-Team Gauntlet** tab. Leak detection catches the secret
-even when smuggled out encoded, so bypassing the output filter counts as a win.
+Find it in the **🛡️ Sir Leaks-a-Lot** tab. Leak detection catches the secret even
+when smuggled out encoded, so bypassing the output filter counts as a win.
 
 ## Deploy (free)
 
