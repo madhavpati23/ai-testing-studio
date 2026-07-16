@@ -1504,15 +1504,20 @@ def _flow_gauntlet():
         st.session_state["gaunt_level_select"] = st.session_state.pop("gaunt_goto")
     st.session_state.setdefault("gaunt_level_select", 1)
 
+    # Only the levels you've unlocked are selectable — the ones you've solved plus
+    # the next one — so you can never land on a locked, disabled level.
+    _max_solved = max(solved) if solved else 0
+    _unlocked = list(range(1, min(len(G.LEVELS), _max_solved + 1) + 1))
+    if st.session_state["gaunt_level_select"] not in _unlocked:
+        st.session_state["gaunt_level_select"] = _unlocked[-1]
+
     def _lock_icon(n):
-        if n in solved:                      return "✅"
-        if n > 1 and (n - 1) not in solved:  return "🔒"
-        return "▶️"
-    sel = st.selectbox("Choose a level", list(range(1, len(G.LEVELS) + 1)),
-                       key="gaunt_level_select",
-                       format_func=lambda n: f"{_lock_icon(n)} Level {n}: {G.LEVELS[n - 1].name}")
+        return "✅" if n in solved else "▶️"
+    sel = st.selectbox("Choose a level", _unlocked, key="gaunt_level_select",
+                       format_func=lambda n: f"{_lock_icon(n)} Level {n}: {G.LEVELS[n - 1].name}",
+                       help="Levels unlock as you solve them.")
     lvl = G.LEVELS[sel - 1]
-    locked = lvl.n > 1 and (lvl.n - 1) not in solved
+    locked = False
 
     # The guardian ages as the levels get harder — baby → elder → wizard.
     _AVATARS = ["👶", "🧒", "🧑", "🧔", "👨‍🦰", "🧑‍🔬", "🕵️", "🧓", "👴", "🧙", "🧙‍♂️", "🧝‍♂️"]
