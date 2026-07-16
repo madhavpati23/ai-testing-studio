@@ -1577,7 +1577,6 @@ def _flow_gauntlet():
         with st.container(border=True):
             st.markdown(f"**🤖 Defender ({res.defender}) replied:**")
             st.write(res.reply)
-        (st.error if res.blocked_by else st.warning)(res.feedback)
 
     # ── Leaderboard ──────────────────────────────────────────────────────────
     if _hist_on:
