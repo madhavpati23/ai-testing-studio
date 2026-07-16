@@ -1457,7 +1457,63 @@ def _apply_quick_compare():
             st.session_state[f"lb_headers_{i}"] = p["headers"]
 
 
-_GAUNT_AVATARS = ["👶", "🧒", "🧑", "🧔", "👨‍🦰", "🧑‍🔬", "🕵️", "🧓", "👴", "🧙", "🧙‍♂️", "🧝‍♂️"]
+_GAUNT_ASSET_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "gauntlet")
+_GAUNT_IMG_MIMES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                    "webp": "image/webp", "gif": "image/gif", "svg": "image/svg+xml"}
+
+
+def _wizard_svg(t: float) -> str:
+    """A stylized guardian portrait that ages young→elder as t goes 0→1.
+
+    Pure inline SVG — no external asset, so it's CSP-safe and self-contained.
+    The beard grows and whitens, glasses appear late, and the hat carries a star.
+    """
+    t = max(0.0, min(1.0, t))
+    hat, hat_dark, star = "#7c5cff", "#5b3fd6", "#ffd54a"
+    skin = "#f3c9a4"
+    beard_len = 8 + t * 52
+    g = int(95 + t * 150)                                   # brown → white
+    beard = f"rgb({min(g + 45, 255)},{g},{max(g - 30, 70)})"
+    glasses = ("<g fill='none' stroke='#2b2b3a' stroke-width='1.6'>"
+               "<circle cx='60' cy='72' r='7.5'/><circle cx='80' cy='72' r='7.5'/>"
+               "<line x1='67.5' y1='72' x2='72.5' y2='72'/></g>") if t > 0.55 else ""
+    return (
+        "<svg viewBox='0 0 140 150' xmlns='http://www.w3.org/2000/svg' width='150' height='160'>"
+        "<defs><radialGradient id='gbg' cx='50%' cy='34%' r='72%'>"
+        "<stop offset='0%' stop-color='rgba(124,92,255,.40)'/>"
+        "<stop offset='100%' stop-color='rgba(124,92,255,0)'/></radialGradient></defs>"
+        "<circle cx='70' cy='72' r='66' fill='url(#gbg)'/>"
+        f"<path d='M44 80 Q70 {80 + beard_len} 96 80 Q92 100 70 104 Q48 100 44 80 Z' fill='{beard}'/>"
+        f"<ellipse cx='70' cy='74' rx='26' ry='27' fill='{skin}'/>"
+        "<circle cx='60' cy='72' r='3.2' fill='#2b2b3a'/>"
+        "<circle cx='80' cy='72' r='3.2' fill='#2b2b3a'/>"
+        f"{glasses}"
+        "<path d='M70 76 q-3 6 0 9' fill='none' stroke='#d9a877' stroke-width='2' stroke-linecap='round'/>"
+        "<path d='M62 88 q8 6 16 0' fill='none' stroke='#c58f68' stroke-width='2' stroke-linecap='round'/>"
+        f"<path d='M70 4 L106 58 Q70 49 34 58 Z' fill='{hat}'/>"
+        f"<path d='M28 58 Q70 43 112 58 Q70 71 28 58 Z' fill='{hat_dark}'/>"
+        f"<polygon points='70,20 73,29 82,29 75,34 78,43 70,37 62,43 65,34 58,29 67,29' fill='{star}'/>"
+        "</svg>")
+
+
+def _gaunt_avatar_inner(n: int, total: int) -> str:
+    """Avatar HTML for a level: your own image if present, else the aging wizard.
+
+    Drop images in assets/gauntlet/ named `<level>.png` (per-level) or
+    `character.png` (one for all). Embedded as a data URI, so nothing loads
+    externally."""
+    import base64
+    for name in (str(n), "character"):
+        for ext, mime in _GAUNT_IMG_MIMES.items():
+            p = os.path.join(_GAUNT_ASSET_DIR, f"{name}.{ext}")
+            if os.path.exists(p):
+                try:
+                    data = base64.b64encode(open(p, "rb").read()).decode()
+                    return (f"<img src='data:{mime};base64,{data}' alt='guardian' "
+                            "style='width:150px;height:150px;object-fit:cover;border-radius:16px'/>")
+                except Exception:
+                    pass
+    return _wizard_svg((n - 1) / max(1, total - 1))
 
 
 def _flow_gauntlet():
@@ -1498,15 +1554,16 @@ def _flow_gauntlet():
     top_r.metric("Solved", f"{len(solved)} / {len(G.LEVELS)}")
     lvl = G.LEVELS[sel - 1]
 
-    # ── The guardian (ages baby → wizard as levels get harder) ────────────────
+    # ── The guardian (ages young → elder as levels get harder) ────────────────
     st.markdown(
-        "<style>@keyframes gpop{0%{transform:scale(.4) rotate(-8deg);opacity:0}"
-        "60%{transform:scale(1.18) rotate(3deg)}100%{transform:scale(1) rotate(0)}}"
-        ".gcard{text-align:center;padding:14px;border:1px solid var(--border);border-radius:16px;"
-        "background:radial-gradient(120% 120% at 50% 0%,rgba(124,92,255,.14),transparent 70%);"
-        "margin:6px 0 12px}.gcard .face{font-size:78px;line-height:1;animation:gpop .55s ease}"
-        ".gcard .name{color:var(--text-muted);font-size:.9rem;margin-top:4px}</style>"
-        f"<div class='gcard'><div class='face'>{_GAUNT_AVATARS[(sel - 1) % len(_GAUNT_AVATARS)]}</div>"
+        "<style>@keyframes gpop{0%{transform:scale(.5) rotate(-6deg);opacity:0}"
+        "60%{transform:scale(1.1) rotate(2deg)}100%{transform:scale(1) rotate(0)}}"
+        ".gcard{text-align:center;padding:12px;border:1px solid var(--border);border-radius:18px;"
+        "background:radial-gradient(120% 120% at 50% 0%,rgba(124,92,255,.16),transparent 70%);"
+        "margin:6px 0 12px}.gcard .face{line-height:0;display:inline-block;animation:gpop .55s ease}"
+        ".gcard .face svg,.gcard .face img{display:inline-block}"
+        ".gcard .name{color:var(--text-muted);font-size:.9rem;margin-top:2px}</style>"
+        f"<div class='gcard'><div class='face'>{_gaunt_avatar_inner(sel, len(G.LEVELS))}</div>"
         f"<div class='name'>Level {lvl.n}: <b style='color:var(--text)'>{lvl.name}</b>"
         f" · age {sel}/{len(G.LEVELS)}</div></div>",
         unsafe_allow_html=True)
