@@ -1479,14 +1479,6 @@ def _flow_gauntlet():
             pass
         st.session_state["_gaunt_loaded"] = handle
 
-    # A win last run celebrates, then this render lands us on the next level.
-    _flash = st.session_state.pop("gaunt_flash", None)
-    if _flash is not None:
-        st.balloons()
-        st.success(f"🎉 Level {_flash} solved!" +
-                   (f"  On to Level {_flash + 1}." if _flash < len(G.LEVELS)
-                    else "  You beat the whole gauntlet! 🏆"))
-
     if "gaunt_goto" in st.session_state:
         st.session_state["gaunt_level_select"] = st.session_state.pop("gaunt_goto")
     st.session_state.setdefault("gaunt_level_select", 1)
@@ -1522,24 +1514,48 @@ def _flow_gauntlet():
     st.info(f"🎯 **Goal:** get the secret word out of Sir Leaks-a-Lot.\n\n"
             f"🧱 **This level's twist:** {lvl.defense}")
 
-    # ── The one thing you do: send a message ──────────────────────────────────
+    # ── Chat with Sir Leaks-a-Lot (running transcript, like Gandalf) ──────────
+    log = st.session_state.setdefault(f"gaunt_log_{lvl.n}", [])
+    if not log:
+        with st.chat_message("assistant", avatar="🛡️"):
+            st.write("Go on then — ask me for the secret word. I *dare* you.")
+    for m in log:
+        with st.chat_message(m["role"], avatar=("🧑" if m["role"] == "user" else "🛡️")):
+            st.write(m["text"])
+
+    if lvl.n in solved:
+        if st.session_state.pop("gaunt_celebrate", None) == lvl.n:
+            st.balloons()
+        if lvl.n < len(G.LEVELS):
+            st.success(f"✅ **Level {lvl.n} cracked!**")
+            if st.button(f"➡️  Next: Level {lvl.n + 1}", type="primary",
+                         key=f"gaunt_next_{lvl.n}", use_container_width=True):
+                st.session_state["gaunt_goto"] = lvl.n + 1
+                st.rerun()
+        else:
+            st.success("🏆 **You beat the final Boss — the whole gauntlet is clear!**")
+
+    with st.expander("💡 Stuck? Reveal a hint"):
+        st.markdown(lvl.hint)
+
     _use_real = bool(st.session_state.get("gauntlet_real", False))
-    prompt = st.text_area("Your message", key=f"gaunt_prompt_{lvl.n}", height=90,
-                          label_visibility="collapsed",
-                          placeholder="Ask Sir Leaks-a-Lot for the secret word…")
-    _advance = False
-    if st.button("Send  ➤", type="primary", key=f"gaunt_send_{lvl.n}",
-                 disabled=not prompt.strip(), use_container_width=True):
-        model = None
+    user_msg = st.chat_input("Ask Sir Leaks-a-Lot for the secret word…")
+    if user_msg:
+        model, res, _ok = None, None, True
         try:
             if _use_real and kind != "mock":
                 model = core.make_model(kind, backend_opts, system_prompt=G.build_defender_system(lvl))
-            res = G.run_attempt(lvl.n, prompt, model=model)
-            st.session_state[f"gaunt_res_{lvl.n}"] = res
+            res = G.run_attempt(lvl.n, user_msg, model=model)
+        except Exception as exc:
+            _ok = False
+            st.error(f"Something went wrong against **{backend}**: {exc}")
+        if _ok and res is not None:
+            log.append({"role": "user", "text": user_msg})
+            log.append({"role": "assistant", "text": res.reply})
             st.session_state["gaunt_attempts"] += 1
-            _newly_won = res.won and lvl.n not in solved
-            if res.won:
+            if res.won and lvl.n not in solved:
                 solved.add(lvl.n)
+                st.session_state["gaunt_celebrate"] = lvl.n
             if handle and _hist_on:
                 try:
                     history.save_gauntlet(handle, solved=len(solved),
@@ -1547,23 +1563,7 @@ def _flow_gauntlet():
                                           best_level=max(solved) if solved else 0)
                 except Exception:
                     pass
-            if _newly_won:
-                st.session_state["gaunt_flash"] = lvl.n
-                if lvl.n < len(G.LEVELS):
-                    st.session_state["gaunt_goto"] = lvl.n + 1
-                _advance = True
-        except Exception as exc:
-            st.error(f"Something went wrong against **{backend}**: {exc}")
-    if _advance:
-        st.rerun()
-
-    res = st.session_state.get(f"gaunt_res_{lvl.n}")
-    if res and not res.won:
-        with st.chat_message("assistant", avatar="🛡️"):
-            st.write(res.reply)
-
-    with st.expander("💡 Stuck? Reveal a hint"):
-        st.markdown(lvl.hint)
+            st.rerun()
 
     # ── Everything else, tucked away ──────────────────────────────────────────
     with st.expander("⚙️ Options · Leaderboard · Defender mode"):
