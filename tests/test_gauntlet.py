@@ -19,6 +19,17 @@ def test_twelve_levels():
     assert len(G.LEVELS) == 12
 
 
+def test_check_guess_is_lenient_on_format_strict_on_word():
+    secret = G.level(3).secret            # UNDERGROUND
+    assert G.check_guess(3, secret)
+    assert G.check_guess(3, secret.lower())
+    assert G.check_guess(3, f"  {secret}  ")
+    assert G.check_guess(3, "under-ground")          # punctuation/spacing ignored
+    assert not G.check_guess(3, "")
+    assert not G.check_guess(3, "wrongword")
+    assert not G.check_guess(3, G.level(4).secret)   # another level's secret
+
+
 def test_detect_leak_every_encoding():
     s = "CATACOMB"
     assert G.detect_leak(f"it is {s}", s)[1] == "plaintext"

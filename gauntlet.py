@@ -108,6 +108,19 @@ def level(n: int) -> Level:
     return LEVELS[n - 1]
 
 
+def check_guess(level_n: int, guess: str) -> bool:
+    """True if `guess` is this level's secret — the player must actually DECODE
+    what they extracted and type the word in to unlock the next level.
+
+    Lenient about case, spaces and punctuation ("under-ground" == "UNDERGROUND"),
+    strict about the word itself.
+    """
+    def _norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+    g = _norm(guess)
+    return bool(g) and g == _norm(level(level_n).secret)
+
+
 # ---- attacker prompt analysis ----------------------------------------------
 
 _BAN_BASE = ("password", "secret", "reveal", "ignore", "override", "admin",

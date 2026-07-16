@@ -1535,6 +1535,14 @@ def _flow_gauntlet():
             pass
         st.session_state["_gaunt_loaded"] = handle
 
+    # Cracked a level last run → celebrate here, on the level we just landed on.
+    _cel = st.session_state.pop("gaunt_celebrate", None)
+    if _cel:
+        st.balloons()
+        st.success(f"🎉 **Level {_cel} solved!**" +
+                   (f"  Welcome to Level {_cel + 1}." if _cel < len(G.LEVELS)
+                    else "  You beat the whole gauntlet! 🏆"))
+
     if "gaunt_goto" in st.session_state:
         st.session_state["gaunt_level_select"] = st.session_state.pop("gaunt_goto")
     st.session_state.setdefault("gaunt_level_select", 1)
@@ -1580,17 +1588,39 @@ def _flow_gauntlet():
         with st.chat_message(m["role"], avatar=("🧑" if m["role"] == "user" else "🛡️")):
             st.write(m["text"])
 
+    # ── Got it? Type the secret word in to unlock the next level ─────────────
     if lvl.n in solved:
-        if st.session_state.pop("gaunt_celebrate", None) == lvl.n:
-            st.balloons()
+        st.success(f"✅ You've already cracked Level {lvl.n} — the word was **{lvl.secret}**.")
         if lvl.n < len(G.LEVELS):
-            st.success(f"✅ **Level {lvl.n} cracked!**")
             if st.button(f"➡️  Next: Level {lvl.n + 1}", type="primary",
                          key=f"gaunt_next_{lvl.n}", use_container_width=True):
                 st.session_state["gaunt_goto"] = lvl.n + 1
                 st.rerun()
         else:
-            st.success("🏆 **You beat the final Boss — the whole gauntlet is clear!**")
+            st.info("🏆 Boss defeated — the whole gauntlet is clear!")
+    else:
+        with st.form(f"gaunt_guess_form_{lvl.n}", clear_on_submit=True):
+            gc1, gc2 = st.columns([3, 1])
+            _guess = gc1.text_input("Secret word", label_visibility="collapsed",
+                                    key=f"gaunt_guess_{lvl.n}",
+                                    placeholder="Cracked it? Type the secret word here…")
+            _try = gc2.form_submit_button("Unlock 🔓", type="primary", use_container_width=True)
+        if _try:
+            if G.check_guess(lvl.n, _guess):
+                solved.add(lvl.n)
+                st.session_state["gaunt_celebrate"] = lvl.n
+                if lvl.n < len(G.LEVELS):
+                    st.session_state["gaunt_goto"] = lvl.n + 1
+                if handle and _hist_on:
+                    try:
+                        history.save_gauntlet(handle, solved=len(solved),
+                                              attempts=st.session_state["gaunt_attempts"],
+                                              best_level=max(solved) if solved else 0)
+                    except Exception:
+                        pass
+                st.rerun()
+            elif _guess.strip():
+                st.error("❌ That's not the word. Keep working on Sir Leaks-a-Lot.")
 
     with st.expander("💡 Stuck? Reveal a hint"):
         st.markdown(lvl.hint)
@@ -1607,19 +1637,11 @@ def _flow_gauntlet():
             _ok = False
             st.error(f"Something went wrong against **{backend}**: {exc}")
         if _ok and res is not None:
+            # Extracting the secret does NOT auto-solve the level — you have to
+            # decode what you got and type the word into the guess box.
             log.append({"role": "user", "text": user_msg})
             log.append({"role": "assistant", "text": res.reply})
             st.session_state["gaunt_attempts"] += 1
-            if res.won and lvl.n not in solved:
-                solved.add(lvl.n)
-                st.session_state["gaunt_celebrate"] = lvl.n
-            if handle and _hist_on:
-                try:
-                    history.save_gauntlet(handle, solved=len(solved),
-                                          attempts=st.session_state["gaunt_attempts"],
-                                          best_level=max(solved) if solved else 0)
-                except Exception:
-                    pass
             st.rerun()
 
     # ── Everything else, tucked away ──────────────────────────────────────────
