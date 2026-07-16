@@ -54,17 +54,17 @@ USER_EMAIL: str | None = None       # set in the sidebar once auth is resolved
 USER_TENANT: str = "local"          # history/cert scope: your account when logged in
 
 
-def _auth_status():
+def _auth_status() -> tuple[bool, bool, str | None]:
     """(auth_configured, logged_in, email) — never raises."""
     try:
         user = st.user
         logged_in = bool(user.is_logged_in)
     except Exception:
         return False, False, None          # no OIDC provider configured
-    email = None
+    email: str | None = None
     if logged_in:
         try:
-            email = user.get("email") or user.get("name") or "user"
+            email = str(user.get("email") or user.get("name") or "user")
         except Exception:
             email = "user"
     return True, logged_in, email
@@ -436,7 +436,7 @@ with st.sidebar:
     _auth_configured, _logged_in, _email = _auth_status()
     if _auth_configured:
         st.markdown('<div class="sidebar-label">Account</div>', unsafe_allow_html=True)
-        if _logged_in:
+        if _logged_in and _email:
             USER_EMAIL = _email
             USER_TENANT = _email
             st.markdown(f"👤 **{_email}**")
