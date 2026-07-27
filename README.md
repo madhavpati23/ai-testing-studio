@@ -358,6 +358,11 @@ studio into a way to *learn* AI red-teaming — in the **🎓 Red-Team Academy**
 - Each lesson has a **concept**, **concrete examples**, a **hands-on task** that
   points at the relevant studio tool (Sir Leaks-a-Lot, adversarial search, the
   iterative attacker, Agent actions, Certify), and a **self-check** to mark it done.
+- **Auto-graded against real activity:** many lessons only unlock their self-check
+  once the studio detects you actually did the task (e.g. cracked Level 3, ran an
+  adversarial search, ran a certification). The **capstone** requires proof you
+  ran a full certification, cracked a Sir Leaks-a-Lot level with an encoding, and
+  ran the adaptive attacker — so the Practitioner status is genuinely earned.
 - **Progress persists** per player/account (via the history store), and finishing
   the program yields a **printable certificate** + copy-paste **resume bullets**.
 

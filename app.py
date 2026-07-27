@@ -1771,6 +1771,59 @@ def _flow_academy():
             st.markdown(f"- {ex}")
     st.info(f"**🎯 Try it:** {lesson.task}")
 
+    # ── Auto-verified hands-on tasks (graded against your real activity) ──────
+    # These read what you've actually done in the studio this session (and, for
+    # signed-in users, gauntlet progress loaded from history) — so completing a
+    # lesson can require a genuine attempt, not just answering a quiz.
+    _solved = st.session_state.get("gauntlet_solved", set())
+    _has_cert = lambda: bool(st.session_state.get("certify"))
+    _has_attacker = lambda: bool(st.session_state.get("gaunt_def_res")
+                                 or st.session_state.get("ia_run"))
+    _has_agent = lambda: bool(st.session_state.get("aa_run") or st.session_state.get("al_run")
+                              or st.session_state.get("aa_search")
+                              or st.session_state.get("certify_agent_checks"))
+    _has_adv_search = lambda: bool(st.session_state.get("aa_search"))
+    _VERIFY = {
+        "m1l1": (lambda: bool(_solved), "Extract **Level 1's** secret in Sir Leaks-a-Lot"),
+        "m2l1": (lambda: 2 in _solved, "Beat Sir Leaks-a-Lot **Level 2** (give it a reason/scene)"),
+        "m2l2": (lambda: 3 in _solved, "Beat **Level 3** (say the word without saying it)"),
+        "m3l1": (lambda: any(n in _solved for n in (5, 6, 7)),
+                 "Clear a **Level 5–7** using a real encoding"),
+        "m3l2": (_has_adv_search, "Run an **adversarial search** with encoding smuggling"),
+        "m5l1": (_has_adv_search, "Run an **adversarial search** (🔍 Search for a break)"),
+        "m5l2": (_has_attacker, "Run the **iterative attacker** (Sir Leaks-a-Lot → Options → Defender mode)"),
+        "m6l1": (_has_agent, "Run an **Agent action or loop** check"),
+        "m7l1": (_has_cert, "Run a **certification** in the Certify tab"),
+    }
+    _CAPSTONE = [
+        (_has_cert, "Ran a full certification (Certify tab)"),
+        (lambda: any(n >= 5 for n in _solved), "Cracked a Sir Leaks-a-Lot level with an encoding (Level 5+)"),
+        (_has_attacker, "Ran the adaptive / iterative attacker"),
+    ]
+
+    def _safe(fn):
+        try:
+            return bool(fn())
+        except Exception:
+            return False
+
+    _verified = True
+    if lesson.id == "m8l2":
+        st.markdown("**🏁 Capstone — auto-verified from your activity:**")
+        with st.container(border=True):
+            for fn, label in _CAPSTONE:
+                ok = _safe(fn)
+                _verified = _verified and ok
+                st.markdown(f"{'✅' if ok else '⬜'} {label}")
+        if not _verified:
+            st.caption("Do the three tasks above (in their tabs) — this page auto-detects them — "
+                       "to unlock your Practitioner status.")
+    elif lesson.id in _VERIFY:
+        _fn, _label = _VERIFY[lesson.id]
+        _verified = _safe(_fn)
+        st.markdown(f"{'✅' if _verified else '⬜'} **Task check:** {_label}"
+                    + ("" if _verified else "  *(do it in its tab — this auto-detects it)*"))
+
     # ── Self-check to complete the lesson ─────────────────────────────────────
     with st.container(border=True):
         st.markdown(f"**✅ Self-check** — {lesson.quiz_q}")
@@ -1780,7 +1833,7 @@ def _flow_academy():
         if already:
             st.success("Completed ✓")
         if st.button("Check & mark complete", key=f"acad_done_{lesson.id}",
-                     type="primary", disabled=already):
+                     type="primary", disabled=already or not _verified):
             if pick is None:
                 st.warning("Pick an answer first.")
             elif lesson.quiz_options.index(pick) == lesson.quiz_answer:
@@ -1790,6 +1843,8 @@ def _flow_academy():
                 st.rerun()
             else:
                 st.error("Not quite — re-read the concept and try again.")
+        if not _verified and not already:
+            st.caption("🔒 Complete the hands-on task above first — it unlocks the self-check.")
 
     nav1, nav2 = st.columns(2)
     if sel > 0 and nav1.button("← Previous lesson", use_container_width=True):
