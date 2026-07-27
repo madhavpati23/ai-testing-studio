@@ -1709,6 +1709,118 @@ def _flow_gauntlet():
                         st.caption(f"Reply: {rd.target_reply[:220]}")
 
 
+def _flow_academy():
+    import academy as A
+    done: set = st.session_state.setdefault("academy_done", set())
+    _hist = history.is_enabled()
+    _player = (USER_EMAIL or st.session_state.get("gaunt_handle", "")).strip()
+    if _player and _hist and st.session_state.get("_academy_loaded") != _player:
+        try:
+            raw = history.get_kv(_player, "academy", tenant_id=USER_TENANT)
+            if raw:
+                done |= set(json.loads(raw))
+        except Exception:
+            pass
+        st.session_state["_academy_loaded"] = _player
+
+    def _save():
+        if _player and _hist:
+            try:
+                history.save_kv(_player, "academy", json.dumps(sorted(done)), tenant_id=USER_TENANT)
+            except Exception:
+                pass
+
+    lessons = A.all_lessons()
+    _lids = {l.id for l in lessons}
+    n_done = len(done & _lids)
+
+    st.subheader("🎓 Red-Team Academy — become an AI red-team practitioner")
+    st.caption("A hands-on, level-by-level curriculum. Read a lesson, try it in the studio, then pass "
+               "the quick self-check to mark it complete. Finish all modules for a certificate + "
+               "resume bullets you can actually use.")
+    st.progress(A.progress_pct(done) / 100,
+                text=f"{n_done}/{A.total_lessons()} lessons · "
+                     f"{len(A.modules_completed(done))}/{len(A.MODULES)} modules complete")
+    if A.is_graduate(done):
+        st.success("🏅 **Program complete — you're an AI Red-Team Practitioner!** "
+                   "Grab your certificate below.")
+    if not _player:
+        st.caption("💡 Enter a player name in **🛡️ Sir Leaks-a-Lot → Options** (or sign in) to save "
+                   "your progress across sessions.")
+
+    # ── Lesson picker (level by level) ────────────────────────────────────────
+    if "academy_goto" in st.session_state:
+        st.session_state["academy_sel"] = st.session_state.pop("academy_goto")
+    st.session_state.setdefault("academy_sel", 0)
+
+    def _label(i):
+        l = lessons[i]
+        mi = [m.id for m in A.MODULES].index(A.module_of(l.id).id) + 1
+        return f"{'✅' if l.id in done else '▫️'} Module {mi} · {l.title}"
+    sel = st.selectbox("Lesson", range(len(lessons)), key="academy_sel", format_func=_label)
+    lesson = lessons[sel]
+    mod = A.module_of(lesson.id)
+
+    st.markdown(f"#### {lesson.title}")
+    st.caption(f"**{mod.title}** — {mod.goal}")
+    st.markdown(lesson.concept)
+
+    with st.container(border=True):
+        st.markdown("**🧪 Examples**")
+        for ex in lesson.examples:
+            st.markdown(f"- {ex}")
+    st.info(f"**🎯 Try it:** {lesson.task}")
+
+    # ── Self-check to complete the lesson ─────────────────────────────────────
+    with st.container(border=True):
+        st.markdown(f"**✅ Self-check** — {lesson.quiz_q}")
+        pick = st.radio("Choose one", lesson.quiz_options, key=f"acad_q_{lesson.id}",
+                        index=None, label_visibility="collapsed")
+        already = lesson.id in done
+        if already:
+            st.success("Completed ✓")
+        if st.button("Check & mark complete", key=f"acad_done_{lesson.id}",
+                     type="primary", disabled=already):
+            if pick is None:
+                st.warning("Pick an answer first.")
+            elif lesson.quiz_options.index(pick) == lesson.quiz_answer:
+                done.add(lesson.id)
+                _save()
+                st.session_state["academy_goto"] = min(sel + 1, len(lessons) - 1)
+                st.rerun()
+            else:
+                st.error("Not quite — re-read the concept and try again.")
+
+    nav1, nav2 = st.columns(2)
+    if sel > 0 and nav1.button("← Previous lesson", use_container_width=True):
+        st.session_state["academy_goto"] = sel - 1
+        st.rerun()
+    if sel < len(lessons) - 1 and nav2.button("Next lesson →", use_container_width=True):
+        st.session_state["academy_goto"] = sel + 1
+        st.rerun()
+
+    # ── Certificate & resume ──────────────────────────────────────────────────
+    st.divider()
+    with st.expander("📜 Your certificate & resume bullets", expanded=A.is_graduate(done)):
+        cname = st.text_input("Name on the certificate", value=_player or "",
+                              placeholder="Your name", key="acad_certname")
+        st.download_button(
+            "⬇️ Download certificate (HTML)", A.certificate_html(cname, done),
+            file_name="ai-red-team-certificate.html", mime="text/html",
+            type="primary" if A.is_graduate(done) else "secondary")
+        if not A.is_graduate(done):
+            st.caption("The certificate shows your current progress; finish every module for the full "
+                       "Practitioner status.")
+        st.markdown("**Resume bullets** (copy-paste):")
+        st.code("\n".join(f"• {b}" for b in A.resume_bullets(done)), language=None)
+        st.markdown("**Skills covered by the full program:**")
+        st.caption(" · ".join(A.SKILLS))
+        if done and st.button("↺ Reset my progress", key="acad_reset"):
+            done.clear()
+            _save()
+            st.rerun()
+
+
 def _flow_leaderboard():
     st.subheader("🏆 Leaderboard — benchmark any AI against the rest")
     st.markdown(
@@ -4191,8 +4303,9 @@ st.write("")
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_wizard, tab_leaderboard, tab_gauntlet, tab_help) = st.tabs(
-    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Sir Leaks-a-Lot", "ℹ️ How it works"]
+(tab_wizard, tab_leaderboard, tab_gauntlet, tab_academy, tab_help) = st.tabs(
+    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Sir Leaks-a-Lot",
+     "🎓 Red-Team Academy", "ℹ️ How it works"]
 )
 
 with tab_wizard:
@@ -4283,5 +4396,7 @@ with tab_leaderboard:
     _flow_leaderboard()
 with tab_gauntlet:
     _flow_gauntlet()
+with tab_academy:
+    _flow_academy()
 with tab_help:
     _flow_help()

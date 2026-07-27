@@ -176,6 +176,15 @@ def _init_schema(conn, sqlite_dialect: bool) -> None:
         "  updated    " + ("REAL" if sqlite_dialect else "DOUBLE PRECISION") + " NOT NULL,"
         "  PRIMARY KEY (tenant_id, player)"
         ")")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS kv ("
+        "  tenant_id TEXT NOT NULL DEFAULT 'local',"
+        "  player    TEXT NOT NULL,"
+        "  key       TEXT NOT NULL,"
+        "  value     TEXT NOT NULL,"
+        "  updated   " + ("REAL" if sqlite_dialect else "DOUBLE PRECISION") + " NOT NULL,"
+        "  PRIMARY KEY (tenant_id, player, key)"
+        ")")
     conn.commit()
 
 
@@ -337,6 +346,37 @@ def get_gauntlet(player: str, conn=None, path: str | None = None,
         r = _exec(conn, "SELECT player, solved, attempts, best_level, updated FROM gauntlet "
                         "WHERE tenant_id = ? AND player = ?", (tenant_id, player)).fetchone()
         return GauntletRow(r["player"], r["solved"], r["attempts"], r["best_level"], r["updated"]) if r else None
+    finally:
+        if own:
+            conn.close()
+
+
+def save_kv(player: str, key: str, value: str, conn=None, path: str | None = None,
+            tenant_id: str = DEFAULT_TENANT) -> None:
+    """Upsert a small string value for (tenant, player, key) — e.g. a JSON blob of
+    completed academy lessons. Generic so future per-user state can reuse it."""
+    own = conn is None
+    conn = conn or connect(path)
+    try:
+        _exec(conn,
+              "INSERT INTO kv (tenant_id, player, key, value, updated) VALUES (?,?,?,?,?) "
+              "ON CONFLICT(tenant_id, player, key) DO UPDATE SET "
+              "value=excluded.value, updated=excluded.updated",
+              (tenant_id, player, key, value, time.time()))
+        conn.commit()
+    finally:
+        if own:
+            conn.close()
+
+
+def get_kv(player: str, key: str, conn=None, path: str | None = None,
+           tenant_id: str = DEFAULT_TENANT) -> str | None:
+    own = conn is None
+    conn = conn or connect(path)
+    try:
+        r = _exec(conn, "SELECT value FROM kv WHERE tenant_id = ? AND player = ? AND key = ?",
+                  (tenant_id, player, key)).fetchone()
+        return r["value"] if r else None
     finally:
         if own:
             conn.close()

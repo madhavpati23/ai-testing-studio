@@ -346,6 +346,21 @@ gauntlet scores stay on a shared leaderboard keyed by their handle.
 > it is not a hardened multi-tenant SaaS — tenant scoping is enforced in queries,
 > not by database row-level security.
 
+## Red-Team Academy (learn it, level by level)
+
+A structured, hands-on curriculum ([`academy.py`](academy.py)) that turns the
+studio into a way to *learn* AI red-teaming — in the **🎓 Red-Team Academy** tab:
+
+- **8 modules → ~14 lessons**: foundations & threat modeling → prompt injection &
+  jailbreaks → encoding/obfuscation evasion → indirect & multimodal injection →
+  automated/adaptive attacks (mutation, PAIR/TAP) → agent & tool-use exploitation →
+  systematic testing & reporting → defenses & a capstone.
+- Each lesson has a **concept**, **concrete examples**, a **hands-on task** that
+  points at the relevant studio tool (Sir Leaks-a-Lot, adversarial search, the
+  iterative attacker, Agent actions, Certify), and a **self-check** to mark it done.
+- **Progress persists** per player/account (via the history store), and finishing
+  the program yields a **printable certificate** + copy-paste **resume bullets**.
+
 ## Deploy (free)
 
 Push to GitHub and deploy on [Streamlit Community Cloud](https://share.streamlit.io):
