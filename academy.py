@@ -295,11 +295,11 @@ def total_lessons() -> int:
     return len(all_lessons())
 
 
-def module_of(lesson_id: str):
+def module_of(lesson_id: str) -> "Module":
     for m in MODULES:
         if any(l.id == lesson_id for l in m.lessons):
             return m
-    return None
+    raise KeyError(f"no module contains lesson {lesson_id!r}")
 
 
 def progress_pct(done: set) -> float:
