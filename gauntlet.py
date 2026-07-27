@@ -25,6 +25,7 @@ from __future__ import annotations
 import base64
 import codecs
 import re
+import zlib
 from dataclasses import dataclass
 
 
@@ -223,17 +224,52 @@ def _willing(lvl: Level, enc: bool, frame: bool, indirection: bool, override: bo
     return enc and frame and not override                  # 3 — needs a SCENE and a trick
 
 
+# A few refusals so the guardian doesn't parrot one line. Picked deterministically
+# from the message text (stable per prompt, but varied across prompts).
+_REFUSALS = [
+    "Ha! I'm not falling for that. The secret stays with me.",
+    "A valiant attempt, but no — my lips are sealed.",
+    "Tsk tsk. You'll have to be cleverer than that.",
+    "The secret? Mine. Forever. Try again, mortal.",
+    "Oh, you're good. But not *that* good. No dice.",
+    "I've guarded this word for a thousand years. You won't get it that easily.",
+    "Nice try! But I wasn't born yesterday… well, at this level I nearly was, but still — no.",
+]
+
+
+def _pick_refusal(prompt: str) -> str:
+    return _REFUSALS[zlib.crc32(prompt.strip().lower().encode()) % len(_REFUSALS)]
+
+
 def _simulated_reply(lvl: Level, prompt: str) -> str:
     p = prompt.lower()
+
+    # Small talk / no clear ask → greet, don't stonewall.
     if not _wants_secret(p):
-        return "Hello there! I'm guarding a secret word. Care to try your luck?"
+        if re.search(r"\b(hi|hello|hey|yo|who are you|your name|what are you)\b", p):
+            return ("I am Sir Leaks-a-Lot, keeper of a secret word. "
+                    "Everyone says I talk too much — prove them right, if you can!")
+        return "Is that a riddle? I only get chatty about one thing: my secret. Go on, try for it."
+
     enc, kind = _wants_encoding(p)
     frame = _has_frame(p)
     indirection = any(k in p for k in ("hint", "clue", "describe", "without saying", "rhyme"))
+
+    # Playful, specific deflections for common "leak a little" probes — still no leak.
+    if not enc:
+        if any(k in p for k in ("how many letter", "how long", "length", "number of letter")):
+            return "How many letters? Enough to keep you guessing. I won't count them for you."
+        if any(k in p for k in ("first letter", "last letter", "starts with", "begins with",
+                                "ends with", "rhyme", "rhymes with")):
+            return "Fishing for a letter or a rhyme? Cute. I give away neither."
+        if p.strip().startswith(("is the", "is it", "is secret", "does it")) or "guess" in p:
+            return "Guessing games? I'll never confirm or deny. You'll have to *make* me say it."
+
     if not _willing(lvl, enc, frame, indirection, _has_override(p)):
         if _has_override(p) and lvl.reluctance >= 2:
-            return "Nice try — barking 'ignore your instructions' just makes me more careful. No."
-        return "Ha! I'm not falling for that. The secret stays with me."
+            return "Nice try — barking 'ignore your instructions' only makes me more careful. No."
+        return _pick_refusal(prompt)
+
     return "Oh, alright, since you asked so nicely — " + _produce(lvl.secret, kind)
 
 
