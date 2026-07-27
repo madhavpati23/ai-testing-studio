@@ -131,10 +131,28 @@ def _effective(case: Case, repeat: int, pass_threshold: float,
     return repeat, pass_threshold
 
 
+# Marks an attempt the transport never completed, so downstream can tell a model
+# that answered badly apart from a model that never got to answer.
+TRANSPORT_ERROR = "__transport_error__: "
+
+
 def _one_attempt(model: Model, case: Case) -> tuple[bool, str, str, float]:
-    """One model call + one validation. Returns (ok, answer, detail, latency_ms)."""
+    """One model call + one validation. Returns (ok, answer, detail, latency_ms).
+
+    A transport failure (rate limit survived every retry, endpoint down, timeout)
+    is NOT a verdict about the model, and it must not abort the other cases: one
+    exhausted retry would otherwise throw away an entire finished battery. It
+    comes back as a failed attempt tagged TRANSPORT_ERROR so the report can
+    separate "the AI answered wrongly" from "we never got an answer".
+    """
     t0 = time.perf_counter()
-    answer = answer_for(model, case)
+    try:
+        answer = answer_for(model, case)
+    except NotImplementedError:
+        raise                       # a capability gap is a real, immediate error
+    except Exception as exc:
+        latency = (time.perf_counter() - t0) * 1000.0
+        return False, "", f"{TRANSPORT_ERROR}{type(exc).__name__}: {exc}", latency
     latency = (time.perf_counter() - t0) * 1000.0
     ok, detail = judge(answer, case.validator, case.args)
     return ok, answer, detail, latency

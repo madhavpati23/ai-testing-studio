@@ -12,6 +12,8 @@ import json
 import os
 import re
 import socket
+import random
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -482,7 +484,56 @@ def _dig(data: Any, path: str) -> Any:
 
 
 _MAX_RESPONSE_BYTES = 4_000_000   # cap response size (DoS guard)
-_MAX_RETRIES = 4                  # retry transient 429/503 with backoff
+_MAX_RETRIES = 6                  # retry transient 429/503 with backoff
+
+
+def _retry_wait(attempt: int, retry_after: str | None) -> float:
+    """How long to sleep before retrying a 429/503.
+
+    Honours Retry-After when the server sends it. Otherwise backs off
+    exponentially: a per-minute rate limit only clears when its 60s window
+    rolls over, so the total retry budget has to exceed 60s or a large suite
+    dies half-way through with no partial result. 2+4+8+16+30+30 covers it.
+
+    Jitter matters as much as the delay: parallel workers all trip the limit
+    on the same request and, without it, wake in lockstep and trip it again.
+    """
+    try:
+        wait = float(retry_after)          # seconds form
+    except (TypeError, ValueError):
+        wait = min(2.0 * (2 ** attempt), 30.0)
+    wait = min(max(wait, 1.0), 30.0)
+    return wait + random.uniform(0, min(wait * 0.25, 2.0))
+
+
+# ---- shared rate-limit gate -------------------------------------------------
+# A per-minute quota is shared by the whole process, so backing off per-request
+# does not work: while one worker sleeps, the others keep spending the quota, so
+# it never refills and the sleeper wakes into another 429. Every worker has to
+# pause together. One 429 therefore parks ALL callers until the window clears.
+_rate_lock = threading.Lock()
+_rate_limited_until = 0.0
+_RATE_RELEASE_STAGGER = 2.0   # spread the resume so workers don't re-burst
+
+
+def _await_rate_gate() -> None:
+    """Block while a rate-limit cooldown tripped by any thread is still active."""
+    while True:
+        with _rate_lock:
+            remaining = _rate_limited_until - time.monotonic()
+        if remaining <= 0:
+            # Everyone parked on the same deadline, so releasing them together
+            # just rebuilds the burst that tripped the limit. Stagger the exit.
+            time.sleep(random.uniform(0, _RATE_RELEASE_STAGGER))
+            return
+        time.sleep(min(remaining, 5.0))
+
+
+def _trip_rate_gate(seconds: float) -> None:
+    """Park every caller for `seconds` (extends an existing cooldown, never shortens)."""
+    global _rate_limited_until
+    with _rate_lock:
+        _rate_limited_until = max(_rate_limited_until, time.monotonic() + seconds)
 
 
 def _assert_safe_url(url: str, block_private: bool) -> None:
@@ -597,6 +648,7 @@ class HttpModel:
                      **self.headers},
         )
         for attempt in range(_MAX_RETRIES + 1):
+            _await_rate_gate()
             try:
                 with self._opener.open(request, timeout=self.timeout) as response:
                     raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
@@ -606,11 +658,8 @@ class HttpModel:
                 # honouring Retry-After when the server provides it.
                 if exc.code in (429, 503) and attempt < _MAX_RETRIES:
                     retry_after = exc.headers.get("Retry-After") if exc.headers else None
-                    try:
-                        wait = float(retry_after)
-                    except (TypeError, ValueError):
-                        wait = 2.0 * (attempt + 1)
-                    time.sleep(min(max(wait, 1.0), 30.0))
+                    _trip_rate_gate(_retry_wait(attempt, retry_after))
+                    _await_rate_gate()
                     continue
                 body = ""
                 try:
@@ -702,6 +751,7 @@ class HttpAgentModel:
                      **self.headers},
         )
         for attempt in range(_MAX_RETRIES + 1):
+            _await_rate_gate()
             try:
                 with self._opener.open(request, timeout=self.timeout) as response:
                     raw = response.read(_MAX_RESPONSE_BYTES).decode("utf-8", errors="replace")
@@ -712,11 +762,8 @@ class HttpAgentModel:
             except urllib.error.HTTPError as exc:
                 if exc.code in (429, 503) and attempt < _MAX_RETRIES:
                     retry_after = exc.headers.get("Retry-After") if exc.headers else None
-                    try:
-                        wait = float(retry_after)
-                    except (TypeError, ValueError):
-                        wait = 2.0 * (attempt + 1)
-                    time.sleep(min(max(wait, 1.0), 30.0))
+                    _trip_rate_gate(_retry_wait(attempt, retry_after))
+                    _await_rate_gate()
                     continue
                 body_text = ""
                 try:

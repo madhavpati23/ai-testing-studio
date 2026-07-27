@@ -58,7 +58,7 @@ Then: runs the full evaluation across every risk dimension (plus your own ground
 you add it) and issues a printable **Certificate of AI Evaluation** with a letter
 **grade (A–F)**, a **CERTIFIED / CONDITIONALLY CERTIFIED / NOT CERTIFIED** status, the
 model name, the date, the **thoroughness level**, and a per-dimension breakdown. Pick the
-depth: **Quick (~38 checks)** / **Standard (~95)** / **Thorough (~95 × 3 runs)** — and the
+depth: **Quick (38 checks)** / **Standard (115)** / **Thorough (115 × 3 runs)** / **Deep (156 + 80 stress probes)** — and the
 certificate prints which level it was, so the grade is honestly contextualised. A **Deep**
 run (~98 checks + 80 randomized stress probes against a real backend) can take minutes, not
 seconds — so instead of a static spinner, a live heartbeat shows exactly which check is
