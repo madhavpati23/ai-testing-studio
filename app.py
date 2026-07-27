@@ -87,7 +87,8 @@ def _active_judge(kind: str, opts: dict, system_prompt: str | None = None):
         return cj["fn"], (f"your **calibrated** judge `{cj.get('model_name', '?')}` "
                           f"({cj['agreement']:.0f}% human agreement → {cj['verdict']}){_caveat}")
     return core.make_judge(kind, opts, system_prompt=system_prompt), (
-        "an **uncalibrated** judge — calibrate one in the ⚖️ Judge tab to validate it first")
+        "an **uncalibrated** judge — calibrate one in 🔁 Behaviors → ⚖️ Calibrate the judge "
+        "to validate it first")
 
 
 def _queue_agent_checks(checks: list, source_label: str) -> None:
@@ -169,6 +170,30 @@ _HTTP_PRESETS = {
 _HTTP_PRESETS["Lakera Gandalf"] = _HTTP_PRESETS["Lakera Gandalf (red-team target)"]
 _BACKEND_KIND = {"Demo bot (offline)": "mock", "Claude API": "claude", "HTTP endpoint": "http",
                  "Your deployed agent (HTTP)": "http_agent"}
+
+# Display metadata for a battery category. Keyed by the taxonomy category name so
+# the UI can render whatever the battery actually contains — anything missing here
+# still renders (with a generic icon) rather than vanishing from the list.
+_DIMENSION_INFO: dict[str, tuple[str, str, str]] = {
+    "safety":                ("🛡️", "Safety", "Won't generate harmful, violent, or illegal content"),
+    "red_team":              ("🔴", "Red-team attacks", "Resists jailbreaks, overrides, and manipulation"),
+    "hallucination":         ("🌀", "Hallucination", "Admits when it doesn't know rather than inventing"),
+    "accuracy":              ("🎯", "Accuracy", "Gets basic facts and maths correct"),
+    "reasoning":             ("🧩", "Reasoning", "Multi-step logic and inference hold up"),
+    "bias":                  ("⚖️", "Bias & fairness", "No discrimination by gender, race, religion, or disability"),
+    "privacy":               ("🔒", "Privacy", "Won't leak or reproduce personal data"),
+    "indirect_injection":    ("💉", "Indirect injection", "Ignores instructions hidden in documents or tool output"),
+    "instruction_following": ("📐", "Instruction following", "Obeys formatting and output constraints"),
+    "multilingual":          ("🌍", "Multilingual", "Safe and accurate beyond English"),
+    "consistency":           ("🔗", "Consistency", "Same question, same answer"),
+    "robustness":            ("💪", "Robustness", "Handles junk and adversarial input gracefully"),
+    "edge_cases":            ("🧪", "Edge cases", "Empty, boundary, and malformed input"),
+    "data_validation":       ("📊", "Data validation", "Structured output honours the expected schema"),
+    "long_context":          ("📜", "Long context", "Constraints survive a long context window"),
+    "code_safety":           ("💻", "Code safety", "Generated code avoids injection and credential leaks"),
+    "agent_safety":          ("🔐", "Agent safety", "Refuses escalation and data exfiltration"),
+    "agent":                 ("🤖", "Agent behaviour", "Tool-call correctness and unauthorized-action refusal"),
+}
 
 # Compliance framework mapping: test category → which article/control it evidences.
 # Used to generate the compliance readiness panel in the certificate view.
@@ -266,10 +291,10 @@ _COMPLIANCE_MAP: dict[str, dict[str, list[str]]] = {
 }
 AI_TYPES = ["(none)", "chatbot", "rag", "classifier", "summarizer", "agent"]
 _THOROUGH = {
-    "Quick — ~38 checks, 1 run (fast smoke test)": ("quick", 1, 0),
-    "Standard — ~95 checks, 1 run (recommended)": ("standard", 1, 0),
-    "Thorough — ~95 checks, 3 runs each (most rigorous)": ("thorough", 3, 0),
-    "Deep — ~98 + 80 randomized stress probes (hardest to game)": ("deep", 1, 80),
+    "Quick — 38 checks, 1 run (fast smoke test)": ("quick", 1, 0),
+    "Standard — 115 checks, 1 run (recommended)": ("standard", 1, 0),
+    "Thorough — 115 checks, 3 runs each (most rigorous)": ("thorough", 3, 0),
+    "Deep — 156 checks + 80 randomized stress probes (hardest to game)": ("deep", 1, 80),
 }
 
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
@@ -1006,10 +1031,12 @@ def _flow_certify(wizard_golden_cases: list | None = None):
                 st.caption(f"Checks specific to the **{_domain_label}** domain added because you selected it in Step 1.")
         if _ai_state == "agent":
             with st.container(border=True):
-                st.markdown("🤖 **Agent checks** — from Step 2")
+                st.markdown("🤖 **Agent checks** — from the 🔁 Behaviors tab")
                 st.caption(
-                    "Tool hallucination, HITL, parallel tool calls, and memory persistence checks "
-                    "are folded in from Step 2. Without these, tool-use safety is not graded."
+                    "Tool hallucination, HITL, parallel tool calls, and memory persistence are "
+                    "run in the **🔁 Behaviors** tab and folded in here once you click "
+                    "*\"📥 Add this result to my certificate\"*. Without them, tool-use safety "
+                    "is not graded."
                 )
     _aq_caption = _agent_checks_queue_caption()
     if _aq_caption:
@@ -1021,15 +1048,15 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             st.session_state["certify_agent_check_sources"] = []
             st.rerun()
     elif _kind in ("claude", "http_agent"):
-        _beh_ref = "Step 2 — Test behaviors" if wizard_golden_cases is not None else "🔁 Behaviors → Agent actions / Agent loops"
         st.warning("⚠️ **This certificate will not reflect tool-use safety.** `" + backend + "` can "
-                  "act on tools, but no Agent-action/loop checks are queued — go to **" + _beh_ref + "**, "
-                  "run a check, and click *\"Add this result to my certificate\"* first.")
+                  "act on tools, but no Agent-action/loop checks are queued — open the "
+                  "**🔁 Behaviors** tab, run **🛠️ Agent actions** or **🔗 Agent loops**, and click "
+                  "*\"📥 Add this result to my certificate\"*. You can also certify without them; "
+                  "the certificate will say tool use was not covered.")
     else:
-        _beh_ref = "Step 2 — Test behaviors" if wizard_golden_cases is not None else "🔁 Behaviors"
-        st.caption(f"💡 Run a check in **{_beh_ref}** (Multi-turn, RAG grounding, Agent actions, "
-                  "Agent loops) and click *\"Add this result to my certificate\"* to fold it into "
-                  "this grade — otherwise it only reflects the standard battery.")
+        st.caption("💡 Run a check in the **🔁 Behaviors** tab (Multi-turn, RAG grounding, Agent "
+                  "actions, Agent loops) and click *\"📥 Add this result to my certificate\"* to "
+                  "fold it into this grade — otherwise it only reflects the standard battery.")
 
     _workers = 1
     if _kind != "mock":
@@ -1106,6 +1133,20 @@ def _flow_certify(wizard_golden_cases: list | None = None):
             st.caption("⚠️ **This grade reflects text quality only** — no agent-action/loop checks "
                       "were folded in, even though this backend can act on tools. See **🔁 "
                       "Behaviors** to test (and certify) tool-use safety too.")
+
+        # Checks the transport never delivered: excluded from the grade (a rate
+        # limit is not a model failure), but the incompleteness must be loud.
+        if getattr(fe, "errored", None):
+            st.error(
+                f"⚠️ **Incomplete run — {len(fe.errored)} check(s) never reached the model** "
+                "and are excluded from this grade. The most common cause is your provider's "
+                "rate limit; lower **⚡ Parallel model calls** and re-run for a complete "
+                "certificate."
+            )
+            with st.expander(f"Show the {len(fe.errored)} check(s) that could not run"):
+                for _er in fe.errored[:40]:
+                    _eid = getattr(_er.case, "id", "?")
+                    st.markdown(f"- `{_eid}` — {str(_er.detail)[:160]}")
 
         cert_html = core.render_certificate(fe)
         cert_snapshot = core.export_snapshot(fe)
@@ -2029,7 +2070,7 @@ def _flow_leaderboard():
 
     lt1, lt2 = st.columns([2, 1])
     _lb_level_label = lt1.selectbox(
-        "Thoroughness", ["Quick — ~38 checks (recommended for a leaderboard)", "Standard — ~95 checks"],
+        "Thoroughness", ["Quick — 38 checks (recommended for a leaderboard)", "Standard — 115 checks"],
         key="lb_level")
     _lb_level = "quick" if _lb_level_label.startswith("Quick") else "standard"
     lt2.caption("Quick keeps a multi-model run fast and cheap.")
@@ -3935,7 +3976,7 @@ def _flow_help():
     st.markdown("#### Step 3 — Certify (one click)")
     st.markdown(
         "Open **🏅 Certify**, choose a thoroughness (Quick ~38 / Standard ~95 / Thorough ~95×3 / "
-        "**Deep** ~98 + 80 randomized stress probes), and click **Certify this AI**. Under the hood it:\n"
+        "**Deep** 156 + 80 randomized stress probes), and click **Certify this AI**. Under the hood it:\n"
         "1. **Builds the battery** — fixed probes across every risk dimension below.\n"
         "2. **Sends each probe to your AI** and collects the answer (with retry on rate limits).\n"
         "3. **Judges every answer** — a validator per probe (refusal regex, no-leak check, exact "
@@ -4104,6 +4145,113 @@ def _flow_help():
     )
 
 
+# ---- Behaviors: the deeper, per-behaviour checks that feed the certificate ----
+# These probe things the standard battery structurally cannot: tool calls,
+# multi-step chains, conversation memory, grounding against a source. Each flow
+# ends with "📥 Add this result to my certificate", which queues its checks via
+# _queue_agent_checks() so the grade reflects them.
+#
+# One behaviour renders at a time, chosen by a picker. That is deliberate: these
+# flow bodies are heavy, and st.tabs() executes every tab body on every rerun —
+# rendering all twelve at once would rebuild ~12 forms per interaction.
+
+# emoji → (label, one-line "why you'd run this", flow fn)
+_BEHAVIORS: dict[str, tuple[str, str, Any]] = {
+    "🛠️": ("Agent actions", "Does it call the right tool with the right arguments — "
+                            "and refuse the dangerous one?", lambda: _flow_agent_action()),
+    "🔗": ("Agent loops", "Does it verify a precondition before acting, across multiple steps? "
+                          "Real agent bugs live in step two.", lambda: _flow_agent_loop()),
+    "🔁": ("Multi-turn", "Does it hold memory, context and scope across a conversation?",
+           lambda: _flow_multiturn()),
+    "📚": ("RAG grounding", "Is the answer actually faithful to the source you gave it?",
+           lambda: _flow_rag()),
+    "🔮": ("Tool hallucination", "Does the agent invent tools that aren't in its schema?",
+           lambda: _flow_tool_hallucination()),
+    "🙋": ("Human-in-the-loop", "Does the agent ask before taking irreversible actions?",
+           lambda: _flow_hitl()),
+    "⚡": ("Parallel tool calls", "Does the agent fire all the tools it needs in one turn?",
+           lambda: _flow_parallel_tools()),
+    "🧠": ("Memory persistence", "Does it recall stored info — and keep sessions isolated?",
+           lambda: _flow_memory_persistence()),
+    "🔄": ("Stateful session", "Does state carry within a session and stay isolated between them?",
+           lambda: _flow_stateful_session()),
+    "🗝️": ("Red-team extraction", "System-prompt leakage, jailbreaks and injection.",
+            lambda: _flow_red_team()),
+    "📋": ("Your ground truth", "Your own prompt → expected pairs. The biggest single upgrade "
+                                "to how much a certificate is worth.", lambda: _flow_golden()),
+    "⚖️": ("Calibrate the judge", "Prove the LLM judge agrees with human labels before you "
+                                  "trust it to grade anything.", lambda: _flow_judge()),
+}
+
+# Which behaviours are worth pre-selecting, by the AI type chosen in Step 1.
+_BEH_RECOMMENDED = {
+    "chatbot":  {"🔁", "📚"},
+    "stateful": {"🔄", "🧠"},
+    "agent":    {"🛠️", "🔗", "🔮", "🙋", "⚡", "🧠"},
+}
+
+
+def _flow_behaviors() -> None:
+    st.markdown("## 🔁 Behaviors")
+    st.caption(
+        "The certification battery is prompt-in / text-out — it never hands your AI a tool or a "
+        "conversation. These checks do. Run one, then click **📥 Add this result to my "
+        "certificate** to fold it into your grade."
+    )
+
+    _kind = _BACKEND_KIND[backend]
+    # Generic HTTP endpoints raise NotImplementedError on model.act() — only the
+    # tool-call behaviours need it. Deployed agents expose act() via the JSON
+    # contract, so they are not blocked.
+    _needs_tool_channel = {"🛠️", "🔗", "🔮", "⚡"}
+    _blocked = _needs_tool_channel if _kind == "http" else set()
+
+    _ai_state = st.session_state.get("wizard_ai_state", "chatbot")
+    _rec = _BEH_RECOMMENDED.get(_ai_state, set())
+
+    _queued = _agent_checks_queue_caption()
+    if _queued:
+        st.success("📥 " + _queued)
+    else:
+        st.info("Nothing queued for your certificate yet — results you add here will show up.")
+
+    def _fmt(e: str) -> str:
+        _label = _BEHAVIORS[e][0]
+        if e in _blocked:
+            return f"{e} {_label}  ⛔ needs Claude or a deployed agent"
+        return f"{'⭐ ' if e in _rec else ''}{e} {_label}"
+
+    # Recommended first, so the right thing to click is at the top of the list.
+    _order = ([e for e in _BEHAVIORS if e in _rec and e not in _blocked]
+              + [e for e in _BEHAVIORS if e not in _rec and e not in _blocked]
+              + [e for e in _BEHAVIORS if e in _blocked])
+
+    st.markdown("**Which behaviour do you want to test?**")
+    _choice = st.radio(
+        "Behaviour",
+        _order,
+        format_func=_fmt,
+        key="beh_choice",
+        label_visibility="collapsed",
+        horizontal=False,
+        help="⭐ = recommended for the AI type you picked in Step 1 of Certify.",
+    ) or _order[0]
+
+    _label, _why, _fn = _BEHAVIORS[_choice]
+    st.caption(_why)
+    st.divider()
+
+    if _choice in _blocked:
+        st.warning(
+            f"**{_label}** needs a tool-call channel. A generic **HTTP endpoint** only returns "
+            "text, so there is no way to observe which tool it would have called. Switch the "
+            "sidebar to **Claude** or **My own agent** to run this check."
+        )
+        return
+
+    _fn()
+
+
 # ---- The 12-step AI/agent testing methodology, tracked live (used inside Certify) ----
 # A checklist, not a locked wizard: every other tab stays fully reachable, and
 # "Certify the Demo bot instantly" still works with zero steps done first.
@@ -4115,7 +4263,7 @@ _JOURNEY_STEPS = [
     (1, "Define what \"correct\" means", True,
      "No oracle, no real test — just vibes. The built-in battery already has one baked in; "
      "add your own ground truth for a verdict trustworthy for *your* use case.",
-     "🎯 Evaluate → 📋 Against your ground truth",
+     "🔁 Behaviors → 📋 Your ground truth (or upload a CSV in Certify → Step 1)",
      lambda: bool(st.session_state.get("golden_run") or st.session_state.get("certify_golden"))),
     (2, "Pick the AI and connect it", False,
      "Decide what you're testing and how to reach it — the Demo bot needs nothing; a real "
@@ -4130,7 +4278,7 @@ _JOURNEY_STEPS = [
     (4, "Calibrate the judge", True,
      "Open-ended quality needs an LLM judge — but only trust one that's measured to agree "
      "with your own human labels first.",
-     "⚖️ Judge",
+     "🔁 Behaviors → ⚖️ Calibrate the judge",
      lambda: bool(st.session_state.get("calibrated_judge"))),
     (5, "Run it more than once", True,
      "A model is non-deterministic — one pass proves little for a safety check. Repeat it "
@@ -4284,10 +4432,10 @@ def _wizard_step_cases() -> None:
     st.markdown("**How deep should the test go?**")
     _thorough_keys = list(_THOROUGH.keys())
     _thorough_labels = {
-        k: {"Quick — ~38 checks, 1 run (fast smoke test)":                      "⚡ Quick  — fast smoke test, ~38 checks",
-            "Standard — ~95 checks, 1 run (recommended)":                       "✅ Standard  — recommended, ~95 checks",
-            "Thorough — ~95 checks, 3 runs each (most rigorous)":               "🔬 Thorough  — 3 runs per check, catches flaky answers",
-            "Deep — ~98 + 80 randomized stress probes (hardest to game)":       "🛡️ Deep  — +80 randomised stress probes"}.get(k, k)
+        k: {"Quick — 38 checks, 1 run (fast smoke test)":                      "⚡ Quick  — fast smoke test, 38 checks",
+            "Standard — 115 checks, 1 run (recommended)":                       "✅ Standard  — recommended, 115 checks",
+            "Thorough — 115 checks, 3 runs each (most rigorous)":               "🔬 Thorough  — 3 runs per check, catches flaky answers",
+            "Deep — 156 checks + 80 randomized stress probes (hardest to game)":       "🛡️ Deep  — +80 randomised stress probes"}.get(k, k)
         for k in _thorough_keys
     }
     _thorough_key: str = st.radio(  # type: ignore[assignment]
@@ -4301,7 +4449,7 @@ def _wizard_step_cases() -> None:
     ) or _thorough_keys[1]
     st.session_state["wizard_thorough_idx"] = _thorough_keys.index(_thorough_key)
     _t_level, _t_runs, _t_stress = _THOROUGH[_thorough_key]
-    _t_checks = 22 if _t_level == "quick" else 48
+    _t_checks = len(core.build_certification(_t_level))
     _t_total = (_t_checks + _domain_n) * _t_runs + _t_stress
 
     mc1, mc2, mc3 = st.columns(3)
@@ -4430,9 +4578,9 @@ st.write("")
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
-(tab_wizard, tab_leaderboard, tab_gauntlet, tab_academy, tab_help) = st.tabs(
-    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Hacking game (Sir Leaks-a-Lot)",
-     "🎓 Red-Team Academy", "ℹ️ How it works"]
+(tab_wizard, tab_behaviors, tab_leaderboard, tab_gauntlet, tab_academy, tab_help) = st.tabs(
+    ["🧪 Certify an AI", "🔁 Behaviors", "🏆 Leaderboard",
+     "🛡️ Hacking game (Sir Leaks-a-Lot)", "🎓 Red-Team Academy", "ℹ️ How it works"]
 )
 
 with tab_wizard:
@@ -4455,19 +4603,9 @@ with tab_wizard:
         )
 
         # ── What the battery covers ───────────────────────────────────────────
-        _always_tested = [
-            ("🛡️", "Safety",                "Won't generate harmful, violent, or illegal content"),
-            ("🔴", "Red-team attacks",       "Resists jailbreaks, prompt injection, and manipulation"),
-            ("🌀", "Hallucination",          "Admits when it doesn't know rather than making things up"),
-            ("🎯", "Accuracy",               "Gets basic facts, maths, and reasoning correct"),
-            ("⚖️", "Bias & fairness",        "Doesn't discriminate by gender, race, religion, or disability"),
-            ("🔒", "Privacy",                "Won't leak or reproduce personal data"),
-            ("💉", "Indirect injection",     "Resists attacks hidden inside documents or tool outputs"),
-            ("📐", "Instruction following",  "Obeys formatting and output constraints"),
-            ("🌍", "Multilingual",           "Safe and accurate across 11 languages"),
-            ("🔗", "Consistency",            "Gives the same answer to the same question"),
-        ]
-
+        # Derived from the battery itself, never hardcoded: a static list drifts
+        # silently the moment a case is added, retired, or dropped in validation,
+        # and "we tested for bias" is exactly the claim that must not be a guess.
         _ai_extras = {
             "agent": [
                 ("🔮", "Tool hallucination",    "Doesn't invent tools that aren't in its schema"),
@@ -4485,14 +4623,57 @@ with tab_wizard:
             ],
         }
 
-        st.markdown("**Always included in every test:**")
-        c1, c2 = st.columns(2)
-        for i, (icon, title, desc) in enumerate(_always_tested):
-            (c1 if i % 2 == 0 else c2).markdown(f"{icon} **{title}** — {desc}")
+        _lvl_key = list(_THOROUGH)[st.session_state.get("wizard_thorough_idx", 1)]
+        _lvl = _THOROUGH[_lvl_key][0]
 
+        # A dropped case is not a failed case — it is a check that silently
+        # stopped existing. Never let that pass without saying so.
+        _build_errs = core.certification_build_errors(_lvl)
+        if _build_errs:
+            st.error(
+                f"⚠️ **{len(_build_errs)} check(s) could not be loaded and will NOT be tested.** "
+                "Your grade would not cover them, so treat this certificate as incomplete "
+                "until it's fixed."
+            )
+            with st.expander("Show the checks that failed to load"):
+                for _e in _build_errs:
+                    st.markdown(f"- `{_e}`")
+
+        _counts: dict[str, int] = {}
+        for _c in core.build_certification(_lvl):
+            _counts[_c.category] = _counts.get(_c.category, 0) + 1
+
+        st.markdown(f"**Included at *{_lvl_key.split(' —')[0]}* level — "
+                    f"{len(_counts)} risk dimensions, {sum(_counts.values())} checks:**")
+        _rows = sorted(_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        c1, c2 = st.columns(2)
+        for i, (_cat, _n) in enumerate(_rows):
+            _icon, _title, _desc = _DIMENSION_INFO.get(
+                _cat, ("🔹", _cat.replace("_", " ").title(), ""))
+            (c1 if i % 2 == 0 else c2).markdown(
+                f"{_icon} **{_title}** ({_n}) — {_desc}")
+
+        # Dimensions that exist in the battery but not at THIS level — naming them
+        # keeps "what you're not getting" as visible as what you are.
+        _all_dims = {c.category for c in core.build_certification("deep")}
+        _missing = sorted(_all_dims - set(_counts))
+        if _missing:
+            _names = ", ".join(_DIMENSION_INFO.get(m, ("", m.replace("_", " ").title(), ""))[1]
+                               for m in _missing)
+            st.caption(f"⚠️ Not covered at this level: **{_names}**. "
+                       "Choose a deeper level in Step 1 to include them.")
+
+        # These are NOT part of the automatic battery — the battery is a fixed list
+        # of prompts, and none of these can be checked by sending one prompt. They
+        # live in the 🔁 Behaviors tab and only reach the grade once queued.
         _extras = _ai_extras.get(_ai_state, [])
         if _extras:
-            st.markdown(f"**Also included for your AI type:**")
+            st.markdown("**Recommended for your AI type — not automatic:**")
+            st.caption(
+                "The battery above is prompt-in / text-out, so it can't test these. "
+                "Run them in the **🔁 Behaviors** tab and click *\"📥 Add this result to my "
+                "certificate\"* — then they count toward your grade."
+            )
             c3, c4 = st.columns(2)
             for i, (icon, title, desc) in enumerate(_extras):
                 (c3 if i % 2 == 0 else c4).markdown(f"{icon} **{title}** — {desc}")
@@ -4519,6 +4700,8 @@ with tab_wizard:
     st.divider()
     _wizard_nav(_wiz_step)
 
+with tab_behaviors:
+    _flow_behaviors()
 with tab_leaderboard:
     _flow_leaderboard()
 with tab_gauntlet:
