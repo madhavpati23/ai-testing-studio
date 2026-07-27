@@ -1819,9 +1819,9 @@ def _flow_academy():
             st.caption("Do the three tasks above (in their tabs) — this page auto-detects them — "
                        "to unlock your Practitioner status.")
     elif lesson.id in _VERIFY:
-        _fn, _label = _VERIFY[lesson.id]
+        _fn, _vlabel = _VERIFY[lesson.id]
         _verified = _safe(_fn)
-        st.markdown(f"{'✅' if _verified else '⬜'} **Task check:** {_label}"
+        st.markdown(f"{'✅' if _verified else '⬜'} **Task check:** {_vlabel}"
                     + ("" if _verified else "  *(do it in its tab — this auto-detects it)*"))
 
     # ── Self-check to complete the lesson ─────────────────────────────────────
