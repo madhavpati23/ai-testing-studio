@@ -305,7 +305,9 @@ st.markdown("""
 h1, h2, h3, h4 { letter-spacing: -0.01em; }
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
-.hero-wrap { padding: 2rem 0 1.2rem 0; }
+/* Deliberately compact: it repeats on every tab, so it must not push the
+   actual work below the fold. */
+.hero-wrap { padding: 0.6rem 0 0.9rem 0; }
 .hero-badge {
     display: inline-block; background: rgba(124,92,255,0.14); color: var(--accent-2);
     border: 1px solid rgba(124,92,255,0.35); border-radius: 999px;
@@ -313,7 +315,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
     letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px;
 }
 .hero-title {
-    font-size: 2.7rem; font-weight: 800; line-height: 1.12;
+    font-size: 2.1rem; font-weight: 800; line-height: 1.12;
     color: var(--text); margin: 0 0 10px 0; letter-spacing: -0.02em;
 }
 .hero-title span {
@@ -350,6 +352,21 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 .step-item.active .step-num { background: var(--accent); color: #fff; border: none; }
 .step-connector { flex: 1; height: 2px; background: var(--border); margin: 0 4px; border-radius: 2px; }
 .step-connector.done { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.step-hint {
+    margin: -1.1rem 0 1.4rem 2px; font-size: 0.86rem; color: var(--text-muted);
+}
+
+/* ── Sidebar connection badge — "can I press Run yet?" ───────────────────── */
+.conn-badge {
+    margin-top: 14px; padding: 10px 13px; border-radius: 12px;
+    font-size: 0.83rem; font-weight: 700; line-height: 1.35;
+}
+.conn-badge span {
+    display: block; font-weight: 500; font-size: 0.76rem;
+    color: var(--text-muted); margin-top: 3px;
+}
+.conn-badge.ok   { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.38); color: #6ee7b7; }
+.conn-badge.wait { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.38); color: #fcd34d; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 [data-testid="stSidebar"] {
@@ -409,6 +426,34 @@ code { color: var(--accent-2); background: rgba(124,92,255,0.10);
 hr { border-color: var(--border); }
 /* Alert boxes: softer, rounded */
 [data-testid="stAlert"] { border-radius: 12px; }
+
+/* ── Readability & scan-ability ─────────────────────────────────────────── */
+/* Body copy is dense here (long explanations next to every control), so give
+   it room to breathe and keep captions legible rather than near-invisible. */
+.block-container p, .block-container li { line-height: 1.62; }
+[data-testid="stCaptionContainer"] { color: var(--text-muted); font-size: 0.83rem; }
+
+/* Radio groups read as pickable cards, not a bare list — these are the main
+   "what am I testing?" choices and deserve a hit target. */
+[data-testid="stSidebar"] [role="radiogroup"] > label,
+.block-container [role="radiogroup"] > label {
+    padding: 7px 11px; border-radius: 10px; border: 1px solid transparent;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+[data-testid="stSidebar"] [role="radiogroup"] > label:hover,
+.block-container [role="radiogroup"] > label:hover {
+    background: var(--surface-2); border-color: var(--border);
+}
+
+/* Expanders used for optional/reference content shouldn't shout for attention */
+[data-testid="stExpander"] summary { font-weight: 600; }
+
+/* Tabs: the top-level navigation — make the active one unmistakable */
+.stTabs [data-baseweb="tab-list"] { flex-wrap: wrap; }
+.stTabs [data-baseweb="tab"]:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+
+/* Full-width primary buttons (wizard nav, Run) get a bit more presence */
+.stButton > button { padding: 0.5rem 1.1rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -450,7 +495,8 @@ with st.sidebar:
                 st.login()
         st.divider()
 
-    st.markdown('<div class="sidebar-label">Which AI are you testing?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-label">Start here · Which AI are you testing?</div>',
+                unsafe_allow_html=True)
     backends = ["Demo bot (offline)", "Claude API", "HTTP endpoint", "Your deployed agent (HTTP)"]
     _backend_labels = {
         "Demo bot (offline)":          "🔧 Demo (no key needed)",
@@ -463,6 +509,7 @@ with st.sidebar:
         backends,
         format_func=lambda b: _backend_labels[b],
         label_visibility="collapsed",
+        help="New here? Leave this on Demo — it runs offline with no API key.",
     )
 
     _RESULT_KEYS = ("gen", "run", "certify", "golden_run",
@@ -577,6 +624,25 @@ with st.sidebar:
             backend_opts["block_private"] = not _allow_local_agent
         st.caption("⚠️ Use a **staging** agent, not production.")
 
+    # ── Ready / not-ready badge ──────────────────────────────────────────────
+    # One unambiguous answer to "can I press Run yet?", so nobody discovers a
+    # missing key only after starting a 95-check battery.
+    if backend == "Demo bot (offline)":
+        _ready, _todo = True, ""
+    elif backend == "Claude API":
+        _ready = bool(backend_opts.get("api_key"))
+        _todo = "paste your Anthropic API key above"
+    else:
+        _ready = bool((backend_opts.get("url") or "").strip())
+        _todo = "enter the endpoint URL above"
+
+    st.markdown(
+        f'<div class="conn-badge {"ok" if _ready else "wait"}">'
+        f'{"✅ Ready to test" if _ready else "⏳ Almost there"}'
+        f'<span>{_backend_labels[backend]}'
+        f'{"" if _ready else " — " + _todo}</span></div>',
+        unsafe_allow_html=True,
+    )
 
 
 # Make backend context available to flow functions in flows.py
@@ -4116,9 +4182,9 @@ _JOURNEY_STEPS = [
 # ============================================================================
 
 _WIZARD_STEPS = [
-    ("About your AI",    "Tell us what you're testing"),
-    ("Choose tests",     "Pick what to check"),
-    ("Run & certify",    "Get your report"),
+    ("Describe your AI", "Tell us what you're testing"),
+    ("Review coverage",  "See what will be checked"),
+    ("Run & certify",    "Get your graded report"),
 ]
 
 
@@ -4137,18 +4203,23 @@ def _wizard_header(step: int) -> None:
         )
         if i < len(_WIZARD_STEPS) - 1:
             parts.append(f'<div class="step-connector {"done" if done else ""}"></div>')
-    st.markdown(f'<div class="step-bar">{"".join(parts)}</div>', unsafe_allow_html=True)
+    _hint = _WIZARD_STEPS[step][1]
+    st.markdown(
+        f'<div class="step-bar">{"".join(parts)}</div>'
+        f'<div class="step-hint">Step {step + 1} of {len(_WIZARD_STEPS)} — {_hint}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _wizard_nav(step: int) -> None:
     c1, _, c3 = st.columns([1, 2, 1])
     if step > 0:
-        if c1.button("← Back", key=f"wz_back_{step}"):
+        if c1.button("← Back", key=f"wz_back_{step}", use_container_width=True):
             st.session_state["wizard_step"] = step - 1
             st.rerun()
     if step < 2:
         lbl = "Continue →" if step == 0 else "Run certification →"
-        if c3.button(lbl, type="primary", key=f"wz_next_{step}"):
+        if c3.button(lbl, type="primary", key=f"wz_next_{step}", use_container_width=True):
             st.session_state["wizard_step"] = step + 1
             st.rerun()
 
@@ -4297,14 +4368,13 @@ def _wizard_step_cases() -> None:
 # Hero section — shown on every tab, sets commercial tone
 # ============================================================================
 st.markdown("""
-<div style="padding: 28px 0 10px 0;">
+<div class="hero-wrap">
   <div class="hero-badge">🧪 AI TESTING STUDIO</div>
   <div class="hero-title">Test. Certify. <span>Ship with confidence.</span></div>
   <div class="hero-sub">
-    The evaluation platform built for teams shipping AI products —
-    benchmark any model or agent across safety, accuracy, reasoning, bias,
-    and compliance. Get a defensible <strong>SHIP / NO-SHIP verdict</strong> in minutes.
-    <br><em style="opacity:.7">Tap any capability below to see what it means, with examples.</em>
+    Point at any model or agent, run one battery of safety / accuracy / bias checks,
+    and get a graded certificate you can defend. Start in
+    <strong>🧪 Certify an AI</strong> below — it walks you through three steps.
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -4346,20 +4416,22 @@ _HERO_PILLS = {
         ["`studio_ci.py --backend claude --fail-on block` → non-zero exit fails the build.",
          "Emits JUnit XML your CI renders as named test results."]),
 }
-_pill_cols = st.columns(4)
-for _i, (_label, (_meaning, _examples)) in enumerate(_HERO_PILLS.items()):
-    with _pill_cols[_i % 4].popover(_label, use_container_width=True):
-        st.markdown(f"**What it means**\n\n{_meaning}")
-        st.markdown("**Examples**")
-        for _ex in _examples:
-            st.markdown(f"- {_ex}")
+with st.expander("🔍 What does this platform actually check? (8 capabilities, with examples)"):
+    st.caption("Nothing to configure here — this is reference. Tap a capability to see examples.")
+    _pill_cols = st.columns(4)
+    for _i, (_label, (_meaning, _examples)) in enumerate(_HERO_PILLS.items()):
+        with _pill_cols[_i % 4].popover(_label, use_container_width=True):
+            st.markdown(f"**What it means**\n\n{_meaning}")
+            st.markdown("**Examples**")
+            for _ex in _examples:
+                st.markdown(f"- {_ex}")
 st.write("")
 
 # ============================================================================
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
 (tab_wizard, tab_leaderboard, tab_gauntlet, tab_academy, tab_help) = st.tabs(
-    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Sir Leaks-a-Lot",
+    ["🧪 Certify an AI", "🏆 Leaderboard", "🛡️ Hacking game (Sir Leaks-a-Lot)",
      "🎓 Red-Team Academy", "ℹ️ How it works"]
 )
 
