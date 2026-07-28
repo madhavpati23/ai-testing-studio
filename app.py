@@ -1686,7 +1686,9 @@ def _flow_gauntlet():
     st.info(f"🎯 **Goal:** get the secret word out of Sir Leaks-a-Lot.\n\n"
             f"🧱 **This level's twist:** {lvl.defense}")
 
-    # ── Chat with Sir Leaks-a-Lot (running transcript, like Gandalf) ──────────
+    # ══ STEP 1 — chat to extract the secret ══════════════════════════════════
+    st.markdown("##### 💬 Step 1 · Talk to Sir Leaks-a-Lot")
+    st.caption("Chat with him to get the secret word out — it may come out disguised or encoded.")
     log = st.session_state.setdefault(f"gaunt_log_{lvl.n}", [])
     if not log:
         with st.chat_message("assistant", avatar="🛡️"):
@@ -1695,9 +1697,34 @@ def _flow_gauntlet():
         with st.chat_message(m["role"], avatar=("🧑" if m["role"] == "user" else "🛡️")):
             st.write(m["text"])
 
-    # ── Got it? Type the secret word in to unlock the next level ─────────────
+    _use_real = bool(st.session_state.get("gauntlet_real", False))
+    with st.form(f"gaunt_chat_form_{lvl.n}", clear_on_submit=True):
+        mc1, mc2 = st.columns([5, 1])
+        user_msg = mc1.text_input("Message", label_visibility="collapsed",
+                                  key=f"gaunt_msg_{lvl.n}",
+                                  placeholder="Ask Sir Leaks-a-Lot for the secret word…")
+        sent = mc2.form_submit_button("Send ➤", type="primary", use_container_width=True)
+    if sent and user_msg.strip():
+        model, res, _ok = None, None, True
+        try:
+            if _use_real and kind != "mock":
+                model = core.make_model(kind, backend_opts, system_prompt=G.build_defender_system(lvl))
+            res = G.run_attempt(lvl.n, user_msg, model=model)
+        except Exception as exc:
+            _ok = False
+            st.error(f"Something went wrong against **{backend}**: {exc}")
+        if _ok and res is not None:
+            # Extracting the secret does NOT auto-solve the level — you decode
+            # what you got and type the word into the Step-2 box.
+            log.append({"role": "user", "text": user_msg})
+            log.append({"role": "assistant", "text": res.reply})
+            st.session_state["gaunt_attempts"] += 1
+            st.rerun()
+
+    # ══ STEP 2 — enter the word to unlock ════════════════════════════════════
+    st.divider()
     if lvl.n in solved:
-        st.success(f"✅ You've already cracked Level {lvl.n} — the word was **{lvl.secret}**.")
+        st.success(f"✅ You've cracked Level {lvl.n} — the word was **{lvl.secret}**.")
         if lvl.n < len(G.LEVELS):
             if st.button(f"➡️  Next: Level {lvl.n + 1}", type="primary",
                          key=f"gaunt_next_{lvl.n}", use_container_width=True):
@@ -1706,11 +1733,14 @@ def _flow_gauntlet():
         else:
             st.info("🏆 Boss defeated — the whole gauntlet is clear!")
     else:
+        st.markdown("##### 🔓 Step 2 · Enter the secret word to unlock")
+        st.caption("Got it out of him (and decoded it, if it was encoded)? Type the word to clear "
+                   "the level.")
         with st.form(f"gaunt_guess_form_{lvl.n}", clear_on_submit=True):
             gc1, gc2 = st.columns([3, 1])
             _guess = gc1.text_input("Secret word", label_visibility="collapsed",
                                     key=f"gaunt_guess_{lvl.n}",
-                                    placeholder="Cracked it? Type the secret word here…")
+                                    placeholder="Type the secret word here…")
             _try = gc2.form_submit_button("Unlock 🔓", type="primary", use_container_width=True)
         if _try:
             if G.check_guess(lvl.n, _guess):
@@ -1731,25 +1761,6 @@ def _flow_gauntlet():
 
     with st.expander("💡 Stuck? Reveal a hint"):
         st.markdown(lvl.hint)
-
-    _use_real = bool(st.session_state.get("gauntlet_real", False))
-    user_msg = st.chat_input("Ask Sir Leaks-a-Lot for the secret word…")
-    if user_msg:
-        model, res, _ok = None, None, True
-        try:
-            if _use_real and kind != "mock":
-                model = core.make_model(kind, backend_opts, system_prompt=G.build_defender_system(lvl))
-            res = G.run_attempt(lvl.n, user_msg, model=model)
-        except Exception as exc:
-            _ok = False
-            st.error(f"Something went wrong against **{backend}**: {exc}")
-        if _ok and res is not None:
-            # Extracting the secret does NOT auto-solve the level — you have to
-            # decode what you got and type the word into the guess box.
-            log.append({"role": "user", "text": user_msg})
-            log.append({"role": "assistant", "text": res.reply})
-            st.session_state["gaunt_attempts"] += 1
-            st.rerun()
 
     # ── Everything else, tucked away ──────────────────────────────────────────
     with st.expander("⚙️ Options · Leaderboard · Defender mode"):
