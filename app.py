@@ -332,7 +332,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 /* ── Hero ───────────────────────────────────────────────────────────────── */
 /* Deliberately compact: it repeats on every tab, so it must not push the
    actual work below the fold. */
-.hero-wrap { padding: 0.6rem 0 0.9rem 0; }
+.hero-wrap { padding: 0.4rem 0 0.6rem 0; text-align: left; }
 .hero-badge {
     display: inline-block; background: rgba(124,92,255,0.14); color: var(--accent-2);
     border: 1px solid rgba(124,92,255,0.35); border-radius: 999px;
@@ -340,14 +340,25 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
     letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 14px;
 }
 .hero-title {
-    font-size: 2.1rem; font-weight: 800; line-height: 1.12;
-    color: var(--text); margin: 0 0 10px 0; letter-spacing: -0.02em;
+    font-size: 2.7rem; font-weight: 800; line-height: 1.08;
+    color: var(--text); margin: 0 0 12px 0; letter-spacing: -0.025em;
 }
 .hero-title span {
     background: var(--grad); -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
 }
-.hero-sub { font-size: 1.02rem; color: var(--text-muted); margin: 0 0 18px 0; max-width: 760px; }
+.hero-sub { font-size: 1.02rem; color: var(--text-muted); margin: 0; max-width: 640px; }
+/* right-side at-a-glance card */
+.hero-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 8px 18px; box-shadow: var(--shadow); margin-top: 6px;
+}
+.hero-card .hc-row {
+    padding: 9px 0; color: var(--text-muted); font-size: .95rem;
+    border-bottom: 1px solid var(--border); display: flex; gap: 9px; align-items: center;
+}
+.hero-card .hc-row:last-child { border-bottom: none; }
+.hero-card .hc-row b { color: var(--text); }
 .pill {
     display: inline-block; background: var(--surface-2); color: #cdd3e0;
     border: 1px solid var(--border); border-radius: 999px;
@@ -425,13 +436,21 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 [data-testid="stMetricValue"] { font-weight: 800; letter-spacing: -0.02em; }
 [data-testid="stMetricLabel"] { color: var(--text-muted); }
 
-/* ── Tabs ───────────────────────────────────────────────────────────────── */
-.stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid var(--border); }
+/* ── Tabs (big & clearly highlighted) ───────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 2px solid var(--border); }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 10px 10px 0 0; padding: 8px 18px; font-weight: 600; color: var(--text-muted);
+    border-radius: 12px 12px 0 0; padding: 12px 22px; color: var(--text-muted);
 }
-.stTabs [aria-selected="true"] { color: #fff; background: rgba(124,92,255,0.12); }
-.stTabs [data-baseweb="tab-highlight"] { background: var(--accent); height: 3px; border-radius: 3px; }
+.stTabs [data-baseweb="tab"] p { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+.stTabs [aria-selected="true"] {
+    color: #fff; background: rgba(124,92,255,0.20);
+    box-shadow: inset 0 -3px 0 var(--accent);
+}
+.stTabs [aria-selected="true"] p { color: #fff; }
+.stTabs [data-baseweb="tab-highlight"] {
+    background: var(--accent); height: 4px; border-radius: 4px;
+    box-shadow: 0 0 14px rgba(124,92,255,.75);
+}
 
 /* ── Bordered containers, expanders, code, inputs ───────────────────────── */
 [data-testid="stExpander"] {
@@ -4526,15 +4545,26 @@ def _wizard_step_cases() -> None:
 # ============================================================================
 # Hero section — shown on every tab, sets commercial tone
 # ============================================================================
-st.markdown("""
+_hero_l, _hero_r = st.columns([3, 2], gap="large")
+with _hero_l:
+    st.markdown("""
 <div class="hero-wrap">
   <div class="hero-badge">🧪 AI TESTING STUDIO</div>
-  <div class="hero-title">Test. Certify. <span>Ship with confidence.</span></div>
+  <div class="hero-title">Test. Certify.<br><span>Ship with confidence.</span></div>
   <div class="hero-sub">
     Point at any model or agent, run one battery of safety / accuracy / bias checks,
     and get a graded certificate you can defend. Start in
     <strong>🧪 Certify an AI</strong> below — it walks you through three steps.
   </div>
+</div>
+""", unsafe_allow_html=True)
+with _hero_r:
+    st.markdown("""
+<div class="hero-card">
+  <div class="hc-row">🎯 <span><b>12</b> risk dimensions</span></div>
+  <div class="hc-row">🏅 <span><b>A–F</b> graded certificate</span></div>
+  <div class="hc-row">🛡️ <span>safety · red-team · bias · agents</span></div>
+  <div class="hc-row">🔗 <span>CI/CD-ready · compare models</span></div>
 </div>
 """, unsafe_allow_html=True)
 
