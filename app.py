@@ -299,9 +299,17 @@ _THOROUGH = {
 
 st.set_page_config(page_title="AI Testing Studio", page_icon="🧪", layout="wide")
 
+# Active theme (light/dark) chosen via Streamlit's built-in theme switcher
+# (top-right ☰ → Settings → Theme). We read it and adapt our custom palette to
+# match; Streamlit themes its own widgets (inputs, dataframes, alerts) natively.
+try:
+    _UI_THEME = st.context.theme.type or "dark"
+except Exception:
+    _UI_THEME = "dark"
+
 st.markdown("""
 <style>
-/* ══ Fresh look: modern dark design system ═══════════════════════════════ */
+/* ══ Fresh look: modern dark design system (dark = default palette) ══════ */
 :root {
     --bg:        #0f1117;
     --surface:   #171a24;
@@ -353,7 +361,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
     border: 1px solid var(--border); border-radius: 999px;
     padding: 5px 13px; font-size: 0.8rem; font-weight: 500; margin: 3px 3px 3px 0;
 }
-.pill:hover { border-color: rgba(124,92,255,0.45); color: #fff; }
+.pill:hover { border-color: rgba(124,92,255,0.45); color: var(--text); }
 
 /* ── Step progress bar ──────────────────────────────────────────────────── */
 .step-bar { display: flex; align-items: center; margin: 0.5rem 0 1.6rem 0; }
@@ -364,7 +372,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 }
 .step-item.done { color: var(--accent-2); }
 .step-item.active {
-    background: rgba(124,92,255,0.13); color: #fff; font-weight: 700;
+    background: rgba(124,92,255,0.13); color: var(--text); font-weight: 700;
     border: 1px solid rgba(124,92,255,0.4);
 }
 .step-num {
@@ -409,7 +417,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
     background: var(--surface-2); color: var(--text); transition: all 0.15s ease;
 }
 .stButton > button:hover, .stDownloadButton > button:hover {
-    border-color: rgba(124,92,255,0.6); color: #fff; transform: translateY(-1px);
+    border-color: rgba(124,92,255,0.6); color: var(--text); transform: translateY(-1px);
 }
 .stButton > button[kind="primary"], .stButton > button[data-testid="baseButton-primary"] {
     background: var(--grad); border: none; color: #fff;
@@ -433,10 +441,10 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 .stTabs [data-baseweb="tab"] p { font-size: 1.0rem; font-weight: 700; letter-spacing: -0.01em;
     white-space: nowrap; }
 .stTabs [aria-selected="true"] {
-    color: #fff; background: rgba(124,92,255,0.20);
+    color: var(--accent); background: rgba(124,92,255,0.20);
     box-shadow: inset 0 -3px 0 var(--accent);
 }
-.stTabs [aria-selected="true"] p { color: #fff; }
+.stTabs [aria-selected="true"] p { color: var(--accent); }
 .stTabs [data-baseweb="tab-highlight"] {
     background: var(--accent); height: 4px; border-radius: 4px;
     box-shadow: 0 0 14px rgba(124,92,255,.75);
@@ -488,6 +496,30 @@ hr { border-color: var(--border); }
 
 /* Full-width primary buttons (wizard nav, Run) get a bit more presence */
 .stButton > button { padding: 0.5rem 1.1rem; }
+/* hover on tab list is white-tint by default (fine on dark); light overrides below */
+.stTabs [data-baseweb="tab"]:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+</style>
+""", unsafe_allow_html=True)
+
+# Light-theme palette: re-point our design tokens to light values so every custom
+# component (cards, tabs, metrics, hero, gauntlet…) flips with the native theme.
+if _UI_THEME == "light":
+    st.markdown("""
+<style>
+:root {
+    --bg:        #ffffff;
+    --surface:   #f6f7f9;
+    --surface-2: #eceef3;
+    --border:    rgba(0,0,0,0.12);
+    --border-2:  rgba(0,0,0,0.18);
+    --text:      #1f2328;
+    --text-muted:#5b6472;
+    --shadow: 0 6px 24px rgba(2,6,23,0.10);
+}
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #f7f8fb 0%, #eef0f5 100%);
+    border-right: 1px solid var(--border);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -511,6 +543,10 @@ def _clear_feature():
 
 # ---- sidebar: which model to test against ---------------------------------
 with st.sidebar:
+    # Theme indicator — the app follows Streamlit's built-in Light/Dark switcher.
+    st.caption(f"{'🌙 Dark' if _UI_THEME == 'dark' else '☀️ Light'} theme · "
+               "switch in the **☰** menu (top-right) → **Settings → Theme**")
+
     # Optional account — only shown if an OIDC provider is configured.
     _auth_configured, _logged_in, _email = _auth_status()
     if _auth_configured:
