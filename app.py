@@ -347,18 +347,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
     background: var(--grad); -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
 }
-.hero-sub { font-size: 1.02rem; color: var(--text-muted); margin: 0; max-width: 640px; }
-/* right-side at-a-glance card */
-.hero-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-    padding: 8px 18px; box-shadow: var(--shadow); margin-top: 6px;
-}
-.hero-card .hc-row {
-    padding: 9px 0; color: var(--text-muted); font-size: .95rem;
-    border-bottom: 1px solid var(--border); display: flex; gap: 9px; align-items: center;
-}
-.hero-card .hc-row:last-child { border-bottom: none; }
-.hero-card .hc-row b { color: var(--text); }
+.hero-sub { font-size: 1.05rem; color: var(--text-muted); margin: 0; max-width: 900px; }
 .pill {
     display: inline-block; background: var(--surface-2); color: #cdd3e0;
     border: 1px solid var(--border); border-radius: 999px;
