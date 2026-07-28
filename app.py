@@ -439,9 +439,10 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 /* ── Tabs (big & clearly highlighted) ───────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] { gap: 4px; border-bottom: 2px solid var(--border); }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 12px 12px 0 0; padding: 12px 22px; color: var(--text-muted);
+    border-radius: 12px 12px 0 0; padding: 10px 15px; color: var(--text-muted);
 }
-.stTabs [data-baseweb="tab"] p { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; }
+.stTabs [data-baseweb="tab"] p { font-size: 1.0rem; font-weight: 700; letter-spacing: -0.01em;
+    white-space: nowrap; }
 .stTabs [aria-selected="true"] {
     color: #fff; background: rgba(124,92,255,0.20);
     box-shadow: inset 0 -3px 0 var(--accent);
@@ -4545,26 +4546,15 @@ def _wizard_step_cases() -> None:
 # ============================================================================
 # Hero section — shown on every tab, sets commercial tone
 # ============================================================================
-_hero_l, _hero_r = st.columns([3, 2], gap="large")
-with _hero_l:
-    st.markdown("""
+st.markdown("""
 <div class="hero-wrap">
   <div class="hero-badge">🧪 AI TESTING STUDIO</div>
-  <div class="hero-title">Test. Certify.<br><span>Ship with confidence.</span></div>
+  <div class="hero-title">Test. Certify. <span>Ship with confidence.</span></div>
   <div class="hero-sub">
     Point at any model or agent, run one battery of safety / accuracy / bias checks,
     and get a graded certificate you can defend. Start in
     <strong>🧪 Certify an AI</strong> below — it walks you through three steps.
   </div>
-</div>
-""", unsafe_allow_html=True)
-with _hero_r:
-    st.markdown("""
-<div class="hero-card">
-  <div class="hc-row">🎯 <span><b>12</b> risk dimensions</span></div>
-  <div class="hc-row">🏅 <span><b>A–F</b> graded certificate</span></div>
-  <div class="hc-row">🛡️ <span>safety · red-team · bias · agents</span></div>
-  <div class="hc-row">🔗 <span>CI/CD-ready · compare models</span></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -4620,8 +4610,8 @@ st.write("")
 # The tab spine — a journey, dispatching to the flow functions above.
 # ============================================================================
 (tab_wizard, tab_behaviors, tab_leaderboard, tab_gauntlet, tab_academy, tab_help) = st.tabs(
-    ["🧪 Certify an AI", "🔁 Behaviors", "🏆 Leaderboard",
-     "🛡️ Hacking game (Sir Leaks-a-Lot)", "🎓 Red-Team Academy", "ℹ️ How it works"]
+    ["🧪 Certify", "🔁 Behaviors", "🏆 Leaderboard",
+     "🛡️ Hacking Game", "🎓 Red-Team Academy", "ℹ️ How it works"]
 )
 
 with tab_wizard:
